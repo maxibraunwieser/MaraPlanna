@@ -1,0 +1,33 @@
+name: Deploy Supabase (database + Garmin function)
+
+# Optional. Runs only once the repository variable SUPABASE_PROJECT_REF and the
+# secrets SUPABASE_ACCESS_TOKEN + SUPABASE_DB_PASSWORD are configured.
+on:
+  push:
+    branches: [main]
+    paths: ['supabase/**']
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: ${{ vars.SUPABASE_PROJECT_REF != '' }}
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      GARMIN_ENCRYPTION_KEY: ${{ secrets.GARMIN_ENCRYPTION_KEY }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+      - run: supabase db push --password "$SUPABASE_DB_PASSWORD"
+      - name: Set function secrets
+        run: |
+          [ -n "$GARMIN_ENCRYPTION_KEY" ] && supabase secrets set --project-ref "$PROJECT_REF" GARMIN_ENCRYPTION_KEY="$GARMIN_ENCRYPTION_KEY"
+          [ -n "$CRON_SECRET" ] && supabase secrets set --project-ref "$PROJECT_REF" CRON_SECRET="$CRON_SECRET"
+          true
+      - run: supabase functions deploy garmin --project-ref "$PROJECT_REF" --no-verify-jwt
