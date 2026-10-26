@@ -3,6 +3,7 @@
 // POST JSON with the caller's Supabase session as Bearer token:
 //   { "action": "connect", "apiKey": "…" }   store key (encrypted) + first sync
 //   { "action": "sync", "full": false }        pull new activities & wellness data
+//   { "action": "details", "activityId": "…" } laps + stream of one run (from the FIT file)
 //   { "action": "disconnect" }                 forget the key
 // Scheduled sync of every user: header `x-cron-secret: <CRON_SECRET>` and
 //   { "action": "sync-all" }
@@ -11,6 +12,8 @@
 // Garmin Personal API: https://developer.garmin.com/gc-developer-program/personal/
 
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { Decoder, Stream } from 'npm:@garmin/fitsdk@21.218.0';
+import { unzipSync } from 'npm:fflate@0.8.3';
 
 const GARMIN_BASE = Deno.env.get('GARMIN_PERSONAL_API_BASE_URL') ?? 'https://personal.connectapi.garmin.com';
 const TOKEN_PATH = '/personalapitoken-service/personal-api/personal-api-key/token';
@@ -134,21 +137,30 @@ class GarminClient {
     private renew: () => Promise<string>,
   ) {}
 
-  async get(path: string, params: Record<string, string | number> = {}): Promise<unknown> {
+  private async request(path: string, params: Record<string, string | number>, accept: string): Promise<Response> {
     const url = new URL(GARMIN_BASE + path);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
     for (let attempt = 0; attempt < 2; attempt++) {
-      const res = await fetch(url, { headers: { Accept: 'application/json', Authorization: `Bearer ${this.token}` } });
+      const res = await fetch(url, { headers: { Accept: accept, Authorization: `Bearer ${this.token}` } });
       if (res.status === 401 && attempt === 0) {
         this.token = await this.renew();
         continue;
       }
       if (res.status === 429) throw new HttpError(429, 'Garmin rate limit reached – try syncing again in a few minutes.');
       if (!res.ok) throw new HttpError(502, `Garmin ${path} answered ${res.status}`);
-      const text = await res.text();
-      return text ? JSON.parse(text) : null;
+      return res;
     }
     throw new HttpError(502, `Garmin ${path}: unauthorized`);
+  }
+
+  async get(path: string, params: Record<string, string | number> = {}): Promise<unknown> {
+    const text = await (await this.request(path, params, 'application/json')).text();
+    return text ? JSON.parse(text) : null;
+  }
+
+  async download(path: string): Promise<Uint8Array> {
+    const res = await this.request(path, {}, 'application/zip, application/x-zip-compressed, application/octet-stream');
+    return new Uint8Array(await res.arrayBuffer());
   }
 }
 
@@ -256,6 +268,58 @@ function mapActivity(a: Rec, userId: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Activity details (laps + downsampled stream) from the original FIT file
+// ---------------------------------------------------------------------------
+
+const ms = (v: unknown) => (v instanceof Date ? v.getTime() : typeof v === 'number' ? v : typeof v === 'string' ? Date.parse(v) : NaN);
+const round = (v: unknown, digits = 0) => {
+  const n = num(v);
+  return n === null ? null : Math.round(n * 10 ** digits) / 10 ** digits;
+};
+
+function fitDetails(bytes: Uint8Array) {
+  let fit = bytes;
+  if (bytes[0] === 0x50 && bytes[1] === 0x4b) {
+    const entry = Object.entries(unzipSync(bytes)).find(([name]) => name.toLowerCase().endsWith('.fit'));
+    if (!entry) throw new HttpError(502, 'The Garmin download contained no FIT file.');
+    fit = entry[1];
+  }
+  const { messages } = new Decoder(Stream.fromByteArray(fit)).read();
+  const records = ((messages as Rec).recordMesgs ?? []) as Rec[];
+  const laps = ((messages as Rec).lapMesgs ?? []) as Rec[];
+  const t0 = ms(records[0]?.timestamp ?? laps[0]?.startTime);
+  const samples: Rec[] = [];
+  let lastT = -Infinity;
+  for (const r of records) {
+    const t = (ms(r.timestamp) - t0) / 1000;
+    if (!Number.isFinite(t) || t - lastT < 10) continue;
+    lastT = t;
+    samples.push({
+      t: Math.round(t),
+      d: round(r.distance) ?? (samples.length ? samples[samples.length - 1].d : 0),
+      hr: round(r.heartRate),
+      v: round(r.enhancedSpeed ?? r.speed, 2),
+      alt: round(r.enhancedAltitude ?? r.altitude, 1),
+    });
+  }
+  return {
+    laps: laps.map((l) => ({
+      startS: Math.round((ms(l.startTime) - t0) / 1000) || 0,
+      durationS: round(l.totalTimerTime ?? l.totalElapsedTime) ?? 0,
+      distanceM: round(l.totalDistance) ?? 0,
+      avgSpeed: round(l.enhancedAvgSpeed ?? l.avgSpeed, 3),
+      avgHr: round(l.avgHeartRate),
+      maxHr: round(l.maxHeartRate),
+      cadence: round(l.avgRunningCadence ?? l.avgCadence),
+      intensity: typeof l.intensity === 'string' ? l.intensity : null,
+    })),
+    samples,
+  };
+}
+
+const fetchDetails = async (g: GarminClient, externalId: string) => fitDetails(await g.download(`/download-service/files/activity/${externalId}`));
+
+// ---------------------------------------------------------------------------
 // Sync
 // ---------------------------------------------------------------------------
 
@@ -346,6 +410,27 @@ async function syncUser(admin: SupabaseClient, userId: string, opts: { full?: bo
   for (let i = 0; i < rows.length; i += 200) {
     const { error } = await admin.from('activities').upsert(rows.slice(i, i + 200), { onConflict: 'user_id,source,external_id' });
     if (error) throw new HttpError(500, `Saving activities failed: ${error.message}`);
+  }
+
+  // Laps + stream for the most recent runs (used by the workout analysis).
+  try {
+    const { data: missing, error } = await admin
+      .from('activities')
+      .select('id, external_id')
+      .eq('user_id', userId)
+      .eq('source', 'garmin')
+      .eq('sport', 'run')
+      .is('details', null)
+      .gte('local_date', isoDay(now - 14 * DAY_MS))
+      .order('start_time', { ascending: false })
+      .limit(6);
+    if (error) throw new Error(error.message);
+    for (const m of missing ?? []) {
+      const details = await fetchDetails(g, m.external_id);
+      await admin.from('activities').update({ details }).eq('id', m.id);
+    }
+  } catch (e) {
+    warnings.push(`run details: ${(e as Error).message}`);
   }
 
   // Wellness, merged per day
@@ -501,6 +586,20 @@ Deno.serve(async (req) => {
       }
       case 'sync':
         return json(await syncUser(admin, userId, { full: body.full === true }));
+      case 'details': {
+        const { data: act, error } = await admin
+          .from('activities')
+          .select('id, source, external_id, details')
+          .eq('id', String(body.activityId ?? ''))
+          .eq('user_id', userId)
+          .maybeSingle();
+        if (error) throw new HttpError(500, error.message.includes('details') ? 'Database update needed: run the latest migration.' : error.message);
+        if (!act) throw new HttpError(404, 'Activity not found.');
+        if (act.details || act.source !== 'garmin' || !act.external_id) return json({ details: act.details ?? null });
+        const details = await fetchDetails(await clientFor(admin, userId), act.external_id);
+        await admin.from('activities').update({ details }).eq('id', act.id);
+        return json({ details });
+      }
       case 'disconnect': {
         await admin.from('garmin_secrets').delete().eq('user_id', userId);
         await admin.from('garmin_connections').delete().eq('user_id', userId);

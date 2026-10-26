@@ -3,7 +3,7 @@
 import { Decoder, Stream } from '@garmin/fitsdk';
 import { unzipSync } from 'fflate';
 import type { ActivityInsert } from './api';
-import type { Sport } from './types';
+import type { ActivityDetails, Sport } from './types';
 
 function sportOf(sport: string): Sport {
   const s = sport.toLowerCase();
@@ -17,6 +17,43 @@ function sportOf(sport: string): Sport {
 
 const localDate = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+const ms = (v: unknown) => (v instanceof Date ? v.getTime() : typeof v === 'number' ? v : NaN);
+const num = (v: unknown, digits = 0) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v * 10 ** digits) / 10 ** digits : null);
+
+/** Laps + a stream downsampled to ~10 s, same shape the Garmin sync stores. */
+function extractDetails(messages: Record<string, unknown>): ActivityDetails {
+  const records = (messages.recordMesgs ?? []) as Record<string, unknown>[];
+  const laps = (messages.lapMesgs ?? []) as Record<string, unknown>[];
+  const t0 = ms(records[0]?.timestamp ?? laps[0]?.startTime);
+  const samples: ActivityDetails['samples'] = [];
+  let lastT = -Infinity;
+  for (const r of records) {
+    const t = (ms(r.timestamp) - t0) / 1000;
+    if (!Number.isFinite(t) || t - lastT < 10) continue;
+    lastT = t;
+    samples.push({
+      t: Math.round(t),
+      d: num(r.distance) ?? (samples.length ? samples[samples.length - 1].d : 0),
+      hr: num(r.heartRate),
+      v: num(r.enhancedSpeed ?? r.speed, 2),
+      alt: num(r.enhancedAltitude ?? r.altitude, 1),
+    });
+  }
+  return {
+    laps: laps.map((l) => ({
+      startS: Math.round((ms(l.startTime) - t0) / 1000) || 0,
+      durationS: num(l.totalTimerTime ?? l.totalElapsedTime) ?? 0,
+      distanceM: num(l.totalDistance) ?? 0,
+      avgSpeed: num(l.enhancedAvgSpeed ?? l.avgSpeed, 3),
+      avgHr: num(l.avgHeartRate),
+      maxHr: num(l.maxHeartRate),
+      cadence: num(l.avgRunningCadence ?? l.avgCadence),
+      intensity: typeof l.intensity === 'string' ? l.intensity : null,
+    })),
+    samples,
+  };
+}
 
 function parseFit(bytes: Uint8Array, userId: string): ActivityInsert {
   const decoder = new Decoder(Stream.fromByteArray(bytes));
@@ -48,6 +85,7 @@ function parseFit(bytes: Uint8Array, userId: string): ActivityInsert {
     training_load: null,
     aerobic_te: n(session.totalTrainingEffect),
     vo2max: null,
+    details: extractDetails(messages as Record<string, unknown>),
   };
 }
 

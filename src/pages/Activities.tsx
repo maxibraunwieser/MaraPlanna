@@ -1,5 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react';
-import { Dumbbell, FileUp, Footprints, Plus, Trash2, Watch } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Dumbbell, FileUp, Footprints, Gauge, Plus, Trash2, Watch } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useData } from '../lib/data';
 import { deleteActivity, insertActivities } from '../lib/api';
@@ -38,6 +39,9 @@ function ActivityLine({ a, onDelete }: { a: Activity; onDelete?: () => void }) {
           {a.avg_hr ? <span>♥ {a.avg_hr}</span> : null}
         </div>
       </div>
+      <Link to={`/analysis/${a.id}`} className="rounded-lg p-2 text-slate-400 hover:bg-orange-50 hover:text-brand" aria-label="Open analysis" title="Analysis">
+        <Gauge className="h-4 w-4" />
+      </Link>
       {onDelete && (
         <button onClick={onDelete} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Delete activity">
           <Trash2 className="h-4 w-4" />

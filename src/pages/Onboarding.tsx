@@ -2,13 +2,18 @@ import { useState, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
 import type { OnboardingAnswers, Weekday } from '../lib/types';
-import { addDays, daysBetween, todayISO, weekdayOf } from '../lib/planner/dates';
+import { addDays, daysBetween, todayISO } from '../lib/planner/dates';
+import { checkTemplate, normalizeAnswers } from '../lib/answers';
+import { suggestWeek } from '../lib/planner/generate';
+import { CustomWeekEditor, ExtrasPicker } from '../components/WeekBuilder';
 import { fmtDuration, fromUnit, parseTime, toUnit } from '../lib/format';
 import { saveOnboarding } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useData } from '../lib/data';
 import { CenteredPage } from '../components/Layout';
 import { Button, Card, cx, Field, Input, Notice, Segmented, Select, Textarea, Toggle } from '../components/ui';
+
+export { defaultAnswers } from '../lib/answers';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const RACE_DISTANCES = [
@@ -18,43 +23,13 @@ const RACE_DISTANCES = [
   { m: 42195, label: 'Marathon' },
 ];
 
-export function defaultAnswers(): OnboardingAnswers {
-  const in18 = addDays(todayISO(), 18 * 7);
-  const sunday = addDays(in18, 6 - weekdayOf(in18));
-  return {
-    raceName: '',
-    raceDate: sunday,
-    goalType: 'finish',
-    goalTimeS: null,
-    raceTerrain: 'flat',
-    level: 'intermediate',
-    yearsRunning: 2,
-    marathonsCompleted: 0,
-    recentRace: null,
-    currentWeeklyKm: 25,
-    longestRecentRunKm: 12,
-    runDaysPerWeek: 4,
-    availableDays: [0, 1, 2, 3, 4, 5, 6],
-    longRunDay: 6,
-    weekdayMaxMinutes: null,
-    strength: { enabled: true, focus: 'upper_lower', perWeek: 2, equipment: 'bodyweight' },
-    age: null,
-    sex: null,
-    maxHr: null,
-    injuryProne: false,
-    injuries: '',
-    approach: 'balanced',
-    units: 'km',
-  };
-}
-
 export function Onboarding() {
   const { user } = useAuth();
   const { profile, reload } = useData();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const editing = !!profile?.onboarding_completed_at || params.get('edit') === '1';
-  const [a, setA] = useState<OnboardingAnswers>(() => ({ ...defaultAnswers(), ...(profile?.onboarding ?? {}) }));
+  const [a, setA] = useState<OnboardingAnswers>(() => normalizeAnswers(profile?.onboarding));
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -220,49 +195,84 @@ export function Onboarding() {
       ),
     },
     {
+      title: 'Extra training',
+      subtitle: 'Pick everything you want besides running – as many as you like. Heavy and plyometric strength work makes running more economical.',
+      validate: () => (a.extras.some((e) => e.type === 'custom' && !e.name) ? 'Give your own workout a name.' : null),
+      body: (
+        <ExtrasPicker
+          extras={a.extras}
+          equipment={a.equipment}
+          onChange={(extras) =>
+            setA((p) => ({
+              ...p,
+              extras,
+              customWeek: p.customWeek?.map((d) => ({ ...d, extras: d.extras.filter((id) => extras.some((e) => e.id === id)) })) ?? null,
+            }))
+          }
+          onEquipment={(v) => set('equipment', v)}
+        />
+      ),
+    },
+    {
       title: 'Your week',
-      subtitle: 'The plan only uses days you can actually train.',
+      subtitle: 'Decide yourself what happens on which day, or let the planner organise it.',
       validate: () => {
+        if (a.scheduleMode === 'custom') return a.customWeek ? (checkTemplate(a.customWeek, a.extras).errors[0] ?? null) : 'Set up your week.';
         if (a.availableDays.length < Math.min(a.runDaysPerWeek, 3)) return 'Select at least as many available days as run days.';
         if (!a.availableDays.includes(a.longRunDay)) return 'Your long-run day must be one of your available days.';
         return null;
       },
       body: (
         <div className="space-y-5">
-          <Field label="Runs per week">
-            <Segmented
-              value={a.runDaysPerWeek}
-              onChange={(v) => set('runDaysPerWeek', v)}
-              options={[3, 4, 5, 6, 7].map((n) => ({ value: n, label: String(n) }))}
-            />
-          </Field>
-          <Field label="Days you can run" hint={`${a.availableDays.length} selected`}>
-            <div className="grid grid-cols-7 gap-1.5">
-              {DAYS.map((d, i) => {
-                const on = a.availableDays.includes(i as Weekday);
-                return (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => set('availableDays', (on ? a.availableDays.filter((x) => x !== i) : [...a.availableDays, i as Weekday]).sort())}
-                    className={cx('rounded-lg py-2 text-xs font-semibold ring-1 transition', on ? 'bg-ink text-white ring-ink' : 'bg-white text-slate-600 ring-slate-300')}
-                  >
-                    {d}
-                  </button>
-                );
-              })}
-            </div>
-          </Field>
-          <Field label="Long-run day">
-            <Select value={a.longRunDay} onChange={(e) => set('longRunDay', Number(e.target.value) as Weekday)}>
-              {DAYS.map((d, i) => (
-                <option key={d} value={i} disabled={!a.availableDays.includes(i as Weekday)}>
-                  {d}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Time limit on weekdays (Mon–Fri)">
+          <Segmented
+            value={a.scheduleMode}
+            onChange={(v) => setA((p) => ({ ...p, scheduleMode: v, customWeek: v === 'custom' ? (p.customWeek ?? suggestWeek(p)) : p.customWeek }))}
+            columns={1}
+            options={[
+              { value: 'auto', label: 'The planner decides', hint: 'You say how often and on which days you can train – MaraPlanna picks the best day for each session.' },
+              { value: 'custom', label: 'I set my days', hint: 'e.g. Mon legs, Tue easy, Thu intervals, Sat upper body, Sun long – MaraPlanna fills in distances, paces and exercises.' },
+            ]}
+          />
+          {a.scheduleMode === 'custom' && a.customWeek ? (
+            <CustomWeekEditor week={a.customWeek} extras={a.extras} onChange={(w) => set('customWeek', w)} />
+          ) : (
+            <>
+              <Field label="Runs per week">
+                <Segmented
+                  value={a.runDaysPerWeek}
+                  onChange={(v) => set('runDaysPerWeek', v)}
+                  options={[3, 4, 5, 6, 7].map((n) => ({ value: n, label: String(n) }))}
+                />
+              </Field>
+              <Field label="Days you can run" hint={`${a.availableDays.length} selected`}>
+                <div className="grid grid-cols-7 gap-1.5">
+                  {DAYS.map((d, i) => {
+                    const on = a.availableDays.includes(i as Weekday);
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => set('availableDays', (on ? a.availableDays.filter((x) => x !== i) : [...a.availableDays, i as Weekday]).sort())}
+                        className={cx('rounded-lg py-2 text-xs font-semibold ring-1 transition', on ? 'bg-ink text-white ring-ink' : 'bg-white text-slate-600 ring-slate-300')}
+                      >
+                        {d}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Field>
+              <Field label="Long-run day">
+                <Select value={a.longRunDay} onChange={(e) => set('longRunDay', Number(e.target.value) as Weekday)}>
+                  {DAYS.map((d, i) => (
+                    <option key={d} value={i} disabled={!a.availableDays.includes(i as Weekday)}>
+                      {d}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </>
+          )}
+          <Field label="Time limit on weekdays (Mon–Fri)" hint="Weekday runs are kept within this time.">
             <Segmented
               value={a.weekdayMaxMinutes ?? 0}
               onChange={(v) => set('weekdayMaxMinutes', v || null)}
@@ -275,56 +285,6 @@ export function Onboarding() {
               ]}
             />
           </Field>
-        </div>
-      ),
-    },
-    {
-      title: 'Strength training',
-      subtitle: 'Strength work makes you more resilient. The planner fits it around your key runs.',
-      validate: () => null,
-      body: (
-        <div className="space-y-5">
-          <Toggle
-            checked={a.strength.enabled}
-            onChange={(v) => set('strength', { ...a.strength, enabled: v })}
-            label="Add strength sessions to my plan"
-            hint="Lower-body work never lands before a long run or a key session."
-          />
-          {a.strength.enabled && (
-            <>
-              <Field label="Focus">
-                <Segmented
-                  value={a.strength.focus}
-                  onChange={(v) => set('strength', { ...a.strength, focus: v })}
-                  columns={2}
-                  options={[
-                    { value: 'upper', label: 'Upper body', hint: 'Posture, arms, core' },
-                    { value: 'lower', label: 'Lower body', hint: 'Legs, glutes, calves' },
-                    { value: 'upper_lower', label: 'Upper / lower split', hint: 'Alternate both' },
-                    { value: 'full', label: 'Full body', hint: 'Everything each session' },
-                  ]}
-                />
-              </Field>
-              <Field label="Sessions per week">
-                <Segmented
-                  value={a.strength.perWeek}
-                  onChange={(v) => set('strength', { ...a.strength, perWeek: v })}
-                  options={[1, 2, 3, 4].map((n) => ({ value: n, label: String(n) }))}
-                />
-              </Field>
-              <Field label="Equipment">
-                <Segmented
-                  value={a.strength.equipment}
-                  onChange={(v) => set('strength', { ...a.strength, equipment: v })}
-                  options={[
-                    { value: 'bodyweight', label: 'Bodyweight' },
-                    { value: 'dumbbells', label: 'Dumbbells' },
-                    { value: 'gym', label: 'Full gym' },
-                  ]}
-                />
-              </Field>
-            </>
-          )}
         </div>
       ),
     },
@@ -393,11 +353,11 @@ export function Onboarding() {
     if (!last) return setStep(step + 1);
     setBusy(true);
     try {
-      const answers: OnboardingAnswers = {
+      const answers: OnboardingAnswers = normalizeAnswers({
         ...a,
         runDaysPerWeek: Math.min(a.runDaysPerWeek, a.availableDays.length),
         goalTimeS: a.goalType === 'time' ? a.goalTimeS : null,
-      };
+      });
       await saveOnboarding(user!.id, answers);
       await reload();
       navigate(editing ? '/plan/new?updated=1' : '/connect?onboarding=1');

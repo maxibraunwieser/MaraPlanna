@@ -21,11 +21,17 @@ const answers = (over: Partial<OnboardingAnswers> = {}): OnboardingAnswers => ({
   recentRace: { distanceM: 21_097, timeS: 1 * 3600 + 48 * 60, date: '2026-09-20' },
   currentWeeklyKm: 35,
   longestRecentRunKm: 16,
+  scheduleMode: 'auto',
+  customWeek: null,
   runDaysPerWeek: 5,
   availableDays: [0, 1, 2, 3, 4, 5, 6],
   longRunDay: 6,
   weekdayMaxMinutes: null,
-  strength: { enabled: true, focus: 'upper_lower', perWeek: 2, equipment: 'gym' },
+  extras: [
+    { id: 'lower', type: 'lower', perWeek: 1 },
+    { id: 'upper', type: 'upper', perWeek: 1 },
+  ],
+  equipment: 'gym',
   age: 34,
   sex: 'male',
   maxHr: null,
@@ -151,8 +157,8 @@ describe('plan generation', () => {
     const taper = plan.weeks.filter((w) => w.phase === 'taper');
     expect(taper[0].targetKm).toBeLessThan(peak);
     const longest = Math.max(...plan.weeks.map((w) => w.longKm));
-    expect(longest).toBeGreaterThanOrEqual(28);
-    expect(longest).toBeLessThanOrEqual(34);
+    expect(longest).toBeGreaterThanOrEqual(31);
+    expect(longest).toBeLessThanOrEqual(35);
   });
 
   it('places strength sessions and never lower body before the long run', () => {
@@ -187,7 +193,8 @@ describe('plan generation', () => {
       weekdayMaxMinutes: 45,
       goalType: 'finish',
       goalTimeS: null,
-      strength: { enabled: true, focus: 'full', perWeek: 1, equipment: 'bodyweight' },
+      extras: [{ id: 'full', type: 'full', perWeek: 1 }],
+      equipment: 'bodyweight',
     });
     const p = buildPlan(b, fitnessFor(b), TODAY);
     expect(p.workouts.at(-1)?.kind).toBe('race');

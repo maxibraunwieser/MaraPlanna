@@ -2,7 +2,7 @@
 // misses, reschedules missed key sessions, rebuilds upcoming weeks after
 // breaks or low compliance, and updates paces when fitness changes.
 
-import type { Activity, DailyMetric, PlanFitness, PlannedWorkout, TrainingPlan, WorkoutKind } from '../types';
+import type { Activity, DailyMetric, PlanFitness, PlannedWorkout, Sport, TrainingPlan, WorkoutKind } from '../types';
 import { addDays, daysBetween, mondayOf, weekdayOf } from './dates';
 import { estimateMaxHr, estimateRestingHr, heartRateVdot, paceFloorVdot } from './fitness';
 import { withNewVdot } from './generate';
@@ -22,7 +22,20 @@ const RUN_KINDS = new Set<WorkoutKind>([
   'easy', 'recovery', 'long', 'long_mp', 'threshold', 'intervals', 'marathon_pace', 'fartlek', 'shakeout', 'race',
 ]);
 export const isRunWorkout = (w: { kind: WorkoutKind }) => RUN_KINDS.has(w.kind);
-const sportOf = (w: PlannedWorkout) => (isRunWorkout(w) ? 'run' : 'strength');
+/** Which recorded activity types can complete a planned workout. */
+const MATCHING_SPORTS: Partial<Record<WorkoutKind, Sport[]>> = {
+  strength_upper: ['strength'],
+  strength_lower: ['strength'],
+  strength_full: ['strength'],
+  core: ['strength', 'mobility', 'other'],
+  mobility: ['mobility', 'other', 'strength'],
+  plyo: ['strength', 'other'],
+  bike: ['bike'],
+  swim: ['swim'],
+  custom: ['other', 'strength', 'bike', 'swim', 'mobility', 'walk'],
+};
+const sportsFor = (w: { kind: WorkoutKind }): Sport[] => (isRunWorkout(w) ? ['run'] : (MATCHING_SPORTS[w.kind] ?? ['strength']));
+const sportOf = (w: PlannedWorkout) => sportsFor(w)[0];
 
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const dayName = (iso: string) => DAY_NAMES[weekdayOf(iso)];
@@ -54,12 +67,13 @@ export function reconcile(workouts: PlannedWorkout[], activities: Activity[], to
     for (const w of open) {
       if (w.activity_id) continue;
       const sport = sportOf(w);
+      const sports = sportsFor(w);
       const dates = pass === 0 ? [w.date] : [addDays(w.date, -1), addDays(w.date, 1)];
       for (const d of dates) {
         if (d > today) continue;
         // On a neighbouring day only use activities that day's own plan doesn't need.
         if (pass === 1 && ws.some((o) => o.id !== w.id && o.date === d && sportOf(o) === sport && o.status !== 'skipped')) continue;
-        const acts = (byDate.get(d) ?? []).filter((a) => a.sport === sport && !linked.has(a.id));
+        const acts = (byDate.get(d) ?? []).filter((a) => sports.includes(a.sport) && !linked.has(a.id));
         if (!acts.length) continue;
         const target = w.distance_km ?? 0;
         const act = acts.sort((a, b) => Math.abs(km(a) - target) - Math.abs(km(b) - target))[0];

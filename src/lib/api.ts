@@ -2,8 +2,10 @@
 
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+import { normalizeAnswers } from './answers';
 import type {
   Activity,
+  ActivityDetails,
   DailyMetric,
   GarminConnection,
   OnboardingAnswers,
@@ -31,7 +33,8 @@ const chunks = <T,>(items: T[], size: number) =>
 // ---------------------------------------------------------------------------
 
 export async function fetchProfile(userId: string): Promise<Profile | null> {
-  return check(await supabase.from('profiles').select('*').eq('id', userId).maybeSingle()) as Profile | null;
+  const p = check(await supabase.from('profiles').select('*').eq('id', userId).maybeSingle()) as Profile | null;
+  return p && p.onboarding ? { ...p, onboarding: normalizeAnswers(p.onboarding) } : p;
 }
 
 export async function fetchConnection(userId: string): Promise<GarminConnection | null> {
@@ -39,9 +42,20 @@ export async function fetchConnection(userId: string): Promise<GarminConnection 
 }
 
 export async function fetchActivePlan(userId: string): Promise<TrainingPlan | null> {
-  return check(
+  const plan = check(
     await supabase.from('training_plans').select('*').eq('user_id', userId).eq('status', 'active').maybeSingle(),
   ) as TrainingPlan | null;
+  return plan ? { ...plan, inputs: normalizeAnswers(plan.inputs) } : null;
+}
+
+/** Laps + stream for one activity; fetched from Garmin on first use. */
+export async function fetchActivityDetails(activity: Activity): Promise<ActivityDetails | null> {
+  const { data, error } = await supabase.from('activities').select('details').eq('id', activity.id).maybeSingle();
+  if (error) throw new Error(error.message.includes('details') ? 'Database update needed – run the latest migration (see README).' : error.message);
+  if (data?.details) return data.details as ActivityDetails;
+  if (activity.source !== 'garmin') return null;
+  const res = await invokeGarmin<{ details: ActivityDetails | null }>({ action: 'details', activityId: activity.id });
+  return res.details;
 }
 
 export async function fetchWorkouts(planId: string): Promise<PlannedWorkout[]> {

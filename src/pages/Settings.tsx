@@ -8,8 +8,8 @@ import { deleteActivePlan, saveProfile } from '../lib/api';
 import { fmtDate, fmtDistance, fmtDuration, fmtRelative } from '../lib/format';
 import type { Units } from '../lib/types';
 import { Badge, Button, Card, CardTitle, Field, Input, PageHeader, Segmented, useToast } from '../components/ui';
+import { extraLabel } from '../components/WeekBuilder';
 
-const FOCUS_LABEL = { upper: 'Upper body', lower: 'Lower body', upper_lower: 'Upper / lower split', full: 'Full body' };
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export function Settings() {
@@ -78,7 +78,8 @@ export function Settings() {
             <div className="flex justify-between gap-3"><dt className="text-slate-500">Goal</dt><dd className="font-medium">{a.goalType === 'time' && a.goalTimeS ? fmtDuration(a.goalTimeS) : 'Finish strong'}</dd></div>
             <div className="flex justify-between gap-3"><dt className="text-slate-500">Runs per week</dt><dd className="font-medium">{a.runDaysPerWeek} · long run {DAYS[a.longRunDay]}</dd></div>
             <div className="flex justify-between gap-3"><dt className="text-slate-500">Available days</dt><dd className="text-right font-medium">{a.availableDays.map((d) => DAYS[d]).join(', ')}</dd></div>
-            <div className="flex justify-between gap-3"><dt className="text-slate-500">Strength</dt><dd className="text-right font-medium">{a.strength.enabled ? `${FOCUS_LABEL[a.strength.focus]} · ${a.strength.perWeek}×/week` : 'Off'}</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-slate-500">Extra training</dt><dd className="text-right font-medium">{a.extras.length ? a.extras.map((e) => `${extraLabel(e)} ${e.perWeek}×`).join(", ") : "None"}</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-slate-500">Week</dt><dd className="font-medium">{a.scheduleMode === "custom" ? "Your fixed days" : "Planner decides"}</dd></div>
             <div className="flex justify-between gap-3"><dt className="text-slate-500">Approach</dt><dd className="font-medium capitalize">{a.approach}</dd></div>
             <div className="flex justify-between gap-3"><dt className="text-slate-500">Current volume</dt><dd className="font-medium">{fmtDistance(a.currentWeeklyKm, units, 0)}/week</dd></div>
             <div className="flex justify-between gap-3"><dt className="text-slate-500">Experience</dt><dd className="font-medium capitalize">{a.level}</dd></div>

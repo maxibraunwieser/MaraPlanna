@@ -6,6 +6,27 @@ export type Approach = 'conservative' | 'balanced' | 'ambitious';
 export type StrengthFocus = 'upper' | 'lower' | 'upper_lower' | 'full';
 export type Equipment = 'bodyweight' | 'dumbbells' | 'gym';
 
+/** Non-running sessions the user can add (multi-select). */
+export type ExtraType = 'upper' | 'lower' | 'full' | 'core' | 'mobility' | 'plyo' | 'bike' | 'swim' | 'custom';
+
+export interface ExtraSession {
+  id: string;
+  type: ExtraType;
+  perWeek: number;
+  /** custom sessions only */
+  name?: string;
+  hard?: boolean;
+  minutes?: number;
+}
+
+export type RunSlot = 'rest' | 'easy' | 'quality' | 'long' | 'recovery';
+
+/** One weekday of a user-defined week: the run type plus extra-session ids. */
+export interface DayTemplate {
+  run: RunSlot;
+  extras: string[];
+}
+
 /** Weekday index: 0 = Monday … 6 = Sunday */
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -24,17 +45,17 @@ export interface OnboardingAnswers {
   currentWeeklyKm: number;
   longestRecentRunKm: number;
 
+  /** 'auto': the planner picks days; 'custom': the user fixed what happens on each day. */
+  scheduleMode: 'auto' | 'custom';
+  /** 7 entries (Mon–Sun) when scheduleMode is 'custom'. */
+  customWeek: DayTemplate[] | null;
   runDaysPerWeek: number;
   availableDays: Weekday[];
   longRunDay: Weekday;
   weekdayMaxMinutes: number | null;
 
-  strength: {
-    enabled: boolean;
-    focus: StrengthFocus;
-    perWeek: number;
-    equipment: Equipment;
-  };
+  extras: ExtraSession[];
+  equipment: Equipment;
 
   age: number | null;
   sex: 'male' | 'female' | 'other' | null;
@@ -67,6 +88,35 @@ export interface Activity {
   training_load: number | null;
   aerobic_te: number | null;
   vo2max: number | null;
+  details?: ActivityDetails | null;
+}
+
+/** Lap + downsampled stream data from the original FIT file. */
+export interface ActivityLap {
+  startS: number;
+  durationS: number;
+  distanceM: number;
+  avgSpeed: number | null;
+  avgHr: number | null;
+  maxHr: number | null;
+  cadence: number | null;
+  intensity: string | null;
+}
+
+export interface ActivitySample {
+  /** seconds since start */
+  t: number;
+  /** metres since start */
+  d: number;
+  hr: number | null;
+  /** m/s */
+  v: number | null;
+  alt: number | null;
+}
+
+export interface ActivityDetails {
+  laps: ActivityLap[];
+  samples: ActivitySample[];
 }
 
 export interface DailyMetric {
@@ -139,7 +189,13 @@ export type WorkoutKind =
   | 'race'
   | 'strength_upper'
   | 'strength_lower'
-  | 'strength_full';
+  | 'strength_full'
+  | 'core'
+  | 'mobility'
+  | 'plyo'
+  | 'bike'
+  | 'swim'
+  | 'custom';
 
 export type Phase = 'base' | 'build' | 'peak' | 'taper';
 

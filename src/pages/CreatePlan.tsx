@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Gauge, Sparkles, Watch } from 'lucide-react';
+import { BookOpen, Gauge, Sparkles, Watch } from 'lucide-react';
+import { SOURCES, type SourceKey } from '../lib/evidence';
 import { useAuth } from '../lib/auth';
 import { useData } from '../lib/data';
 import { createPlan } from '../lib/api';
@@ -32,7 +33,25 @@ export function CreatePlan() {
   const { assessment, generated } = preview;
   const f = generated.fitness;
   const runs = generated.workouts.filter((w) => w.distance_km);
-  const strengthCount = generated.workouts.filter((w) => w.kind.startsWith('strength')).length;
+  const strengthCount = generated.workouts.filter((w) => !w.distance_km && w.kind !== 'race').length;
+  const longest = Math.max(...generated.weeks.map((w) => w.longKm));
+  const bigRuns = generated.weeks.filter((w) => w.longKm >= longest - 2).length;
+  const peakWeek = Math.max(...generated.weeks.map((w) => w.targetKm));
+  const evidence: { title: string; text: string; source: SourceKey }[] = [
+    {
+      title: `Long runs up to ${fmtDistance(longest, units, 0)}`,
+      text: `${bigRuns} runs close to peak distance before the taper. A longest run under 25 km was linked to ~13 min slower marathons; beyond 35 km gave no extra benefit.`,
+      source: 'fokkema',
+    },
+    {
+      title: `Peak week ${fmtDistance(peakWeek, units, 0)}`,
+      text: 'Weekly volume is the strongest training predictor: < 40 km/week was linked to slower and > 65 km/week to faster marathons. Volume rises gradually with an easier week every 3–4 weeks.',
+      source: 'doherty',
+    },
+    { title: '~80 % easy running', text: 'High volumes of low-intensity running with 1–2 targeted quality sessions (pyramidal distribution) outperform threshold-heavy training.', source: 'casado' },
+    { title: 'Taper: less volume, same intensity', text: 'The last 2–3 weeks cut volume by ~45–60 % while keeping pace work and run frequency – the taper style that improves performance.', source: 'taper' },
+    ...(strengthCount ? [{ title: 'Strength & plyometrics', text: 'Heavy, plyometric and combined strength training improve running economy; legs work lands on hard days, never before the long run.', source: 'strength' as SourceKey }] : []),
+  ];
 
   const create = async () => {
     setBusy(true);
@@ -155,7 +174,7 @@ export function CreatePlan() {
           <div>
             <dt className="text-slate-500">Sessions</dt>
             <dd className="text-lg font-semibold">
-              {runs.length} runs{strengthCount ? ` + ${strengthCount} strength` : ''}
+              {runs.length} runs{strengthCount ? ` + ${strengthCount} other` : ''}
             </dd>
           </div>
         </dl>
@@ -166,6 +185,21 @@ export function CreatePlan() {
             ))}
           </div>
         )}
+      </Card>
+
+      <Card className="mt-4">
+        <CardTitle icon={<BookOpen className="h-5 w-5 text-brand" />}>Why your plan looks like this</CardTitle>
+        <ul className="grid gap-4 sm:grid-cols-2">
+          {evidence.map((e) => (
+            <li key={e.title} className="text-sm">
+              <div className="font-semibold text-slate-900">{e.title}</div>
+              <p className="mt-0.5 text-slate-600">{e.text}</p>
+              <a href={SOURCES[e.source].url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs font-medium text-brand hover:underline">
+                {SOURCES[e.source].label} ↗
+              </a>
+            </li>
+          ))}
+        </ul>
       </Card>
 
       <div className="mt-6 flex flex-wrap justify-end gap-2">

@@ -1,9 +1,16 @@
 // Marathon plan generator.
 //
 // Structure: base -> build -> peak -> taper, counted backwards from race day.
-// Volume grows ≤6–10 %/week with a lighter week every 3rd/4th week, the long
-// run grows ~2 km/week up to a time-capped peak, and quality sessions follow
-// per-phase ladders. Paces come from VDOT (see vdot.ts).
+// Evidence the targets are built on:
+// - Longest run 30–35 km: a longest run < 25 km was linked to ~13 min slower
+//   marathons, > 35 km brought no extra benefit (Fokkema et al. 2020, SJMSS);
+//   more ≥32 km runs → faster finishes (Doherty et al. 2020, JSAMS).
+// - Weekly volume: < 40 km/wk slower, > 65 km/wk ~14 min faster (Fokkema 2020).
+// - Intensity: ~75–80 % easy, pyramidal/polarised (Campos, Casado et al. 2022).
+// - Taper: cut volume 41–60 %, keep intensity and frequency (Bosquet 2007;
+//   Wang et al. 2023).
+// Volume grows ≤6–10 %/week with a lighter week every 3rd/4th week and
+// quality sessions follow per-phase ladders. Paces come from VDOT (vdot.ts).
 
 import type {
   FitnessAssessment,
@@ -16,10 +23,11 @@ import type {
   Weekday,
   WorkoutDraft,
   WorkoutKind,
+  DayTemplate,
 } from '../types';
 import { addDays, daysBetween, mondayOf } from './dates';
 import { MARATHON_M, raceTimeForVdot, trainingPaces } from './vdot';
-import { placeStrength, strengthSession, strengthTypesForWeek, type DayType } from './strength';
+import { extraLoad, extraSession, extrasForWeek, placeExtras, type DayType } from './extras';
 import { kmInZones, round05, workoutKm, workoutMinutes, zonePace } from './workouts';
 
 export interface GeneratedPlan {
@@ -32,7 +40,12 @@ export interface GeneratedPlan {
 const LEVEL_PEAK_KM: Record<Level, number> = { beginner: 55, intermediate: 70, advanced: 90 };
 const PER_RUN_DAY_CAP_KM: Record<Level, number> = { beginner: 14, intermediate: 16, advanced: 19 };
 const LEVEL_LONG_KM: Record<Level, number> = { beginner: 30, intermediate: 32, advanced: 34 };
+/** Max increase of the long run per (non-recovery) week. */
+const LONG_STEP_KM: Record<Level, number> = { beginner: 2, intermediate: 2.5, advanced: 3 };
+/** How many long runs close to peak distance in the final block before the taper. */
+const BIG_LONG_RUNS: Record<Level, number> = { beginner: 2, intermediate: 3, advanced: 4 };
 const MAX_EASY_KM: Record<Level, number> = { beginner: 12, intermediate: 16, advanced: 18 };
+const MIN_EASY_KM: Record<Level, number> = { beginner: 3.5, intermediate: 4.5, advanced: 5 };
 const WEEKLY_VDOT_GAIN: Record<Level, number> = { beginner: 0.2, intermediate: 0.12, advanced: 0.07 };
 const APPROACH_VOLUME = { conservative: 0.85, balanced: 1, ambitious: 1.15 } as const;
 const APPROACH_LONG = { conservative: -2, balanced: 0, ambitious: 2 } as const;
@@ -62,6 +75,12 @@ export function assignPhases(n: number): Phase[] {
   ];
 }
 
+export const longShareCap = (runDays: number) => (runDays <= 3 ? 0.6 : runDays === 4 ? 0.5 : runDays === 5 ? 0.45 : 0.4);
+
+export function peakLongRun(answers: OnboardingAnswers): number {
+  return clamp(LEVEL_LONG_KM[answers.level] + APPROACH_LONG[answers.approach] - (answers.injuryProne ? 1 : 0), 28, 35);
+}
+
 export function peakVolume(answers: OnboardingAnswers, currentKm: number): number {
   const { level, approach, runDaysPerWeek } = answers;
   let peak = LEVEL_PEAK_KM[level] * APPROACH_VOLUME[approach];
@@ -71,6 +90,8 @@ export function peakVolume(answers: OnboardingAnswers, currentKm: number): numbe
   const perDay = PER_RUN_DAY_CAP_KM[level] + (runDaysPerWeek <= 3 ? 2 : 0);
   peak = Math.min(peak, runDaysPerWeek * perDay);
   peak = Math.max(peak, Math.min(currentKm * 1.1, runDaysPerWeek * PER_RUN_DAY_CAP_KM.advanced));
+  // The week has to carry the peak long run, and < 40 km/week is linked to slower marathons.
+  peak = Math.max(peak, peakLongRun(answers) / longShareCap(runDaysPerWeek), 40);
   return Math.round(peak);
 }
 
@@ -120,11 +141,12 @@ export function createPlanFitness(answers: OnboardingAnswers, fitness: FitnessAs
   const t = marathonTargets(answers, fitness.vdot, peakWeeklyKm, today);
   const paces = pacesFor(fitness.vdot, t.target, t.terrain);
 
-  const longPace = (paces.long[0] + paces.long[1]) / 2;
-  const capMinutes = answers.level === 'advanced' ? 210 : 195;
-  const peakLongKm = Math.round(
-    clamp(Math.min(LEVEL_LONG_KM[answers.level] + APPROACH_LONG[answers.approach], (capMinutes * 60) / longPace), 24, 36),
-  );
+  const peakLongKm = peakLongRun(answers);
+  const longHours = (peakLongKm * zonePace(paces, 'long')) / 3600;
+  if (longHours > 3.4)
+    t.warnings.push(
+      `Your longest runs (${peakLongKm} km) will take about ${longHours.toFixed(1)} h. Short walk breaks are fine – practise fuelling (60–90 g carbs per hour) on them.`,
+    );
 
   const planFitness: PlanFitness = {
     vdot: fitness.vdot,
@@ -164,8 +186,19 @@ export function withNewVdot(fitness: PlanFitness, answers: OnboardingAnswers, vd
 export interface WeekLayout {
   runDays: Weekday[];
   quality: Weekday[];
-  recoveryDay: Weekday | null;
+  recoveryDays: Weekday[];
   longDay: Weekday;
+}
+
+/** Layout from a user-defined week; extra quality days beyond `quality` become easy runs. */
+export function templateLayout(week: DayTemplate[], quality: number): WeekLayout {
+  const days = (slot: string) => week.flatMap((d, i) => (d.run === slot ? [i as Weekday] : []));
+  return {
+    runDays: week.flatMap((d, i) => (d.run !== 'rest' ? [i as Weekday] : [])),
+    quality: days('quality').slice(0, quality),
+    recoveryDays: days('recovery'),
+    longDay: (days('long')[0] ?? 6) as Weekday,
+  };
 }
 
 function combinations<T>(items: T[], k: number): T[][] {
@@ -239,8 +272,8 @@ export function chooseLayout(availableDays: Weekday[], runDays: number, longDay:
       qualityDays = combo;
     }
   }
-  const recoveryDay = runSet.includes(dayAfterLong) && !qualityDays.includes(dayAfterLong) ? dayAfterLong : null;
-  return { runDays: runSet, quality: [...qualityDays].sort((a, b) => a - b), recoveryDay, longDay };
+  const recoveryDays = runSet.includes(dayAfterLong) && !qualityDays.includes(dayAfterLong) ? [dayAfterLong] : [];
+  return { runDays: runSet, quality: [...qualityDays].sort((a, b) => a - b), recoveryDays, longDay };
 }
 
 function qualityCount(level: Level, phase: Phase, runDays: number, recovery: boolean): number {
@@ -406,6 +439,48 @@ function easyRun(km: number, withStrides: boolean): { kind: WorkoutKind; title: 
 // Generator
 // ---------------------------------------------------------------------------
 
+/**
+ * Long-run distance for each non-taper week. The run builds from the current
+ * longest run by at most LONG_STEP_KM per week into a final block of several
+ * near-peak runs (alternating peak / peak−2) that ends 2–3 weeks before race day.
+ */
+export function longRunLadder(opts: {
+  weeks: number[];
+  isRecovery: (w: number) => boolean;
+  startKm: number;
+  peakKm: number;
+  level: Level;
+}): { byWeek: Map<number, number>; reachedPeak: number } {
+  const { weeks, isRecovery, startKm, peakKm, level } = opts;
+  const build = weeks.filter((w) => !isRecovery(w));
+  const step = LONG_STEP_KM[level];
+  const blockLen = Math.min(BIG_LONG_RUNS[level], Math.max(1, build.length - 1));
+  const block = Array.from({ length: blockLen }, (_, k) => ((blockLen - 1 - k) % 2 === 0 ? peakKm : peakKm - 2));
+  const pre = build.length - blockLen;
+  const values: number[] = [];
+  const blockMin = Math.min(...block);
+  for (let i = 0; i < pre; i++)
+    values.push(startKm >= blockMin ? Math.min(startKm, peakKm) : startKm + ((blockMin - startKm) * (i + 1)) / (pre + 1));
+  values.push(...block);
+  // Forward pass: never more than one step per week (short plans peak lower).
+  let prev = startKm;
+  for (let i = 0; i < values.length; i++) {
+    values[i] = Math.min(values[i], prev + step);
+    prev = values[i];
+  }
+  const byWeek = new Map<number, number>();
+  let last = startKm;
+  let bi = 0;
+  for (const w of weeks) {
+    if (isRecovery(w)) byWeek.set(w, Math.max(10, Math.round(last * 0.65)));
+    else {
+      last = values[bi++];
+      byWeek.set(w, Math.round(last));
+    }
+  }
+  return { byWeek, reachedPeak: Math.round(Math.max(startKm, ...values)) };
+}
+
 export interface GenerateContext {
   answers: OnboardingAnswers;
   fitness: PlanFitness;
@@ -419,7 +494,11 @@ export interface GenerateContext {
 
 export function generateWeeks(ctx: GenerateContext): { weeks: WeekSummary[]; workouts: WorkoutDraft[]; warnings: string[] } {
   const { answers, fitness, planStart, firstDate } = ctx;
-  const { level, runDaysPerWeek: runDays, longRunDay: longDay } = answers;
+  const template = answers.scheduleMode === 'custom' && answers.customWeek?.length === 7 ? answers.customWeek : null;
+  const templateQuality = template ? template.filter((d) => d.run === 'quality').length : 0;
+  const { level } = answers;
+  const runDays = template ? template.filter((d) => d.run !== 'rest').length : answers.runDaysPerWeek;
+  const longDay = (template ? template.findIndex((d) => d.run === 'long') : answers.longRunDay) as Weekday;
   const raceDate = answers.raceDate;
   const paces = fitness.paces;
   const warnings: string[] = [];
@@ -441,30 +520,53 @@ export function generateWeeks(ctx: GenerateContext): { weeks: WeekSummary[]; wor
 
   if (n < 8) warnings.push(`Only ${n} weeks until race day – the plan focuses on arriving healthy rather than building a lot of new fitness.`);
 
-  // Volume progression
+  // Long-run ladder (decides the shape of the build)
+  const fracCap = longShareCap(runDays);
   const startKm = Math.max(ctx.startKm, runDays * 3, 10);
-  const peakKm = Math.max(fitness.peakWeeklyKm, startKm);
+  const startLong = clamp(ctx.startLongKm || startKm * 0.35, 8, fitness.peakLongKm);
+  const preTaper = Array.from({ length: Math.max(0, firstTaper - fromWeek) }, (_, i) => fromWeek + i);
+  const ladder = longRunLadder({ weeks: preTaper, isRecovery, startKm: startLong, peakKm: fitness.peakLongKm, level });
+
+  // Volume progression – must be able to carry the long run.
+  const peakKm = Math.max(fitness.peakWeeklyKm, startKm, fitness.peakLongKm / fracCap);
   let progWeeks = 0;
   for (let w = fromWeek; w < firstTaper; w++) if (!isRecovery(w)) progWeeks++;
   const maxRate = answers.injuryProne ? Math.min(0.06, MAX_WEEKLY_INCREASE[answers.approach]) : MAX_WEEKLY_INCREASE[answers.approach];
   const rate = clamp(Math.pow(peakKm / startKm, 1 / Math.max(1, progWeeks - 2)) - 1, 0, maxRate);
 
-  const longStep = level === 'beginner' ? 1.5 : 2;
-  const fracCap = runDays <= 3 ? 0.6 : runDays === 4 ? 0.5 : runDays === 5 ? 0.45 : 0.4;
-  const startLong = clamp(ctx.startLongKm || startKm * 0.3, 6, fitness.peakLongKm);
   const easyPace = zonePace(paces, 'easy');
   const weekdayCap = answers.weekdayMaxMinutes;
   const cappedDay = (d: number) => !!weekdayCap && d <= 4 && d !== longDay;
 
   const layouts = new Map<number, WeekLayout>();
   const layoutFor = (q: number) => {
-    if (!layouts.has(q)) layouts.set(q, chooseLayout(answers.availableDays, runDays, longDay, q));
+    if (!layouts.has(q)) layouts.set(q, template ? templateLayout(template, q) : chooseLayout(answers.availableDays, runDays, longDay, q));
     return layouts.get(q)!;
+  };
+  const extrasById = new Map(answers.extras.map((e) => [e.id, e]));
+
+  /** Place this week's extra sessions (fixed days in a custom week, scored otherwise). */
+  const placeWeekExtras = (dayType: DayType[], phase: Phase, recovery: boolean, raceWeek: boolean) => {
+    const wanted = extrasForWeek(answers.extras, phase, recovery, raceWeek);
+    if (!template) return placeExtras(dayType, wanted, answers.availableDays);
+    const remaining = new Map<string, number>();
+    for (const e of wanted) remaining.set(e.id, (remaining.get(e.id) ?? 0) + 1);
+    const placed: { extra: (typeof wanted)[number]; day: Weekday }[] = [];
+    template.forEach((d, day) => {
+      if (dayType[day] === 'race') return;
+      for (const id of d.extras) {
+        const extra = extrasById.get(id);
+        if (!extra || !remaining.get(id)) continue;
+        remaining.set(id, remaining.get(id)! - 1);
+        placed.push({ extra, day: day as Weekday });
+      }
+    });
+    return placed;
   };
 
   let prog = startKm;
+  let lastVol = startKm;
   let maxVol = startKm;
-  let longProg = startLong;
   let maxLong = startLong;
   const weeks: WeekSummary[] = [];
   const workouts: WorkoutDraft[] = [];
@@ -487,24 +589,35 @@ export function generateWeeks(ctx: GenerateContext): { weeks: WeekSummary[]; wor
       duration_min: Math.round(workoutMinutes(steps, paces)),
       key_session: key,
     });
+    const pushExtras = (dayType: DayType[]) => {
+      for (const { extra, day } of placeWeekExtras(dayType, phase, recovery, w === n)) {
+        const s = extraSession(extra, phase, recovery, answers.equipment);
+        push(day, { kind: s.kind, title: s.title, steps: s.steps, distance_km: null, duration_min: s.duration_min, key_session: false });
+      }
+    };
 
     if (w === n) {
-      // Race week: short sharpeners relative to race day.
+      // Race week: same number of runs (frequency kept), all short; one sharpener.
       const raceDay = daysBetween(weekStart, raceDate);
+      const easy = (km: number, st: boolean) => () => {
+        const e = easyRun(km, st);
+        return runDraft(e.kind, e.title, e.steps, false);
+      };
       const items: { offset: number; minDays: number; build: () => Omit<WorkoutDraft, 'date' | 'week' | 'phase'> }[] = [
-        { offset: -6, minDays: 4, build: () => { const e = easyRun(6, true); return runDraft(e.kind, e.title, e.steps, false); } },
+        { offset: -6, minDays: 4, build: easy(6, true) },
+        { offset: -5, minDays: 6, build: easy(5, false) },
         {
           offset: -4,
           minDays: 3,
           build: () =>
             runDraft('marathon_pace', 'Race-pace sharpener', [warmup(), { type: 'run', label: 'Marathon pace', zone: 'marathon', distanceKm: 3 }, cooldown()], false),
         },
-        { offset: -3, minDays: 5, build: () => { const e = easyRun(5, false); return runDraft(e.kind, e.title, e.steps, false); } },
+        { offset: -3, minDays: 5, build: easy(5, false) },
+        { offset: -2, minDays: 7, build: easy(4, false) },
         {
           offset: -1,
           minDays: 4,
-          build: () =>
-            runDraft('shakeout', 'Shakeout run', [{ type: 'run', label: 'Very easy', zone: 'recovery', distanceKm: 3 }, strides(4)], false),
+          build: () => runDraft('shakeout', 'Shakeout run', [{ type: 'run', label: 'Very easy', zone: 'recovery', distanceKm: 3 }, strides(4)], false),
         },
         {
           offset: 0,
@@ -519,10 +632,32 @@ export function generateWeeks(ctx: GenerateContext): { weeks: WeekSummary[]; wor
           }),
         },
       ];
-      for (const it of items) {
-        const day = raceDay + it.offset;
-        if (day >= 0 && runDays >= it.minDays) push(day, it.build());
+      const dayType: DayType[] = Array<DayType>(7).fill('rest');
+      if (template) {
+        const sharpenerDay = [...Array(raceDay).keys()].filter((d) => d <= raceDay - 3 && template[d].run !== 'rest').sort((x, y) => {
+          const q = (d: number) => (template[d].run === 'quality' ? 0 : 1);
+          return q(x) - q(y) || Math.abs(raceDay - 4 - x) - Math.abs(raceDay - 4 - y);
+        })[0];
+        for (let d = 0; d < raceDay; d++) {
+          if (template[d].run === 'rest') continue;
+          const it = d === raceDay - 1 ? items.find((x) => x.offset === -1)! : d === sharpenerDay ? items.find((x) => x.offset === -4)! : { build: easy(d >= raceDay - 2 ? 4 : 5, d === 0) };
+          dayType[d] = 'easy';
+          push(d, it.build());
+        }
+        dayType[raceDay] = 'race';
+        push(raceDay, items.find((x) => x.offset === 0)!.build());
+      } else {
+        for (const it of items) {
+          const day = raceDay + it.offset;
+          if (day < 0 || runDays < it.minDays) continue;
+          dayType[day] = it.offset === 0 ? 'race' : 'easy';
+          push(day, it.build());
+        }
       }
+      for (let d = raceDay; d < 7; d++) dayType[d] = 'race';
+      if (raceDay > 0) dayType[raceDay - 1] = 'race';
+      pushExtras(dayType);
+      weekWorkouts.sort((a, b) => a.date.localeCompare(b.date));
       workouts.push(...weekWorkouts);
       weeks.push({
         week: w,
@@ -541,18 +676,18 @@ export function generateWeeks(ctx: GenerateContext): { weeks: WeekSummary[]; wor
     if (phase === 'taper') {
       const idx = w - firstTaper;
       volume = maxVol * (taperWeeks >= 3 ? [0.75, 0.55][idx] : 0.65);
-      longKm = Math.max(12, maxLong * (taperWeeks >= 3 ? [0.7, 0.5][idx] : 0.55));
-    } else if (recovery) {
-      volume = prog * 0.75;
-      longKm = Math.max(6, longProg * 0.7);
+      longKm = Math.max(12, maxLong * (taperWeeks >= 3 ? [0.7, 0.5][idx] : 0.6));
     } else {
-      if (w !== fromWeek) {
-        prog = Math.min(peakKm, prog * (1 + rate));
-        longProg = Math.min(fitness.peakLongKm, longProg + longStep);
+      if (!recovery && w !== fromWeek) prog = Math.min(peakKm, prog * (1 + rate));
+      longKm = ladder.byWeek.get(w) ?? startLong;
+      if (recovery) volume = prog * 0.75;
+      else {
+        // Volume follows the long run so it never dominates the week, but grows ≤ ~10–14 %/week.
+        volume = Math.min(Math.max(prog, longKm / fracCap), lastVol * (1 + maxRate + 0.04));
+        volume = Math.max(volume, prog);
+        prog = volume;
+        lastVol = volume;
       }
-      volume = prog;
-      longKm = Math.min(longProg, Math.max(volume * fracCap, startLong));
-      longProg = longKm;
     }
     longKm = Math.round(longKm);
     maxVol = Math.max(maxVol, volume);
@@ -561,12 +696,13 @@ export function generateWeeks(ctx: GenerateContext): { weeks: WeekSummary[]; wor
     // Quality sessions
     const bpIdx = countBefore(w, (p) => p === 'build' || p === 'peak');
     const pIdx = recovery ? Math.max(0, countBefore(w, (p) => p === phase) - 2) : countBefore(w, (p) => p === phase);
-    const q = qualityCount(level, phase, runDays, recovery);
+    const q = template ? (recovery ? Math.min(templateQuality, 1) : templateQuality) : qualityCount(level, phase, runDays, recovery);
     const sessions: SessionType[] = [];
     let longMp = 0;
     if (phase === 'base') {
       if (q >= 1) sessions.push('fartlek');
       if (q >= 2) sessions.push('threshold');
+      if (q >= 3) sessions.push('easy_strides');
     } else if (phase === 'taper') {
       if (q >= 1) sessions.push('mp');
       if (q >= 2) sessions.push('threshold');
@@ -578,19 +714,22 @@ export function generateWeeks(ctx: GenerateContext): { weeks: WeekSummary[]; wor
       const mpLongWeek = q <= 1 ? bpIdx % 2 === 0 : bpIdx % 2 === 1;
       const mpLongAllowed = (level !== 'beginner' || phase === 'peak') && longKm >= 16;
       if (mpLongWeek && mpLongAllowed) {
-        const ladder = level === 'beginner' ? [3, 5, 6, 8] : phase === 'build' ? [6, 8, 10, 12] : [12, 14, 16];
+        const mpLadder = level === 'beginner' ? [3, 5, 6, 8] : phase === 'build' ? [6, 8, 10, 12] : [12, 14, 16];
         const i = Math.floor((phase === 'build' ? bpIdx : countBefore(w, (p) => p === 'peak')) / 2);
-        longMp = Math.min(ladder[Math.min(i, ladder.length - 1)], Math.floor(longKm * 0.45));
+        longMp = Math.min(mpLadder[Math.min(i, mpLadder.length - 1)], Math.floor(longKm * 0.45));
       }
       if (q === 1) sessions.push(bpIdx % 2 === 0 ? speed : 'mp');
-      else if (q >= 2) sessions.push(speed, longMp > 0 ? 'easy_strides' : 'mp');
+      else if (q >= 2) {
+        sessions.push(speed, longMp > 0 ? 'easy_strides' : 'mp');
+        if (q >= 3) sessions.push(level === 'advanced' ? (speed === 'intervals' ? 'threshold' : 'intervals') : 'easy_strides');
+      }
     }
 
-    const layout = layoutFor(sessions.length);
+    const layout = layoutFor(template ? q : sessions.length);
     const dayType: DayType[] = Array<DayType>(7).fill('rest');
     for (const d of layout.runDays) dayType[d] = 'easy';
     dayType[longDay] = 'long';
-    if (layout.recoveryDay !== null) dayType[layout.recoveryDay] = 'recovery';
+    for (const d of layout.recoveryDays) if (dayType[d] === 'easy') dayType[d] = 'recovery';
 
     let usedKm = 0;
     const lr = longRun(longKm, longMp);
@@ -598,8 +737,10 @@ export function generateWeeks(ctx: GenerateContext): { weeks: WeekSummary[]; wor
     push(longDay, longDraft);
     usedKm += longDraft.distance_km ?? 0;
 
+    // Build quality sessions, then keep total hard running ≤ ~25 % of the week (80/20).
     const stridesDays = new Set<number>();
     const weeksToRace = n - w;
+    const built: { day: number; kind: WorkoutKind; steps: Step[] }[] = [];
     sessions.forEach((type, i) => {
       const day = layout.quality[i];
       if (day === undefined) return;
@@ -609,7 +750,6 @@ export function generateWeeks(ctx: GenerateContext): { weeks: WeekSummary[]; wor
       }
       dayType[day] = 'quality';
       const s = buildSession(type, { level, phase, pIdx, bpIdx, weeksToRace });
-      // Intensity caps relative to weekly volume (after Daniels).
       const cap = (z: 'threshold' | 'interval' | 'marathon', share: number, min: number) => {
         while (kmInZones(s.steps, paces, [z]) > Math.max(min, volume * share) && shrink(s.steps));
       };
@@ -617,45 +757,45 @@ export function generateWeeks(ctx: GenerateContext): { weeks: WeekSummary[]; wor
       cap('interval', 0.08, 4);
       cap('marathon', 0.2, 4);
       if (cappedDay(day)) fitToMinutes(s.steps, paces, weekdayCap!);
-      const draft = runDraft(s.kind, sessionTitle(s.kind, s.steps), s.steps, true);
-      push(day, draft);
-      usedKm += draft.distance_km ?? 0;
+      built.push({ day, kind: s.kind, steps: s.steps });
     });
+    const HARD: ('marathon' | 'threshold' | 'interval' | 'repetition')[] = ['marathon', 'threshold', 'interval', 'repetition'];
+    const hardKm = () => built.reduce((sum, b) => sum + kmInZones(b.steps, paces, HARD), 0) + kmInZones(longDraft.steps, paces, HARD);
+    for (let guard = 0; guard < 20 && hardKm() > Math.max(6, volume * 0.25); guard++) {
+      const biggest = [...built].sort((a, b) => kmInZones(b.steps, paces, HARD) - kmInZones(a.steps, paces, HARD))[0];
+      if (!biggest || !shrink(biggest.steps)) break;
+    }
+    for (const b of built) {
+      const draft = runDraft(b.kind, sessionTitle(b.kind, b.steps), b.steps, true);
+      push(b.day, draft);
+      usedKm += draft.distance_km ?? 0;
+    }
+    // Template quality days not used this week become easy runs with strides.
+    if (template) for (const d of template.flatMap((t, i) => (t.run === 'quality' ? [i] : []))) if (dayType[d] !== 'quality') stridesDays.add(d);
 
     // Easy + recovery runs fill the remaining volume.
-    const easyDays = layout.runDays.filter((d) => dayType[d] === 'easy' || dayType[d] === 'recovery');
-    const plain = easyDays.filter((d) => dayType[d] === 'easy');
+    const plain = layout.runDays.filter((d) => dayType[d] === 'easy');
+    const recoveryDays = layout.runDays.filter((d) => dayType[d] === 'recovery');
     if ((phase === 'base' || recovery) && plain.length) stridesDays.add(plain[0]);
     if (phase === 'base' && level === 'beginner' && plain.length > 1) stridesDays.add(plain[plain.length - 1]);
     let remaining = volume - usedKm;
     const stridesKm = workoutKm([strides()], paces);
     const stridesMin = workoutMinutes([strides()], paces);
     const maxEasyFor = (d: number) =>
-      Math.min(
-        MAX_EASY_KM[level],
-        cappedDay(d) ? ((weekdayCap! - (stridesDays.has(d) ? stridesMin : 0)) * 60) / easyPace : Infinity,
-      );
-    if (layout.recoveryDay !== null && dayType[layout.recoveryDay] === 'recovery') {
-      const km = round05(clamp(volume * 0.08, 4, Math.min(7, maxEasyFor(layout.recoveryDay))));
-      const steps: Step[] = [{ type: 'run', label: 'Recovery', zone: 'recovery', distanceKm: km }];
-      push(layout.recoveryDay, runDraft('recovery', 'Recovery run', steps, false));
+      Math.min(MAX_EASY_KM[level], cappedDay(d) ? ((weekdayCap! - (stridesDays.has(d) ? stridesMin : 0)) * 60) / easyPace : Infinity);
+    for (const d of recoveryDays) {
+      const km = round05(clamp(volume * 0.08, 4, Math.min(7, maxEasyFor(d))));
+      push(d, runDraft('recovery', 'Recovery run', [{ type: 'run', label: 'Recovery', zone: 'recovery', distanceKm: km }], false));
       remaining -= km;
     }
     for (const d of plain) {
       const share = remaining / plain.length - (stridesDays.has(d) ? stridesKm : 0);
-      const km = round05(clamp(share, 3, maxEasyFor(d)));
+      const km = round05(clamp(share, MIN_EASY_KM[level], maxEasyFor(d)));
       const e = easyRun(km, stridesDays.has(d));
       push(d, runDraft(e.kind, e.title, e.steps, false));
     }
 
-    // Strength
-    if (answers.strength.enabled) {
-      const types = strengthTypesForWeek(answers.strength.focus, answers.strength.perWeek, w, phase, recovery, false);
-      for (const { type, day } of placeStrength(dayType, types, answers.availableDays)) {
-        const s = strengthSession(type, phase, recovery, answers.strength.equipment);
-        push(day, { kind: s.kind, title: s.title, steps: s.steps, distance_km: null, duration_min: s.duration_min, key_session: false });
-      }
-    }
+    pushExtras(dayType);
 
     weekWorkouts.sort((a, b) => a.date.localeCompare(b.date));
     workouts.push(...weekWorkouts);
@@ -669,8 +809,15 @@ export function generateWeeks(ctx: GenerateContext): { weeks: WeekSummary[]; wor
     });
   }
 
-  if (fromWeek === 1 && maxLong < 26 && n >= 8)
-    warnings.push(`Your longest run peaks at ${maxLong} km – with more weeks or more running days it could build further.`);
+  if (fromWeek === 1 && n >= 8 && ladder.reachedPeak < fitness.peakLongKm - 1)
+    warnings.push(
+      `With ${n} weeks your longest run reaches ${ladder.reachedPeak} km instead of the ideal ${fitness.peakLongKm} km – building the long run faster would raise injury risk.`,
+    );
+  if (template) {
+    const legs = new Set(answers.extras.filter((e) => extraLoad(e) === 'legs').map((e) => e.id));
+    if (template[(longDay + 6) % 7].extras.some((id) => legs.has(id)))
+      warnings.push('Your week has leg training the day before the long run – expect heavier legs on long runs.');
+  }
 
   return { weeks, workouts, warnings };
 }
@@ -687,4 +834,30 @@ export function buildPlan(answers: OnboardingAnswers, assessment: FitnessAssessm
     startLongKm: assessment.longestRunKm,
   });
   return { fitness, weeks: res.weeks, workouts: res.workouts, warnings: [...warnings, ...res.warnings] };
+}
+
+/** A sensible default week (build phase) to prefill the custom-week editor. */
+export function suggestWeek(answers: OnboardingAnswers): DayTemplate[] {
+  const q = answers.level === 'beginner' || answers.runDaysPerWeek < 5 ? 1 : 2;
+  const layout = chooseLayout(answers.availableDays, answers.runDaysPerWeek, answers.longRunDay, q);
+  const week: DayTemplate[] = Array.from({ length: 7 }, () => ({ run: 'rest', extras: [] }));
+  const dayType: DayType[] = Array<DayType>(7).fill('rest');
+  for (const d of layout.runDays) {
+    week[d].run = 'easy';
+    dayType[d] = 'easy';
+  }
+  for (const d of layout.quality) {
+    week[d].run = 'quality';
+    dayType[d] = 'quality';
+  }
+  for (const d of layout.recoveryDays) {
+    week[d].run = 'recovery';
+    dayType[d] = 'recovery';
+  }
+  week[layout.longDay].run = 'long';
+  dayType[layout.longDay] = 'long';
+  for (const { extra, day } of placeExtras(dayType, extrasForWeek(answers.extras, 'build', false, false), answers.availableDays)) {
+    week[day].extras.push(extra.id);
+  }
+  return week;
 }

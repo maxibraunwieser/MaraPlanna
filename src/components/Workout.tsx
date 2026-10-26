@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { ArrowRightLeft, Check, CircleDashed, Dumbbell, Flag, Footprints, RotateCcw, SkipForward, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowRightLeft, Bike, Check, CircleDashed, Dumbbell, Flag, Footprints, Gauge, PersonStanding, RotateCcw, SkipForward, Sparkles, Target, Waves, X, Zap } from 'lucide-react';
+import { purposeFor } from '../lib/analysis';
 import type { Activity, Paces, PlannedWorkout, Units, WorkoutKind } from '../lib/types';
 import { describeStep, fmtDate, fmtDistance, fmtDuration, fmtMinutes, fmtPace, keyPace, fromUnit, toUnit } from '../lib/format';
 import { isRunWorkout } from '../lib/planner/adapt';
@@ -22,6 +24,12 @@ export const KIND_STYLE: Record<WorkoutKind, { label: string; dot: string; bar: 
   strength_upper: { label: 'Upper body', dot: 'bg-violet-500', bar: 'border-l-violet-500', soft: 'bg-violet-50' },
   strength_lower: { label: 'Lower body', dot: 'bg-violet-600', bar: 'border-l-violet-600', soft: 'bg-violet-50' },
   strength_full: { label: 'Full body', dot: 'bg-violet-500', bar: 'border-l-violet-500', soft: 'bg-violet-50' },
+  core: { label: 'Core', dot: 'bg-purple-400', bar: 'border-l-purple-400', soft: 'bg-purple-50' },
+  mobility: { label: 'Mobility', dot: 'bg-lime-500', bar: 'border-l-lime-500', soft: 'bg-lime-50' },
+  plyo: { label: 'Plyometrics', dot: 'bg-pink-500', bar: 'border-l-pink-500', soft: 'bg-pink-50' },
+  bike: { label: 'Cycling', dot: 'bg-cyan-500', bar: 'border-l-cyan-500', soft: 'bg-cyan-50' },
+  swim: { label: 'Swimming', dot: 'bg-blue-400', bar: 'border-l-blue-400', soft: 'bg-blue-50' },
+  custom: { label: 'Own workout', dot: 'bg-slate-500', bar: 'border-l-slate-500', soft: 'bg-slate-50' },
 };
 
 export function StatusBadge({ w }: { w: PlannedWorkout }) {
@@ -41,6 +49,12 @@ export function StatusBadge({ w }: { w: PlannedWorkout }) {
 
 function WorkoutIcon({ kind, className }: { kind: WorkoutKind; className?: string }) {
   if (kind.startsWith('strength')) return <Dumbbell className={className} />;
+  if (kind === 'core') return <Target className={className} />;
+  if (kind === 'mobility') return <PersonStanding className={className} />;
+  if (kind === 'plyo') return <Zap className={className} />;
+  if (kind === 'bike') return <Bike className={className} />;
+  if (kind === 'swim') return <Waves className={className} />;
+  if (kind === 'custom') return <Sparkles className={className} />;
   if (kind === 'race') return <Flag className={className} />;
   return <Footprints className={className} />;
 }
@@ -182,6 +196,10 @@ export function WorkoutDetail({ w, onClose }: { w: PlannedWorkout | null; onClos
           <StatusBadge w={w} />
         </div>
         {w.original_date && <Notice tone="info">Moved from {fmtDate(w.original_date)} by the planner.</Notice>}
+        <div className="rounded-xl bg-brand-soft/60 p-3 text-sm">
+          <div className="font-semibold text-slate-900">Why: {purposeFor(w.kind).headline}</div>
+          <p className="mt-0.5 text-slate-700">{purposeFor(w.kind).why}</p>
+        </div>
         {w.note && <Notice tone="warn">{w.note}</Notice>}
 
         <div className="flex gap-4 rounded-xl bg-slate-50 p-3 text-sm">
@@ -214,6 +232,13 @@ export function WorkoutDetail({ w, onClose }: { w: PlannedWorkout | null; onClos
           })}
         </ol>
 
+        {activity && (
+          <Link to={`/analysis/${activity.id}`} onClick={onClose} className="block">
+            <Button className="w-full" variant="dark" icon={<Gauge className="h-4 w-4" />}>
+              Open workout analysis
+            </Button>
+          </Link>
+        )}
         {activity && (
           <div className="rounded-xl bg-emerald-50 p-3 text-sm ring-1 ring-emerald-200">
             <div className="font-semibold text-emerald-900">{activity.name ?? 'Activity'} ({activity.source === 'garmin' ? 'Garmin' : activity.source === 'fit' ? 'FIT file' : 'logged manually'})</div>

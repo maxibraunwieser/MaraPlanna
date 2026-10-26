@@ -1,6 +1,9 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity as ActivityIcon, BatteryMedium, CalendarDays, HeartPulse, History, Moon, Sparkles, Waves, Watch } from 'lucide-react';
+import { Activity as ActivityIcon, BatteryMedium, CalendarDays, Gauge, HeartPulse, History, Moon, Sparkles, Waves, Watch } from 'lucide-react';
+import { analyze } from '../lib/analysis';
+import { estimateMaxHr } from '../lib/planner/fitness';
+import { fmtPace } from '../lib/format';
 import { useData } from '../lib/data';
 import { addDays, daysBetween, mondayOf, weekdayOf } from '../lib/planner/dates';
 import { findEasySwap, isRunWorkout } from '../lib/planner/adapt';
@@ -51,6 +54,44 @@ function ReadinessCard() {
       </div>
       {r.reasons.length > 0 && <p className="mt-3 text-xs text-slate-500">{r.reasons.join(' · ')}</p>}
       {m && m.date !== today && <p className="mt-2 text-xs text-slate-400">Latest data from {fmtDate(m.date)}.</p>}
+    </Card>
+  );
+}
+
+function LatestRun() {
+  const { plan, workouts, activities, metrics, units, connection, today } = useData();
+  if (!plan) return null;
+  const run = activities.find((a) => a.sport === 'run' && (a.distance_m ?? 0) > 1000);
+  if (!run) return null;
+  const workout = workouts.find((w) => w.activity_id === run.id) ?? null;
+  const maxHr = estimateMaxHr(plan.inputs, connection?.profile ?? null, activities, today);
+  const res = analyze({ workout, activity: run, details: null, plan, activities, metrics, maxHr });
+  const moving = run.moving_s ?? run.duration_s ?? 0;
+  const tone = res.score === null ? 'text-slate-500' : res.score >= 85 ? 'text-emerald-600' : res.score >= 70 ? 'text-lime-600' : res.score >= 50 ? 'text-amber-600' : 'text-red-600';
+  return (
+    <Card>
+      <CardTitle icon={<Gauge className="h-5 w-5 text-brand" />} action={<Link to={`/analysis/${run.id}`}><Button size="sm" variant="secondary">Full analysis</Button></Link>}>
+        Latest run
+      </CardTitle>
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        {res.score !== null && (
+          <div>
+            <div className={`text-3xl font-extrabold tabular-nums ${tone}`}>{res.score}</div>
+            <div className="text-xs capitalize text-slate-500">{res.grade} execution</div>
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold text-slate-900">{workout?.title ?? run.name ?? 'Run'}</div>
+          <div className="text-sm text-slate-500">
+            {fmtDate(run.local_date)} · {fmtDistance((run.distance_m ?? 0) / 1000, units)} · {fmtDuration(moving)}
+            {run.distance_m ? ` · ${fmtPace(moving / (run.distance_m / 1000), units)}` : ''}
+            {run.avg_hr ? ` · ♥ ${run.avg_hr}` : ''}
+          </div>
+          <div className="mt-1 text-sm text-slate-700">
+            <b>{res.purpose.headline}:</b> {res.insights[0] ?? res.purpose.marathon}
+          </div>
+        </div>
+      </div>
     </Card>
   );
 }
@@ -227,6 +268,8 @@ export function Dashboard() {
         </Card>
         <ReadinessCard />
       </div>
+
+      <LatestRun />
 
       <Card>
         <CardTitle
