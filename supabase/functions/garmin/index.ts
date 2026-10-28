@@ -5,11 +5,18 @@
 //   { "action": "sync", "full": false }        pull new activities & wellness data
 //   { "action": "details", "activityId": "…" } laps + stream of one run (from the FIT file)
 //   { "action": "disconnect" }                 forget the key
+// Workouts to the watch (the Personal API is read-only, so they go through
+// intervals.icu, which pushes planned workouts to Garmin Connect):
+//   { "action": "watch-connect", "apiKey": "…" }               store intervals.icu key (encrypted)
+//   { "action": "watch-status" }                               re-check the Garmin link
+//   { "action": "watch-send", "workoutId": "…", "text": "…" }  put one workout on the calendar
+//   { "action": "watch-disconnect" }
 // Scheduled sync of every user: header `x-cron-secret: <CRON_SECRET>` and
 //   { "action": "sync-all" }
 //
 // Secrets: GARMIN_ENCRYPTION_KEY (required), CRON_SECRET (optional).
 // Garmin Personal API: https://developer.garmin.com/gc-developer-program/personal/
+// intervals.icu API: https://intervals.icu/api/v1/docs
 
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { Decoder, Stream } from 'npm:@garmin/fitsdk@21.218.0';
@@ -525,6 +532,132 @@ async function syncUser(admin: SupabaseClient, userId: string, opts: { full?: bo
 }
 
 // ---------------------------------------------------------------------------
+// intervals.icu bridge: planned workouts → Garmin Connect calendar → watch
+// ---------------------------------------------------------------------------
+
+const ICU_BASE = 'https://intervals.icu/api/v1';
+const MIGRATION_HINT = 'Database update needed: run supabase/migrations/20261028000000_watch_sync.sql in the Supabase SQL Editor.';
+const dbError = (message: string) => (/watch_|does not exist|schema cache/.test(message) ? MIGRATION_HINT : message);
+
+async function icu(apiKey: string, method: string, path: string, body?: unknown): Promise<Rec> {
+  const res = await fetch(ICU_BASE + path, {
+    method,
+    headers: {
+      Authorization: `Basic ${btoa(`API_KEY:${apiKey}`)}`,
+      Accept: 'application/json',
+      'User-Agent': 'Mozilla/5.0 (compatible; MaraPlanna)',
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const text = await res.text();
+  if (res.status === 401 || res.status === 403) {
+    throw new HttpError(400, 'intervals.icu rejected the API key. Copy it again from intervals.icu → Settings → Developer Settings.');
+  }
+  if (!res.ok) throw new HttpError(502, `intervals.icu ${method} ${path.split('?')[0]} answered ${res.status}${text ? `: ${text.slice(0, 160)}` : ''}`);
+  if (!text) return {};
+  const parsed = JSON.parse(text);
+  return isRec(parsed) ? parsed : { value: parsed };
+}
+
+/** The athlete plus link status; switches on Garmin uploads when Garmin is linked but uploads are off. */
+async function watchLink(apiKey: string, athleteId = '0') {
+  const athlete = await icu(apiKey, 'GET', `/athlete/${athleteId}`);
+  if (athlete.icu_garmin_training === true && athlete.icu_garmin_upload_workouts !== true) {
+    await icu(apiKey, 'PUT', `/athlete/${athleteId}`, { icu_garmin_upload_workouts: true });
+    athlete.icu_garmin_upload_workouts = true;
+  }
+  const status = {
+    provider: 'intervals',
+    athlete: findStr(athlete, ['name', 'firstname'], 0) ?? String(athlete.id ?? ''),
+    garmin: athlete.icu_garmin_training === true,
+    upload: athlete.icu_garmin_upload_workouts === true,
+    checked_at: new Date().toISOString(),
+  };
+  return { athlete, status };
+}
+
+const saveWatchStatus = (admin: SupabaseClient, userId: string, status: Rec | null) =>
+  admin.from('profiles').update({ watch_sync: status }).eq('id', userId);
+
+async function watchSecret(admin: SupabaseClient, userId: string) {
+  const { data, error } = await admin.from('watch_secrets').select('api_key_enc, athlete_id').eq('user_id', userId).maybeSingle();
+  if (error) throw new HttpError(500, dbError(error.message));
+  if (!data) throw new HttpError(404, 'Connect intervals.icu in Settings first.');
+  return { apiKey: await decrypt(data.api_key_enc), athleteId: data.athlete_id as string };
+}
+
+async function sendToWatch(admin: SupabaseClient, userId: string, body: Rec) {
+  const { data: w, error } = await admin
+    .from('planned_workouts')
+    .select('id, date, title, watch_event_id')
+    .eq('id', String(body.workoutId ?? ''))
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw new HttpError(500, dbError(error.message));
+  if (!w) throw new HttpError(404, 'Workout not found.');
+  const text = String(body.text ?? '').slice(0, 4000);
+  if (!text.trim()) throw new HttpError(400, 'This workout has no running steps to send.');
+  const { apiKey, athleteId } = await watchSecret(admin, userId);
+  const warnings: string[] = [];
+
+  // Pace targets only reach Garmin when the athlete has a Run threshold pace in intervals.icu.
+  const { athlete, status } = await watchLink(apiKey, athleteId);
+  const run = (Array.isArray(athlete.sportSettings) ? athlete.sportSettings : [])
+    .filter(isRec)
+    .find((s) => Array.isArray(s.types) && s.types.includes('Run'));
+  const thresholdMs = num(body.thresholdPaceMs);
+  if (!run) {
+    warnings.push('intervals.icu has no Run settings yet, so pace targets may be missing on the watch.');
+  } else if (!num(run.threshold_pace) && thresholdMs && thresholdMs > 2 && thresholdMs < 7) {
+    try {
+      await icu(apiKey, 'PUT', `/athlete/${athleteId}/sport-settings/${run.id}?recalcHrZones=false`, { threshold_pace: thresholdMs });
+    } catch (e) {
+      warnings.push(`Setting your threshold pace in intervals.icu failed: ${(e as Error).message}`);
+    }
+  }
+
+  // Replace an earlier copy – Garmin only picks up newly created events.
+  if (w.watch_event_id) {
+    try {
+      await icu(apiKey, 'DELETE', `/athlete/${athleteId}/events/${w.watch_event_id}`);
+    } catch {
+      // already deleted in intervals.icu
+    }
+  }
+  const event = await icu(apiKey, 'POST', `/athlete/${athleteId}/events?upsertOnUid=false`, {
+    category: 'WORKOUT',
+    type: 'Run',
+    start_date_local: `${w.date}T00:00:00`,
+    name: w.title,
+    description: text,
+    external_id: `maraplanna-${w.id}`,
+  });
+  const doc = isRec(event.workout_doc) ? event.workout_doc : null;
+  if (!doc || !Array.isArray(doc.steps) || !doc.steps.length) warnings.push('intervals.icu could not read the workout steps.');
+  const sentAt = new Date().toISOString();
+  const { error: saveError } = await admin
+    .from('planned_workouts')
+    .update({ watch_event_id: String(event.id), sent_to_watch_at: sentAt })
+    .eq('id', w.id);
+  if (saveError) warnings.push(dbError(saveError.message));
+
+  // intervals.icu pushes to Garmin right after creating the event; report a failed push.
+  await new Promise((r) => setTimeout(r, 4000));
+  let pushErrors: string[] = [];
+  try {
+    const fresh = await icu(apiKey, 'GET', `/athlete/${athleteId}/events/${event.id}`);
+    pushErrors = (Array.isArray(fresh.push_errors) ? fresh.push_errors : [])
+      .filter(isRec)
+      .map((p) => `${p.service ?? 'Push'}: ${p.message ?? 'failed'}`);
+  } catch {
+    // the event was created; push status is unknown
+  }
+  await saveWatchStatus(admin, userId, status);
+  return { eventId: event.id, sentAt, athlete: status.athlete, garmin: status.garmin, upload: status.upload, pushErrors, warnings };
+}
+
+// ---------------------------------------------------------------------------
 // Handler
 // ---------------------------------------------------------------------------
 
@@ -607,6 +740,34 @@ Deno.serve(async (req) => {
           await admin.from('activities').delete().eq('user_id', userId).eq('source', 'garmin');
           await admin.from('daily_metrics').delete().eq('user_id', userId);
         }
+        return json({ disconnected: true });
+      }
+      case 'watch-connect': {
+        const apiKey = String(body.apiKey ?? '').trim();
+        if (apiKey.length < 10) throw new HttpError(400, 'That does not look like an intervals.icu API key.');
+        const { athlete, status } = await watchLink(apiKey);
+        const { error: secretError } = await admin.from('watch_secrets').upsert({
+          user_id: userId,
+          provider: 'intervals',
+          api_key_enc: await encrypt(apiKey),
+          athlete_id: String(athlete.id ?? '0'),
+          updated_at: status.checked_at,
+        });
+        if (secretError) throw new HttpError(500, dbError(secretError.message));
+        await saveWatchStatus(admin, userId, status);
+        return json(status);
+      }
+      case 'watch-status': {
+        const { apiKey, athleteId } = await watchSecret(admin, userId);
+        const { status } = await watchLink(apiKey, athleteId);
+        await saveWatchStatus(admin, userId, status);
+        return json(status);
+      }
+      case 'watch-send':
+        return json(await sendToWatch(admin, userId, body));
+      case 'watch-disconnect': {
+        await admin.from('watch_secrets').delete().eq('user_id', userId);
+        await saveWatchStatus(admin, userId, null);
         return json({ disconnected: true });
       }
       default:

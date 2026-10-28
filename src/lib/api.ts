@@ -13,6 +13,7 @@ import type {
   PlannedWorkout,
   Profile,
   TrainingPlan,
+  WatchSync,
   WeekSummary,
   WorkoutDraft,
 } from './types';
@@ -217,6 +218,20 @@ export interface SyncResult {
   days: number;
   warnings: string[];
 }
+
+export interface WatchSendResult extends Pick<WatchSync, 'athlete' | 'garmin' | 'upload'> {
+  eventId: string;
+  sentAt: string;
+  pushErrors: string[];
+  warnings: string[];
+}
+
+export const connectWatch = (apiKey: string) => invokeGarmin<WatchSync>({ action: 'watch-connect', apiKey });
+export const checkWatch = () => invokeGarmin<WatchSync>({ action: 'watch-status' });
+export const disconnectWatch = () => invokeGarmin<{ disconnected: boolean }>({ action: 'watch-disconnect' });
+/** Puts a planned run on the intervals.icu calendar, which forwards it to Garmin Connect. */
+export const sendToWatch = (workoutId: string, text: string, thresholdPaceMs: number) =>
+  invokeGarmin<WatchSendResult>({ action: 'watch-send', workoutId, text, thresholdPaceMs });
 
 export async function invokeGarmin<T = SyncResult>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke('garmin', { body });

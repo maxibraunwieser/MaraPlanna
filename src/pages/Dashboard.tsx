@@ -13,6 +13,7 @@ import { logAdjustment, updateWorkout } from '../lib/api';
 import type { PlannedWorkout } from '../lib/types';
 import { Badge, Button, Card, CardTitle, cx, Notice, Spinner, useToast } from '../components/ui';
 import { KIND_STYLE, WorkoutDetail, WorkoutRow } from '../components/Workout';
+import { SendToWatch } from '../components/WatchSync';
 import { VolumeChart, type VolumePoint } from '../components/VolumeChart';
 
 const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -256,6 +257,9 @@ export function Dashboard() {
                       );
                     })}
                   </ul>
+                  <div className="mt-3">
+                    <SendToWatch w={w} />
+                  </div>
                 </div>
               ))}
             </div>

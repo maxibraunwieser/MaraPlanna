@@ -9,6 +9,7 @@ import { useAuth } from '../lib/auth';
 import { useData } from '../lib/data';
 import * as api from '../lib/api';
 import { Badge, Button, cx, Field, Input, Modal, Notice, useToast } from './ui';
+import { SendToWatch } from './WatchSync';
 
 export const KIND_STYLE: Record<WorkoutKind, { label: string; dot: string; bar: string; soft: string }> = {
   easy: { label: 'Easy', dot: 'bg-emerald-500', bar: 'border-l-emerald-500', soft: 'bg-emerald-50' },
@@ -231,6 +232,8 @@ export function WorkoutDetail({ w, onClose }: { w: PlannedWorkout | null; onClos
             );
           })}
         </ol>
+
+        <SendToWatch w={w} />
 
         {activity && (
           <Link to={`/analysis/${activity.id}`} onClick={onClose} className="block">

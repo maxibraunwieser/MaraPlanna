@@ -224,6 +224,9 @@ export interface PlannedWorkout extends WorkoutDraft {
   actual_distance_km: number | null;
   original_date: string | null;
   note: string | null;
+  /** intervals.icu event this workout was sent as (watch sync). */
+  watch_event_id?: string | null;
+  sent_to_watch_at?: string | null;
 }
 
 export interface WeekSummary {
@@ -289,4 +292,16 @@ export interface Profile {
   units: Units;
   onboarding: OnboardingAnswers | null;
   onboarding_completed_at: string | null;
+  watch_sync?: WatchSync | null;
+}
+
+/** intervals.icu link that forwards planned workouts to Garmin Connect. */
+export interface WatchSync {
+  provider: 'intervals';
+  athlete: string;
+  /** Garmin connected in intervals.icu with permission to send workouts. */
+  garmin: boolean;
+  /** "Upload planned workouts" switched on in intervals.icu. */
+  upload: boolean;
+  checked_at: string;
 }
