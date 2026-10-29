@@ -156,8 +156,6 @@ export async function persistAdaptation(plan: TrainingPlan, result: AdaptResult)
       firstDate: replan.fromDate,
       startKm: replan.startKm,
       startLongKm: replan.startLongKm,
-      easyUntil: replan.easyUntil ?? null,
-      breaks: fitness.breaks ?? [],
     });
     check(
       await supabase.from('planned_workouts').delete().eq('plan_id', plan.id).in('status', ['planned', 'skipped']).gte('date', replan.fromDate),

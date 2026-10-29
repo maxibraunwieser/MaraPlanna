@@ -9,7 +9,6 @@ import type { PlannedWorkout, WeekSummary } from '../lib/types';
 import { Badge, Button, Card, cx, Modal, PageHeader, Spinner } from '../components/ui';
 import { WorkoutDetail, WorkoutRow } from '../components/Workout';
 import { dropClass, useWorkoutDnd } from '../components/MoveWorkout';
-import { BreakBanner, BreakButton } from '../components/BreakDialog';
 import { CalendarSubscribe } from '../components/CalendarFeed';
 
 const PHASE_TONE = { base: 'green', build: 'blue', peak: 'orange', taper: 'violet' } as const;
@@ -121,7 +120,6 @@ export function PlanPage() {
         subtitle={`${weeks.length} weeks to ${plan.race_name || 'race day'} · ${fmtDate(plan.race_date, { day: 'numeric', month: 'long', year: 'numeric' })}`}
         actions={
           <>
-            <BreakButton />
             <Button variant="secondary" size="sm" onClick={() => setCalendar(true)} icon={<CalendarPlus className="h-4 w-4" />}>
               Calendar
             </Button>
@@ -137,7 +135,6 @@ export function PlanPage() {
         }
       />
 
-      <BreakBanner className="mb-5" />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {phases.map((p) => {

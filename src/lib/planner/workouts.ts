@@ -1,11 +1,6 @@
 // Distance/duration maths for structured workout steps.
 
-import type { PaceZone, Paces, Step, WorkoutKind } from '../types';
-
-const RUN_KINDS = new Set<WorkoutKind>([
-  'easy', 'recovery', 'long', 'long_mp', 'threshold', 'intervals', 'marathon_pace', 'fartlek', 'shakeout', 'race',
-]);
-export const isRunWorkout = (w: { kind: WorkoutKind }) => RUN_KINDS.has(w.kind);
+import type { PaceZone, Paces, Step } from '../types';
 
 export const round05 = (x: number) => Math.round(x * 2) / 2;
 

@@ -6,7 +6,6 @@ import type { Activity, DailyMetric, PlanFitness, PlannedWorkout, Sport, Trainin
 import { addDays, daysBetween, mondayOf, weekdayOf } from './dates';
 import { estimateMaxHr, estimateRestingHr, heartRateVdot, paceFloorVdot } from './fitness';
 import { withNewVdot } from './generate';
-import { isRunWorkout } from './workouts';
 
 export type WorkoutPatch = Partial<
   Pick<PlannedWorkout, 'status' | 'status_source' | 'activity_id' | 'actual_distance_km' | 'date' | 'original_date' | 'note'>
@@ -14,12 +13,15 @@ export type WorkoutPatch = Partial<
 
 export interface AdaptResult {
   patches: { id: string; patch: WorkoutPatch }[];
-  replan: { fromDate: string; startKm: number; startLongKm: number; easyUntil?: string | null } | null;
+  replan: { fromDate: string; startKm: number; startLongKm: number } | null;
   fitness: PlanFitness | null;
   messages: { kind: string; message: string }[];
 }
 
-export { isRunWorkout };
+const RUN_KINDS = new Set<WorkoutKind>([
+  'easy', 'recovery', 'long', 'long_mp', 'threshold', 'intervals', 'marathon_pace', 'fartlek', 'shakeout', 'race',
+]);
+export const isRunWorkout = (w: { kind: WorkoutKind }) => RUN_KINDS.has(w.kind);
 /** Which recorded activity types can complete a planned workout. */
 const MATCHING_SPORTS: Partial<Record<WorkoutKind, Sport[]>> = {
   strength_upper: ['strength'],
@@ -90,13 +92,9 @@ export function reconcile(workouts: PlannedWorkout[], activities: Activity[], to
   return { workouts: ws, patches };
 }
 
-/** Days a break blocks for hard sessions: the break itself plus its easy comeback days. */
-const breakBlocks = (plan: TrainingPlan, day: string) =>
-  (plan.fitness.breaks ?? []).some((b) => day >= b.from && day < (b.comebackUntil ?? addDays(b.to, 1)));
-
 /** Can `day` take a key session without stacking hard days? Returns the easy run it would replace, if any. */
 function canHostKey(ws: PlannedWorkout[], day: string, movingId: string, today: string, plan: TrainingPlan) {
-  if (day < today || day >= mondayOf(plan.race_date) || breakBlocks(plan, day)) return null;
+  if (day < today || day >= mondayOf(plan.race_date)) return null;
   const active = (w: PlannedWorkout) => w.id !== movingId && isRunWorkout(w) && w.status !== 'skipped' && w.status !== 'missed';
   for (const d of [addDays(day, -1), day, addDays(day, 1)]) {
     if (ws.some((w) => w.date === d && active(w) && w.key_session)) return null;
@@ -118,14 +116,10 @@ export function adaptPlan(input: {
   const messages: AdaptResult['messages'] = [];
   const patches = new PatchSet();
   const { workouts: ws } = reconcile(input.workouts, activities, today, patches);
-  const breaks = plan.fitness.breaks ?? [];
-  const inBreak = (d: string) => breaks.some((b) => d >= b.from && d <= b.to);
-  // During a break (and its comeback days) the break decides the plan, not the usual rules.
-  const breakRules = breaks.some((b) => today >= b.from && today < (b.comebackUntil ?? addDays(b.to, 1)));
 
   // 1. Reschedule recently missed key sessions into the next 3 days.
   const recentMisses = ws
-    .filter((w) => w.status === 'missed' && w.key_session && w.kind !== 'race' && !w.original_date && !w.note && !inBreak(w.date) && daysBetween(w.date, today) <= 3)
+    .filter((w) => w.status === 'missed' && w.key_session && w.kind !== 'race' && !w.original_date && !w.note && daysBetween(w.date, today) <= 3)
     .sort((a, b) => a.date.localeCompare(b.date));
   for (const missed of recentMisses) {
     const window = [0, 1, 2, 3].map((i) => addDays(today, i));
@@ -156,15 +150,12 @@ export function adaptPlan(input: {
   const windowStart = addDays(today, -14);
   const yesterday = addDays(today, -1);
   const planned14 = ws
-    .filter((w) => isRunWorkout(w) && w.date >= windowStart && w.date <= yesterday && !inBreak(w.date) && !(w.status === 'skipped' && w.status_source === 'auto'))
+    .filter((w) => isRunWorkout(w) && w.date >= windowStart && w.date <= yesterday && !(w.status === 'skipped' && w.status_source === 'auto'))
     .reduce((s, w) => s + (w.distance_km ?? 0), 0);
   const actual14 = runs.filter((a) => inRange(a, windowStart, yesterday)).reduce((s, a) => s + km(a), 0);
   const lastRun = runs.reduce<string | null>((max, a) => (a.local_date < today && (!max || a.local_date > max) ? a.local_date : max), null);
-  // A break that already rebuilt the plan counts as "back in training" from its end.
-  const breakEnd = breaks.filter((b) => b.to < today).reduce<string | null>((max, b) => (!max || b.to > max ? b.to : max), null);
-  const lastActive = lastRun && breakEnd ? (lastRun > breakEnd ? lastRun : breakEnd) : (lastRun ?? breakEnd);
   const planAgeDays = daysBetween(plan.start_date, today);
-  const daysSinceRun = lastActive ? daysBetween(lastActive, today) : planAgeDays;
+  const daysSinceRun = lastRun ? daysBetween(lastRun, today) : planAgeDays;
   const recentlyReplanned = plan.fitness.lastReplanAt && daysBetween(plan.fitness.lastReplanAt, today) < 7;
   const raceWeekStart = mondayOf(plan.race_date);
 
@@ -172,7 +163,7 @@ export function adaptPlan(input: {
   let fitness: PlanFitness | null = null;
   const fromDate = weekdayOf(today) <= 1 ? today : addDays(mondayOf(today), 7);
 
-  if (!breakRules && !recentlyReplanned && planAgeDays >= 7 && fromDate < raceWeekStart) {
+  if (!recentlyReplanned && planAgeDays >= 7 && fromDate < raceWeekStart) {
     const longest = (from: string, to: string) => Math.max(0, ...runs.filter((a) => inRange(a, from, to)).map(km));
     if (daysSinceRun >= 7) {
       const breakWeeks = Math.floor(daysSinceRun / 7);
@@ -201,11 +192,8 @@ export function adaptPlan(input: {
 
   // 3. Fitness drift → update paces (at most every 14 days).
   const lastChange = plan.fitness.history[plan.fitness.history.length - 1]?.date ?? plan.start_date;
-  if (!fitness && !breakRules && daysBetween(lastChange, today) >= 14) {
-    // Runs while ill or injured (and the first days back) say little about fitness.
-    const recent = runs.filter(
-      (a) => daysBetween(a.local_date, today) < 28 && !breaks.some((b) => a.local_date >= b.from && a.local_date < (b.comebackUntil ?? addDays(b.to, 4))),
-    );
+  if (!fitness && daysBetween(lastChange, today) >= 14) {
+    const recent = runs.filter((a) => daysBetween(a.local_date, today) < 28);
     const restingHr = estimateRestingHr(metrics, null, today);
     const maxHr = estimateMaxHr(plan.inputs, null, activities, today);
     const hr = heartRateVdot(recent, restingHr, maxHr);

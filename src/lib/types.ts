@@ -259,29 +259,6 @@ export interface PlanFitness {
   peakLongKm: number;
   lastReplanAt: string | null;
   history: { date: string; vdot: number; reason: string }[];
-  /** Sick / injured / other breaks, kept with the plan's adaptive state. */
-  breaks?: PlanBreak[];
-}
-
-export type BreakKind = 'sick' | 'injury' | 'other';
-
-export interface PlanBreak {
-  id: string;
-  kind: BreakKind;
-  /** 'rest': no running. 'easy': short easy runs only (e.g. a cold above the neck). */
-  mode: 'rest' | 'easy';
-  /** First and last day of the break (inclusive). */
-  from: string;
-  to: string;
-  /** Level before the break – the comeback is measured from these, so edits never compound. */
-  baseKm: number;
-  baseLongKm: number;
-  baseVdot: number;
-  /** Easy-only days after the return end the day before this date. */
-  comebackUntil: string | null;
-  /** Whether the break rebuilt the plan (ending or cancelling it then rebuilds again). */
-  replanned: boolean;
-  createdAt: string;
 }
 
 export interface TrainingPlan {

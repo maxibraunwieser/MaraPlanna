@@ -13,7 +13,6 @@
 // quality sessions follow per-phase ladders. Paces come from VDOT (vdot.ts).
 
 import type {
-  PlanBreak,
   FitnessAssessment,
   Level,
   OnboardingAnswers,
@@ -30,7 +29,6 @@ import { addDays, daysBetween, mondayOf } from './dates';
 import { MARATHON_M, raceTimeForVdot, trainingPaces } from './vdot';
 import { extraLoad, extraSession, extrasForWeek, placeExtras, type DayType } from './extras';
 import { kmInZones, round05, workoutKm, workoutMinutes, zonePace } from './workouts';
-import { blockedByBreak } from './breakRules';
 
 export interface GeneratedPlan {
   fitness: PlanFitness;
@@ -492,16 +490,10 @@ export interface GenerateContext {
   firstDate: string;
   startKm: number;
   startLongKm: number;
-  /** Comeback after a break: before this date only easy running (no quality, strides or MP, shorter long run). */
-  easyUntil?: string | null;
-  /** Stored breaks (e.g. a holiday later on): sessions that don't fit them are left out. */
-  breaks?: PlanBreak[];
 }
 
 export function generateWeeks(ctx: GenerateContext): { weeks: WeekSummary[]; workouts: WorkoutDraft[]; warnings: string[] } {
   const { answers, fitness, planStart, firstDate } = ctx;
-  const easyUntil = ctx.easyUntil ?? null;
-  const breaks = ctx.breaks ?? [];
   const template = answers.scheduleMode === 'custom' && answers.customWeek?.length === 7 ? answers.customWeek : null;
   const templateQuality = template ? template.filter((d) => d.run === 'quality').length : 0;
   const { level } = answers;
@@ -584,10 +576,9 @@ export function generateWeeks(ctx: GenerateContext): { weeks: WeekSummary[]; wor
     const phase = phaseOf(w);
     const recovery = isRecovery(w);
     const weekWorkouts: WorkoutDraft[] = [];
-    const comeback = (day: number) => !!easyUntil && addDays(weekStart, day) < easyUntil;
     const push = (day: number, d: Omit<WorkoutDraft, 'date' | 'week' | 'phase'>) => {
       const date = addDays(weekStart, day);
-      if (date < firstDate || date > raceDate || (d.kind !== 'race' && blockedByBreak(breaks, date, d))) return;
+      if (date < firstDate || date > raceDate) return;
       weekWorkouts.push({ ...d, date, week: w, phase });
     };
     const runDraft = (kind: WorkoutKind, title: string, steps: Step[], key: boolean) => ({
@@ -686,12 +677,9 @@ export function generateWeeks(ctx: GenerateContext): { weeks: WeekSummary[]; wor
       const idx = w - firstTaper;
       volume = maxVol * (taperWeeks >= 3 ? [0.75, 0.55][idx] : 0.65);
       longKm = Math.max(12, maxLong * (taperWeeks >= 3 ? [0.7, 0.5][idx] : 0.6));
-      if (comeback(longDay)) longKm = Math.min(longKm, Math.max(8, startLong * 0.8));
     } else {
       if (!recovery && w !== fromWeek) prog = Math.min(peakKm, prog * (1 + rate));
       longKm = ladder.byWeek.get(w) ?? startLong;
-      // First long run after a break: shorter than the ladder value.
-      if (comeback(longDay)) longKm = Math.min(longKm, Math.max(8, startLong * 0.8));
       if (recovery) volume = prog * 0.75;
       else {
         // Volume follows the long run so it never dominates the week, but grows ≤ ~10–14 %/week.
@@ -724,7 +712,7 @@ export function generateWeeks(ctx: GenerateContext): { weeks: WeekSummary[]; wor
       const speed: SessionType =
         (phase === 'peak' && level !== 'beginner') || (level === 'advanced' && bpIdx % 2 === 1) ? 'intervals' : 'threshold';
       const mpLongWeek = q <= 1 ? bpIdx % 2 === 0 : bpIdx % 2 === 1;
-      const mpLongAllowed = (level !== 'beginner' || phase === 'peak') && longKm >= 16 && !comeback(longDay);
+      const mpLongAllowed = (level !== 'beginner' || phase === 'peak') && longKm >= 16;
       if (mpLongWeek && mpLongAllowed) {
         const mpLadder = level === 'beginner' ? [3, 5, 6, 8] : phase === 'build' ? [6, 8, 10, 12] : [12, 14, 16];
         const i = Math.floor((phase === 'build' ? bpIdx : countBefore(w, (p) => p === 'peak')) / 2);
@@ -755,7 +743,7 @@ export function generateWeeks(ctx: GenerateContext): { weeks: WeekSummary[]; wor
     const built: { day: number; kind: WorkoutKind; steps: Step[] }[] = [];
     sessions.forEach((type, i) => {
       const day = layout.quality[i];
-      if (day === undefined || comeback(day)) return;
+      if (day === undefined) return;
       if (type === 'easy_strides') {
         stridesDays.add(day);
         return;
@@ -791,7 +779,6 @@ export function generateWeeks(ctx: GenerateContext): { weeks: WeekSummary[]; wor
     if ((phase === 'base' || recovery) && plain.length) stridesDays.add(plain[0]);
     if (phase === 'base' && level === 'beginner' && plain.length > 1) stridesDays.add(plain[plain.length - 1]);
     let remaining = volume - usedKm;
-    for (const d of [...stridesDays]) if (comeback(d)) stridesDays.delete(d);
     const stridesKm = workoutKm([strides()], paces);
     const stridesMin = workoutMinutes([strides()], paces);
     const maxEasyFor = (d: number) =>

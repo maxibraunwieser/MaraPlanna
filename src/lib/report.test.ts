@@ -107,18 +107,6 @@ describe('weekly report', () => {
     expect(cur.notes[0]?.text ?? '').toMatch(/So far|key session/);
   });
 
-  it('a week with a break does not count paused sessions as missed', () => {
-    const ws = workouts.map((w) =>
-      w.date >= '2026-10-26' && w.date <= '2026-10-28' ? { ...w, status: 'skipped' as const, status_source: 'user' as const, note: 'Break: sick – rest.' } : w,
-    );
-    const p = { ...plan, fitness: { ...plan.fitness, breaks: [{ id: 'b', kind: 'sick' as const, mode: 'rest' as const, from: '2026-10-26', to: '2026-10-28', baseKm: 40, baseLongKm: 18, baseVdot: 45, comebackUntil: null, replanned: false, createdAt: '2026-10-26' }] } };
-    const cur = weekReport({ plan: p, workouts: ws, activities, metrics: [], weekStart: '2026-10-26', today: TODAY, maxHr: 190, units: 'km' });
-    expect(cur.breakDays).toBe(3);
-    expect(cur.key.missed).toHaveLength(0);
-    expect(cur.sessions.planned).toBe(0);
-    expect(cur.notes[0].text).toMatch(/^Sick for 3 days/);
-  });
-
   it('uses the chosen units', () => {
     const mi = weekReport({ plan, workouts, activities, metrics: m, weekStart: WEEK, today: TODAY, maxHr: 190, units: 'mi' });
     expect(mi.notes.find((n) => n.text.startsWith('You ran'))?.text).toMatch(/ mi /);

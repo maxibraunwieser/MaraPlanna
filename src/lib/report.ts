@@ -1,11 +1,10 @@
 // Weekly report: what was planned, what was done, how well, how the body
 // coped and what comes next – with a few coach notes on top.
 
-import type { Activity, BreakKind, DailyMetric, PlannedWorkout, TrainingPlan, Units, WeekSummary } from './types';
+import type { Activity, DailyMetric, PlannedWorkout, TrainingPlan, Units, WeekSummary } from './types';
 import { analyze, tandaProjection } from './analysis';
-import { addDays, daysBetween } from './planner/dates';
+import { addDays } from './planner/dates';
 import { isRunWorkout } from './planner/adapt';
-import { BREAK_LABEL, isBreakNote } from './planner/breaks';
 import { fmtDistance, fmtMinSec, zonePaceText } from './format';
 
 export type NoteTone = 'good' | 'warn' | 'info';
@@ -45,8 +44,6 @@ export interface WeekReport {
   easy: { runs: number; tooFast: number };
   wellness: { restingHr: Pair; hrv: Pair; sleepH: Pair };
   projection: { startS: number | null; endS: number | null };
-  breakDays: number;
-  breakKind: BreakKind | null;
   items: ReportItem[];
   notes: ReportNote[];
   next: { week: WeekSummary | null; key: PlannedWorkout[]; long: PlannedWorkout | null; plannedKm: number } | null;
@@ -60,8 +57,8 @@ const avg = (xs: (number | null | undefined)[]) => {
   return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
 };
 
-/** Sessions that count as "planned": not replaced by the planner and not paused by a break. */
-const counts = (w: PlannedWorkout) => !(w.status === 'skipped' && (w.status_source === 'auto' || isBreakNote(w.note)));
+/** Sessions that count as "planned": everything except sessions the planner replaced. */
+const counts = (w: PlannedWorkout) => !(w.status === 'skipped' && w.status_source === 'auto');
 
 export function weekReport(input: {
   plan: TrainingPlan;
@@ -146,8 +143,6 @@ export function weekReport(input: {
     endS: state === 'future' ? null : (tandaProjection(activities, cutoff)?.seconds ?? null),
   };
 
-  const brk = (plan.fitness.breaks ?? []).find((b) => b.from <= end && b.to >= start) ?? null;
-  const breakDays = brk ? daysBetween(brk.from > start ? brk.from : start, brk.to < end ? brk.to : end) + 1 : 0;
 
   // Next week.
   const nextStart = addDays(start, 7);
@@ -167,7 +162,7 @@ export function weekReport(input: {
     plannedKm, plannedToDateKm, doneKm, pct, sessions, key,
     long: { workout: longW, doneKm: longDone, longest },
     movingS: acts.reduce((s, a) => s + (a.moving_s ?? a.duration_s ?? 0), 0),
-    avgScore, easy, wellness, projection, breakDays, breakKind: brk?.kind ?? null,
+    avgScore, easy, wellness, projection,
     items, notes: [], next,
   };
   report.notes = coachNotes(report, plan, units);
@@ -180,10 +175,7 @@ function coachNotes(r: WeekReport, plan: TrainingPlan, units: Units): ReportNote
   if (r.state === 'future') return notes;
   const so = r.state === 'current';
 
-  if (r.breakDays && r.breakKind)
-    notes.push({ tone: 'info', text: `${BREAK_LABEL[r.breakKind]} for ${r.breakDays} day${r.breakDays === 1 ? '' : 's'} this week – the plan was adjusted, there is nothing to make up.` });
-
-  if (r.pct !== null && (so ? r.plannedToDateKm : r.plannedKm) >= 5 && !r.breakDays) {
+  if (r.pct !== null && (so ? r.plannedToDateKm : r.plannedKm) >= 5) {
     const ref = so ? r.plannedToDateKm : r.plannedKm;
     const base = `${so ? 'So far you ran' : 'You ran'} ${d(r.doneKm)} of ${d(ref)}${so ? ' planned up to today' : ''} (${r.pct} %)`;
     if (r.pct >= 115) notes.push({ tone: 'warn', text: `${base} – more than planned. Extra kilometres add up; keep the easy days easy.` });

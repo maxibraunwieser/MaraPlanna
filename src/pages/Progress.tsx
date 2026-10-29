@@ -7,7 +7,6 @@ import { weekReport, type ReportItem, type ReportNote, type WeekReport } from '.
 import { estimateMaxHr } from '../lib/planner/fitness';
 import { addDays, mondayOf, weekdayOf } from '../lib/planner/dates';
 import { isRunWorkout } from '../lib/planner/adapt';
-import { isBreakNote } from '../lib/planner/breaks';
 import { fmtDate, fmtDistance, fmtDuration, fmtPace } from '../lib/format';
 import { Badge, Card, CardTitle, cx, PageHeader, Spinner } from '../components/ui';
 import { KIND_STYLE } from '../components/Workout';
@@ -102,11 +101,9 @@ function ItemRow({ item }: { item: ReportItem }) {
   const status = !w
     ? 'Extra run'
     : w.status === 'skipped'
-      ? isBreakNote(w.note)
-        ? 'Paused (break)'
-        : w.status_source === 'auto'
-          ? 'Replaced'
-          : 'Skipped'
+      ? w.status_source === 'auto'
+        ? 'Replaced'
+        : 'Skipped'
       : w.status === 'missed'
         ? 'Missed'
         : w.status === 'planned'

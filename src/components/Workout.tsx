@@ -5,7 +5,6 @@ import { purposeFor } from '../lib/analysis';
 import type { Activity, Paces, PlannedWorkout, Units, WorkoutKind } from '../lib/types';
 import { describeStep, fmtDate, fmtDistance, fmtDuration, fmtMinutes, fmtPace, keyPace, fromUnit, toUnit } from '../lib/format';
 import { isRunWorkout } from '../lib/planner/adapt';
-import { isBreakNote } from '../lib/planner/breaks';
 import { addDays } from '../lib/planner/dates';
 import { canMove, inBounds, moveBounds, moveDays, movePatches, moveWarnings, swapCandidate } from '../lib/planner/move';
 import { useAuth } from '../lib/auth';
@@ -341,7 +340,7 @@ export function WorkoutDetail({ w, onClose }: { w: PlannedWorkout | null; onClos
           <div className="font-semibold text-slate-900">Why: {purposeFor(w.kind).headline}</div>
           <p className="mt-0.5 text-slate-700">{purposeFor(w.kind).why}</p>
         </div>
-        {w.note && <Notice tone={isBreakNote(w.note) ? 'info' : 'warn'}>{isBreakNote(w.note) ? w.note.replace(/^Break:s*/, '').replace(/^./, (c) => c.toUpperCase()) : w.note}</Notice>}
+        {w.note && <Notice tone="warn">{w.note}</Notice>}
 
         <div className="flex gap-4 rounded-xl bg-slate-50 p-3 text-sm">
           {w.distance_km ? (
