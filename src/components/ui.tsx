@@ -234,16 +234,21 @@ export function Modal({ open, onClose, title, children }: { open: boolean; onClo
 // ---------------------------------------------------------------------------
 
 type ToastTone = 'info' | 'success' | 'error';
-type Toast = { id: number; message: string; tone: ToastTone };
-const ToastContext = createContext<(message: string, tone?: ToastTone) => void>(() => {});
+export type ToastAction = { label: string; onClick: () => void };
+type Toast = { id: number; message: string; tone: ToastTone; action?: ToastAction };
+const ToastContext = createContext<(message: string, tone?: ToastTone, action?: ToastAction) => void>(() => {});
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const push = useCallback((message: string, tone: ToastTone = 'info') => {
-    const id = Date.now() + Math.random();
-    setToasts((t) => [...t, { id, message, tone }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), tone === 'error' ? 8000 : 6000);
-  }, []);
+  const dismiss = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
+  const push = useCallback(
+    (message: string, tone: ToastTone = 'info', action?: ToastAction) => {
+      const id = Date.now() + Math.random();
+      setToasts((t) => [...t, { id, message, tone, action }]);
+      setTimeout(() => dismiss(id), action ? 10000 : tone === 'error' ? 8000 : 6000);
+    },
+    [dismiss],
+  );
   return (
     <ToastContext.Provider value={push}>
       {children}
@@ -258,7 +263,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               t.tone === 'info' && 'bg-ink text-white ring-slate-800',
             )}
           >
-            {t.message}
+            <div className="flex items-center gap-3">
+              <span className="min-w-0 flex-1">{t.message}</span>
+              {t.action && (
+                <button
+                  className="shrink-0 rounded-lg bg-white/15 px-2.5 py-1 text-xs font-semibold hover:bg-white/25"
+                  onClick={() => {
+                    dismiss(t.id);
+                    t.action!.onClick();
+                  }}
+                >
+                  {t.action.label}
+                </button>
+              )}
+            </div>
           </div>
         ))}
       </div>

@@ -9,7 +9,7 @@ interface AuthState {
   loading: boolean;
 }
 
-const AuthContext = createContext<AuthState>({ session: null, user: null, loading: true });
+export const AuthContext = createContext<AuthState>({ session: null, user: null, loading: true });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);

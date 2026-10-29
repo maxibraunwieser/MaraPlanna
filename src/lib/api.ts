@@ -156,6 +156,8 @@ export async function persistAdaptation(plan: TrainingPlan, result: AdaptResult)
       firstDate: replan.fromDate,
       startKm: replan.startKm,
       startLongKm: replan.startLongKm,
+      easyUntil: replan.easyUntil ?? null,
+      breaks: fitness.breaks ?? [],
     });
     check(
       await supabase.from('planned_workouts').delete().eq('plan_id', plan.id).in('status', ['planned', 'skipped']).gte('date', replan.fromDate),
@@ -207,6 +209,46 @@ export async function deleteActivity(id: string) {
 export async function deleteActivePlan(userId: string) {
   check(await supabase.from('training_plans').delete().eq('user_id', userId).eq('status', 'active'));
 }
+
+// ---------------------------------------------------------------------------
+// Calendar subscription (served by the "calendar" Edge Function)
+// ---------------------------------------------------------------------------
+
+export interface CalendarFeed {
+  user_id: string;
+  token: string;
+  app_url: string | null;
+  created_at: string;
+  last_fetched_at: string | null;
+}
+
+const CALENDAR_MIGRATION = 'Database update needed: run supabase/migrations/20261029000000_calendar_feeds.sql in the Supabase SQL Editor.';
+const calendarError = (message: string) => (/calendar_feeds|schema cache|does not exist/.test(message) ? CALENDAR_MIGRATION : message);
+
+export async function fetchCalendarFeed(userId: string): Promise<CalendarFeed | null> {
+  const { data, error } = await supabase.from('calendar_feeds').select('*').eq('user_id', userId).maybeSingle();
+  if (error) throw new Error(calendarError(error.message));
+  return data as CalendarFeed | null;
+}
+
+/** Creates the feed, or replaces its secret token (old subscriptions stop updating). */
+export async function createCalendarFeed(userId: string, appUrl: string): Promise<CalendarFeed> {
+  const token = Array.from(crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, '0')).join('');
+  const { data, error } = await supabase
+    .from('calendar_feeds')
+    .upsert({ user_id: userId, token, app_url: appUrl, created_at: new Date().toISOString(), last_fetched_at: null })
+    .select()
+    .single();
+  if (error) throw new Error(calendarError(error.message));
+  return data as CalendarFeed;
+}
+
+export async function deleteCalendarFeed(userId: string) {
+  const { error } = await supabase.from('calendar_feeds').delete().eq('user_id', userId);
+  if (error) throw new Error(calendarError(error.message));
+}
+
+export const calendarFeedUrl = (token: string) => `${String(import.meta.env.VITE_SUPABASE_URL ?? '').replace(/\/$/, '')}/functions/v1/calendar/${token}.ics`;
 
 // ---------------------------------------------------------------------------
 // Garmin Edge Function

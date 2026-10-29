@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ClipboardList, LogOut, Trash2, User, Watch } from 'lucide-react';
+import { CalendarSync, ClipboardList, LogOut, Trash2, User, Watch } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { useData } from '../lib/data';
@@ -9,6 +9,7 @@ import { fmtDate, fmtDistance, fmtDuration, fmtRelative } from '../lib/format';
 import type { Units } from '../lib/types';
 import { Badge, Button, Card, CardTitle, Field, Input, PageHeader, Segmented, useToast } from '../components/ui';
 import { extraLabel } from '../components/WeekBuilder';
+import { CalendarSubscribe } from '../components/CalendarFeed';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -103,6 +104,11 @@ export function Settings() {
         <Link to="/connect" className="mt-3 inline-block">
           <Button size="sm" variant="secondary">{connection ? 'Manage connection' : 'Connect Garmin'}</Button>
         </Link>
+      </Card>
+
+      <Card>
+        <CardTitle icon={<CalendarSync className="h-5 w-5 text-brand" />}>Calendar</CardTitle>
+        <CalendarSubscribe />
       </Card>
 
       <Card>

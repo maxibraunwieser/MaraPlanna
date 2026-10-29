@@ -12,14 +12,20 @@ import { describeStep, fmtDate, fmtDistance, fmtDuration, fmtRelative, zonePaceT
 import { logAdjustment, updateWorkout } from '../lib/api';
 import type { PlannedWorkout } from '../lib/types';
 import { Badge, Button, Card, CardTitle, cx, Notice, Spinner, useToast } from '../components/ui';
-import { KIND_STYLE, WorkoutDetail, WorkoutRow } from '../components/Workout';
+import { KIND_STYLE, pressable, WorkoutDetail, WorkoutRow } from '../components/Workout';
+import { BreakBanner, BreakButton } from '../components/BreakDialog';
+import { dropClass, useWorkoutDnd } from '../components/MoveWorkout';
+import { ReportTeaser } from './Progress';
+import { breakPhase, visibleBreak } from '../lib/planner/breaks';
 import { VolumeChart, type VolumePoint } from '../components/VolumeChart';
 
 const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 function ReadinessCard() {
-  const { metrics, today, connection } = useData();
+  const { plan, metrics, today, connection } = useData();
   const r = readiness(metrics, today);
+  const brk = plan ? visibleBreak(plan, today) : null;
+  const onBreak = !!brk && breakPhase(brk, today) === 'active';
   if (!connection) {
     return (
       <Card>
@@ -30,8 +36,8 @@ function ReadinessCard() {
     );
   }
   const m = r.metric;
-  const tone = r.level === 'good' ? 'green' : r.level === 'ok' ? 'amber' : r.level === 'low' ? 'red' : 'slate';
-  const label = { good: 'Ready to train', ok: 'Train with care', low: 'Take it easy', unknown: 'No data yet' }[r.level];
+  const tone = onBreak ? 'blue' : r.level === 'good' ? 'green' : r.level === 'ok' ? 'amber' : r.level === 'low' ? 'red' : 'slate';
+  const label = onBreak ? 'On a break' : { good: 'Ready to train', ok: 'Train with care', low: 'Take it easy', unknown: 'No data yet' }[r.level];
   const stat = (icon: ReactNode, name: string, value: string | null) => (
     <div className="rounded-xl bg-slate-50 p-3">
       <div className="flex items-center gap-1.5 text-xs text-slate-500">
@@ -101,6 +107,7 @@ export function Dashboard() {
   const [open, setOpen] = useState<PlannedWorkout | null>(null);
   const [swapping, setSwapping] = useState(false);
   const toast = useToast();
+  const dnd = useWorkoutDnd();
 
   const volume = useMemo<VolumePoint[]>(() => {
     if (!plan) return [];
@@ -165,7 +172,9 @@ export function Dashboard() {
     .filter((a) => a.sport === 'run' && a.local_date >= weekStart && a.local_date <= addDays(weekStart, 6))
     .reduce((s, a) => s + (a.distance_m ?? 0) / 1000, 0);
   const r = readiness(metrics, today);
-  const swap = r.level === 'low' ? findEasySwap(workouts, today) : null;
+  const brk = visibleBreak(plan, today);
+  const onBreak = !!brk && breakPhase(brk, today) === 'active';
+  const swap = r.level === 'low' && !onBreak ? findEasySwap(workouts, today) : null;
   const name = profile?.display_name?.split(' ')[0];
 
   const doSwap = async () => {
@@ -220,6 +229,8 @@ export function Dashboard() {
         </div>
       </div>
 
+      <BreakBanner />
+
       {swap && (
         <Notice tone="warn">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -236,7 +247,9 @@ export function Dashboard() {
 
       <div className="grid gap-5 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <CardTitle icon={<ActivityIcon className="h-5 w-5 text-brand" />}>Today</CardTitle>
+          <CardTitle icon={<ActivityIcon className="h-5 w-5 text-brand" />} action={(!brk || breakPhase(brk, today) === 'comeback') && <BreakButton className="-mr-2 text-slate-500" />}>
+            Today
+          </CardTitle>
           {todays.length ? (
             <div className="space-y-5">
               {todays.map((w) => (
@@ -261,13 +274,21 @@ export function Dashboard() {
             </div>
           ) : (
             <div className="rounded-xl bg-slate-50 p-6 text-center">
-              <div className="text-lg font-semibold">Rest day</div>
-              <p className="mt-1 text-sm text-slate-500">Recovery is where the adaptation happens. Sleep well, eat well.</p>
+              <div className="text-lg font-semibold">{onBreak ? 'No training today' : 'Rest day'}</div>
+              <p className="mt-1 text-sm text-slate-500">
+                {onBreak
+                  ? brk!.kind === 'sick'
+                    ? 'Get well soon – rest is training too. Your plan waits for you.'
+                    : 'Give it time to heal. Your plan waits for you.'
+                  : 'Recovery is where the adaptation happens. Sleep well, eat well.'}
+              </p>
             </div>
           )}
         </Card>
         <ReadinessCard />
       </div>
+
+      <ReportTeaser />
 
       <LatestRun />
 
@@ -275,8 +296,11 @@ export function Dashboard() {
         <CardTitle
           icon={<CalendarDays className="h-5 w-5 text-brand" />}
           action={
-            <span className="text-sm text-slate-500">
+            <span className="flex items-center gap-3 text-sm text-slate-500">
               {fmtDistance(weekDone, units)} of {fmtDistance(weekPlanned, units)}
+              <Link to="/progress" className="font-semibold text-brand hover:underline">
+                Report →
+              </Link>
             </span>
           }
         >
@@ -289,7 +313,7 @@ export function Dashboard() {
           {weekDays.map((d) => {
             const items = workouts.filter((w) => w.date === d);
             return (
-              <div key={d} className={cx('rounded-xl p-2', d === today ? 'bg-brand-soft ring-2 ring-brand' : 'bg-slate-50')}>
+              <div key={d} data-day={d} {...dnd.dropProps(d)} className={cx('rounded-xl p-2 transition', d === today ? 'bg-brand-soft ring-2 ring-brand' : 'bg-slate-50', dropClass(dnd.dropState(d)))}>
                 <div className="mb-1.5 flex items-baseline justify-between px-1 sm:block">
                   <span className="text-xs font-semibold text-slate-700">{DAY_SHORT[weekdayOf(d)]}</span>
                   <span className="text-xs text-slate-400 sm:ml-1">{fmtDate(d, { day: 'numeric' })}</span>
@@ -297,12 +321,14 @@ export function Dashboard() {
                 <div className="space-y-1.5">
                   {items.length ? (
                     items.map((w) => (
-                      <button
+                      <div
                         key={w.id}
-                        onClick={() => setOpen(w)}
+                        {...pressable(() => setOpen(w))}
+                        {...dnd.dragProps(w)}
                         className={cx(
-                          'w-full rounded-lg bg-white px-2 py-1.5 text-left text-xs ring-1 ring-slate-200 hover:ring-slate-300',
+                          'w-full cursor-pointer rounded-lg bg-white px-2 py-1.5 text-left text-xs ring-1 ring-slate-200 outline-none hover:ring-slate-300 focus-visible:ring-2 focus-visible:ring-brand/60',
                           (w.status === 'skipped' || w.status === 'missed') && 'opacity-50',
+                          dnd.isDragging(w) && 'opacity-30',
                         )}
                       >
                         <span className="flex items-center gap-1.5">
@@ -312,7 +338,7 @@ export function Dashboard() {
                           {w.status === 'missed' && <span className="ml-auto text-red-500">✕</span>}
                         </span>
                         {w.distance_km ? <span className="mt-0.5 block text-slate-500">{fmtDistance(w.distance_km, units)}</span> : null}
-                      </button>
+                      </div>
                     ))
                   ) : (
                     <div className="px-1 text-xs text-slate-400">Rest</div>
@@ -375,6 +401,7 @@ export function Dashboard() {
       </Card>
 
       <WorkoutDetail w={open} onClose={() => setOpen(null)} />
+      {dnd.dialog}
     </div>
   );
 }

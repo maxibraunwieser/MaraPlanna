@@ -1,4 +1,4 @@
-name: Deploy Supabase (database + Garmin function)
+name: Deploy Supabase (database + functions)
 
 # Optional. Runs only once the repository variable SUPABASE_PROJECT_REF and the
 # secrets SUPABASE_ACCESS_TOKEN + SUPABASE_DB_PASSWORD are configured.
@@ -31,3 +31,4 @@ jobs:
           [ -n "$CRON_SECRET" ] && supabase secrets set --project-ref "$PROJECT_REF" CRON_SECRET="$CRON_SECRET"
           true
       - run: supabase functions deploy garmin --project-ref "$PROJECT_REF" --no-verify-jwt
+      - run: supabase functions deploy calendar --project-ref "$PROJECT_REF" --no-verify-jwt

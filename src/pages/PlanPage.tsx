@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronDown, RefreshCw } from 'lucide-react';
+import { CalendarPlus, ChevronDown, Hand, RefreshCw } from 'lucide-react';
 import { useData } from '../lib/data';
 import { addDays, mondayOf } from '../lib/planner/dates';
 import { isRunWorkout } from '../lib/planner/adapt';
 import { fmtDate, fmtDistance } from '../lib/format';
 import type { PlannedWorkout, WeekSummary } from '../lib/types';
-import { Badge, Button, Card, cx, PageHeader, Spinner } from '../components/ui';
+import { Badge, Button, Card, cx, Modal, PageHeader, Spinner } from '../components/ui';
 import { WorkoutDetail, WorkoutRow } from '../components/Workout';
+import { dropClass, useWorkoutDnd } from '../components/MoveWorkout';
+import { BreakBanner, BreakButton } from '../components/BreakDialog';
+import { CalendarSubscribe } from '../components/CalendarFeed';
 
 const PHASE_TONE = { base: 'green', build: 'blue', peak: 'orange', taper: 'violet' } as const;
 const PHASE_TEXT = {
@@ -21,6 +24,7 @@ function WeekCard({ week, workouts, current, past }: { week: WeekSummary; workou
   const { plan, units, activities, today } = useData();
   const [open, setOpen] = useState(!past);
   const [selected, setSelected] = useState<PlannedWorkout | null>(null);
+  const dnd = useWorkoutDnd();
   const end = addDays(week.startDate, 6);
   const planned = workouts.filter((w) => isRunWorkout(w) && w.status !== 'skipped').reduce((s, w) => s + (w.distance_km ?? 0), 0);
   const done = activities
@@ -56,11 +60,13 @@ function WeekCard({ week, workouts, current, past }: { week: WeekSummary; workou
             {days.map((d) => {
               const items = workouts.filter((w) => w.date === d);
               return (
-                <div key={d} className={cx('rounded-xl p-2', d === today ? 'bg-brand-soft' : 'bg-slate-50')}>
+                <div key={d} data-day={d} {...dnd.dropProps(d)} className={cx('rounded-xl p-2 transition', d === today ? 'bg-brand-soft' : 'bg-slate-50', dropClass(dnd.dropState(d)))}>
                   <div className="mb-2 px-1 text-xs font-semibold text-slate-600">{fmtDate(d, { weekday: 'short', day: 'numeric' })}</div>
                   <div className="space-y-2">
                     {items.length ? (
-                      items.map((w) => <WorkoutRow key={w.id} w={w} paces={plan.fitness.paces} units={units} compact onClick={() => setSelected(w)} />)
+                      items.map((w) => (
+                        <WorkoutRow key={w.id} w={w} paces={plan.fitness.paces} units={units} compact onClick={() => setSelected(w)} drag={dnd.dragProps(w)} dragging={dnd.isDragging(w)} />
+                      ))
                     ) : (
                       <div className="px-1 pb-1 text-xs text-slate-400">Rest</div>
                     )}
@@ -72,6 +78,7 @@ function WeekCard({ week, workouts, current, past }: { week: WeekSummary; workou
         </div>
       )}
       <WorkoutDetail w={selected} onClose={() => setSelected(null)} />
+      {dnd.dialog}
     </Card>
   );
 }
@@ -79,6 +86,7 @@ function WeekCard({ week, workouts, current, past }: { week: WeekSummary; workou
 export function PlanPage() {
   const { loading, plan, workouts, today, syncing, syncNow, connection } = useData();
   const [showPast, setShowPast] = useState(false);
+  const [calendar, setCalendar] = useState(false);
   const currentRef = useRef<HTMLDivElement>(null);
   const thisMonday = mondayOf(today);
 
@@ -113,6 +121,10 @@ export function PlanPage() {
         subtitle={`${weeks.length} weeks to ${plan.race_name || 'race day'} · ${fmtDate(plan.race_date, { day: 'numeric', month: 'long', year: 'numeric' })}`}
         actions={
           <>
+            <BreakButton />
+            <Button variant="secondary" size="sm" onClick={() => setCalendar(true)} icon={<CalendarPlus className="h-4 w-4" />}>
+              Calendar
+            </Button>
             {connection && (
               <Button variant="secondary" size="sm" onClick={() => syncNow()} loading={syncing} icon={<RefreshCw className="h-4 w-4" />}>
                 Sync Garmin
@@ -124,6 +136,8 @@ export function PlanPage() {
           </>
         }
       />
+
+      <BreakBanner className="mb-5" />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {phases.map((p) => {
@@ -140,6 +154,9 @@ export function PlanPage() {
         })}
       </div>
 
+      <p className="mb-3 hidden items-center gap-1.5 text-xs text-slate-500 [@media(pointer:fine)]:flex">
+        <Hand className="h-3.5 w-3.5" /> Drag a session to another day to move it – or click it for details.
+      </p>
       {past.length > 0 && (
         <button onClick={() => setShowPast(!showPast)} className="mb-3 text-sm font-semibold text-slate-600 hover:text-slate-900">
           {showPast ? 'Hide' : 'Show'} {past.length} past week{past.length > 1 ? 's' : ''}
@@ -161,6 +178,9 @@ export function PlanPage() {
           </div>
         ))}
       </div>
+      <Modal open={calendar} onClose={() => setCalendar(false)} title="Your plan in your calendar">
+        <CalendarSubscribe />
+      </Modal>
     </div>
   );
 }

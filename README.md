@@ -21,14 +21,24 @@ An adaptive marathon training planner powered by your Garmin data.
    - rebuilds the upcoming weeks from your real level after a break or when you ran < 70 % of the planned volume;
    - updates your training paces when your Garmin runs show your fitness changed;
    - offers "make today easy" when your resting HR, HRV, sleep or Body Battery signal fatigue on a key-session day.
+7. **Sick, injured or time off?** Tell MaraPlanna what's going on (a fever, a cold above the neck, an injury that does or doesn't allow easy runs, a holiday), since when and when you expect to be back. A preview shows what changes before you confirm:
+   - Sessions in the break are paused. With a mild cold or a pain-free injury, easy runs and light sessions stay.
+   - After 3+ lost days the plan rebuilds from the return day. It starts with a few easy days, then lower volume and a shorter long run, and builds up again from there. After 1+ week of full rest the paces ease slightly.
+   - *I'm feeling better* ends the break early. You can also extend or remove a break at any time, and the plan is recalculated from the same pre-break level each time, so changes never stack up.
+8. **Move sessions easily.** In the plan or the *This week* view, drag a session to another day on a computer, or tap it and pick a day. If the target day already has a run, you can swap the two days. MaraPlanna warns about two hard days in a row, and every move can be undone.
+9. **Progress page:**
+   - **Weekly report:** distance done vs planned, sessions, key sessions, long run, execution scores and recovery markers (resting HR, HRV, sleep vs the week before). It adds coach notes and a preview of the next week. On Mondays the dashboard shows last week's report.
+   - **Marathon projection over time:** the training-based estimate (Tanda) week by week, the plan's race-day projection and your goal.
+10. **Calendar subscription.** Every session, with distance, paces and steps, can appear in Apple, Google or Outlook calendar and updates by itself when the plan changes.
 
-The site runs on **GitHub Pages**. **Supabase** holds the logins, the database and one Edge Function that talks to Garmin.
+The site runs on **GitHub Pages**. **Supabase** holds the logins and the database, plus two Edge Functions: one talks to Garmin, the other serves the calendar feed.
 
 ```
 Browser (GitHub Pages, React)  ──►  Supabase Auth + Postgres (RLS)
           │                                   ▲
           └──►  Supabase Edge Function "garmin" ──► Garmin Connect Personal API
                  (holds your encrypted key)
+Calendar app  ──►  Supabase Edge Function "calendar" (secret link → .ics feed)
 ```
 
 ---
@@ -38,7 +48,7 @@ Browser (GitHub Pages, React)  ──►  Supabase Auth + Postgres (RLS)
 ### 1. Supabase project
 
 1. Create a free project at <https://supabase.com>.
-2. **Database:** open *SQL Editor*, paste the contents of [`supabase/migrations/20261025000000_init.sql`](supabase/migrations/20261025000000_init.sql) and run it.
+2. **Database:** open *SQL Editor*, then paste and run each file in [`supabase/migrations`](supabase/migrations), oldest first.
 3. **Auth URLs:** under *Authentication → URL Configuration*:
    - Site URL: `https://<your-github-user>.github.io/MaraPlanna/`
    - Redirect URLs: add `https://<your-github-user>.github.io/MaraPlanna/**` and `http://localhost:5173/**`.
@@ -50,9 +60,10 @@ Browser (GitHub Pages, React)  ──►  Supabase Auth + Postgres (RLS)
    # 32+ random characters. Encrypts the stored Garmin keys – keep it, don't change it later.
    npx supabase secrets set GARMIN_ENCRYPTION_KEY="$(openssl rand -base64 36)"
    npx supabase functions deploy garmin --no-verify-jwt
+   npx supabase functions deploy calendar --no-verify-jwt
    ```
 
-   *Without a CLI:* go to Dashboard → Edge Functions → *Deploy a new function* → *Via editor*. Name it `garmin`, paste [`supabase/functions/garmin/index.ts`](supabase/functions/garmin/index.ts), turn **off** "Verify JWT", then add the `GARMIN_ENCRYPTION_KEY` secret under Edge Functions → Secrets.
+   *Without a CLI:* go to Dashboard → Edge Functions → *Deploy a new function* → *Via editor*. Name it `garmin`, paste [`supabase/functions/garmin/index.ts`](supabase/functions/garmin/index.ts), turn **off** "Verify JWT", then add the `GARMIN_ENCRYPTION_KEY` secret under Edge Functions → Secrets. The `calendar` function imports `supabase/functions/_shared/calendar.ts`, so deploy it with the CLI.
 5. *(Optional)* For an hourly background sync, run [`supabase/cron.sql`](supabase/cron.sql) after filling in its placeholders.
 
 ### 2. GitHub Pages
@@ -95,8 +106,8 @@ npm run build
 
 After pulling a new version:
 
-1. **Database:** run any new files from `supabase/migrations/` in the Supabase SQL Editor, oldest first, or run `npx supabase db push`. The analysis needs `20261026000000_activity_details.sql`.
-2. **Garmin function:** run `npx supabase functions deploy garmin --no-verify-jwt`.
+1. **Database:** run any new files from `supabase/migrations/` in the Supabase SQL Editor, oldest first, or run `npx supabase db push`. The analysis needs `20261026000000_activity_details.sql`. The calendar subscription needs `20261029000000_calendar_feeds.sql`.
+2. **Edge Functions:** run `npx supabase functions deploy garmin --no-verify-jwt` and `npx supabase functions deploy calendar --no-verify-jwt`.
 3. **Website:** pushing to `main` redeploys GitHub Pages automatically.
 4. **Plan:** to use a new planning model, open *Settings → Edit answers*, then *Replace my plan*. Your activities stay.
 
@@ -111,6 +122,7 @@ After pulling a new version:
 | Heavy and plyometric strength work, never before the long run | Improves running economy ([Llanos-Lagos 2024](https://pmc.ncbi.nlm.nih.gov/articles/PMC11052887/)) |
 | Training-based marathon projection | Tanda 2011: marathon pace from 8-week km/week and mean pace |
 | Aerobic decoupling < 5 % on long runs | Low pace:HR drift goes with better marathons ([Smyth 2022](https://pmc.ncbi.nlm.nih.gov/articles/PMC9388405/)) |
+| Breaks: no rebuild for ≤ 2 lost days. Longer breaks restart with easy days, lower volume and a shorter long run. Paces ease after 1+ week of rest | VO₂max and endurance drop measurably after about 2 weeks without training ([Mujika & Padilla 2000](https://pubmed.ncbi.nlm.nih.gov/10966148/), Coyle et al. 1984). Illness: the "neck check", and no training with a fever |
 
 ## How the planner works
 
@@ -123,7 +135,11 @@ All of the planning logic is plain TypeScript in [`src/lib/planner`](src/lib/pla
 | `generate.ts` | Phases counted back from race day, volume +6–10 %/week with an easier week every 3rd/4th week, long run up to 30–34 km (time-capped), quality-session ladders, best spacing of run days, weekday time limits, race week |
 | `extras.ts` | Strength (upper / lower / full), core, plyometrics, mobility, cycling, swimming and custom sessions by phase and equipment. Leg-heavy work never lands on or right before the long run or a key session; it drops to maintenance in the taper and stops in race week |
 | `../analysis.ts` | Workout analysis: goal, execution score, interval detection, HR zones, decoupling, VDOT signal, Tanda projection |
-| `adapt.ts` | Matches activities to workouts, reschedules missed sessions, rebuilds after breaks or low compliance, updates paces |
+| `adapt.ts` | Matches activities to workouts, reschedules missed sessions, rebuilds after long gaps or low compliance, updates paces |
+| `breaks.ts`, `breakRules.ts` | Sick / injured / time off: pauses sessions, plans the comeback, ends or cancels breaks |
+| `move.ts` | Moving sessions by hand: allowed days, swaps, warnings |
+| `../report.ts`, `../projection.ts` | Weekly report and coach notes, plus the marathon projection over time |
+| `supabase/functions/_shared/calendar.ts` | iCalendar feed (shared by the `calendar` Edge Function and the tests) |
 | `readiness.ts` | Daily readiness from resting HR, HRV, sleep and Body Battery |
 
 ## Project layout
@@ -131,10 +147,11 @@ All of the planning logic is plain TypeScript in [`src/lib/planner`](src/lib/pla
 ```
 src/                 React app (Vite + TypeScript + Tailwind)
   lib/planner/       training-plan engine (+ tests)
-  pages/             Login, onboarding, Garmin connect, dashboard, plan, activities, settings
+  pages/             Login, onboarding, Garmin connect, dashboard, plan, progress, activities, settings
 supabase/
   migrations/        tables + Row Level Security
   functions/garmin/  Edge Function: Garmin Personal API bridge
+  functions/calendar/ Edge Function: calendar subscription (.ics)
 .github/workflows/   GitHub Pages deploy, optional Supabase deploy
 ```
 

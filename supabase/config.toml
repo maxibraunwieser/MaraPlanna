@@ -5,3 +5,7 @@ project_id = "maraplanna"
 # The function verifies the caller's Supabase session itself (and accepts a
 # cron secret for scheduled syncs), so the gateway JWT check is disabled.
 verify_jwt = false
+
+[functions.calendar]
+# Calendar apps can't log in: the secret token in the URL authorises the feed.
+verify_jwt = false

@@ -1,16 +1,18 @@
-import { useState } from 'react';
+import { useState, type HTMLAttributes, type KeyboardEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRightLeft, Bike, Check, CircleDashed, Dumbbell, Flag, Footprints, Gauge, PersonStanding, RotateCcw, SkipForward, Sparkles, Target, Undo2, Waves, X, Zap } from 'lucide-react';
 import { purposeFor } from '../lib/analysis';
 import type { Activity, Paces, PlannedWorkout, Units, WorkoutKind } from '../lib/types';
 import { describeStep, fmtDate, fmtDistance, fmtDuration, fmtMinutes, fmtPace, keyPace, fromUnit, toUnit } from '../lib/format';
-import { isRunWorkout, type WorkoutPatch } from '../lib/planner/adapt';
+import { isRunWorkout } from '../lib/planner/adapt';
+import { isBreakNote } from '../lib/planner/breaks';
 import { addDays } from '../lib/planner/dates';
 import { canMove, inBounds, moveBounds, moveDays, movePatches, moveWarnings, swapCandidate } from '../lib/planner/move';
 import { useAuth } from '../lib/auth';
 import { useData } from '../lib/data';
 import * as api from '../lib/api';
 import { Badge, Button, cx, Field, Input, Modal, Notice, useToast } from './ui';
+import { useMoveWorkout, type Patches } from './MoveWorkout';
 
 export const KIND_STYLE: Record<WorkoutKind, { label: string; dot: string; bar: string; soft: string }> = {
   easy: { label: 'Easy', dot: 'bg-emerald-500', bar: 'border-l-emerald-500', soft: 'bg-emerald-50' },
@@ -70,15 +72,55 @@ function StatusIcon({ w }: { w: PlannedWorkout }) {
   return null;
 }
 
-export function WorkoutRow({ w, paces, units, onClick, compact }: { w: PlannedWorkout; paces: Paces; units: Units; onClick?: () => void; compact?: boolean }) {
+/** Clickable (and optionally draggable) element with button semantics. */
+export function pressable(onClick?: () => void): HTMLAttributes<HTMLDivElement> {
+  return {
+    role: 'button',
+    tabIndex: 0,
+    onClick,
+    onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onClick?.();
+      }
+    },
+  };
+}
+
+export function WorkoutRow({
+  w,
+  paces,
+  units,
+  onClick,
+  compact,
+  drag,
+  dragging,
+}: {
+  w: PlannedWorkout;
+  paces: Paces;
+  units: Units;
+  onClick?: () => void;
+  compact?: boolean;
+  drag?: HTMLAttributes<HTMLDivElement>;
+  dragging?: boolean;
+}) {
   const style = KIND_STYLE[w.kind];
   const pace = isRunWorkout(w) ? keyPace(w.steps, paces, units) : null;
   const muted = w.status === 'skipped' || w.status === 'missed';
+  const focus = 'outline-none focus-visible:ring-2 focus-visible:ring-brand/60';
   if (compact) {
     return (
-      <button
-        onClick={onClick}
-        className={cx('w-full rounded-lg border-l-[3px] bg-white px-2 py-1.5 text-left ring-1 ring-slate-200 transition hover:ring-slate-300', style.bar, muted && 'opacity-60')}
+      <div
+        {...pressable(onClick)}
+        {...drag}
+        className={cx(
+          'w-full cursor-pointer rounded-lg border-l-[3px] bg-white px-2 py-1.5 text-left ring-1 ring-slate-200 transition hover:ring-slate-300',
+          drag?.draggable && 'active:cursor-grabbing',
+          style.bar,
+          muted && 'opacity-60',
+          dragging && 'opacity-30',
+          focus,
+        )}
       >
         <div className="flex items-center gap-1">
           <span className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">{style.label}</span>
@@ -91,16 +133,19 @@ export function WorkoutRow({ w, paces, units, onClick, compact }: { w: PlannedWo
         <div className="text-[11px] text-slate-500">
           {w.distance_km ? fmtDistance(w.distance_km, units) : `~${fmtMinutes(w.duration_min)}`}
         </div>
-      </button>
+      </div>
     );
   }
   return (
-    <button
-      onClick={onClick}
+    <div
+      {...pressable(onClick)}
+      {...drag}
       className={cx(
-        'group w-full rounded-xl border-l-4 bg-white p-3 text-left ring-1 ring-slate-200 transition hover:ring-slate-300 hover:shadow-sm',
+        'group w-full cursor-pointer rounded-xl border-l-4 bg-white p-3 text-left ring-1 ring-slate-200 transition hover:ring-slate-300 hover:shadow-sm',
         style.bar,
         muted && 'opacity-60',
+        dragging && 'opacity-30',
+        focus,
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -119,11 +164,9 @@ export function WorkoutRow({ w, paces, units, onClick, compact }: { w: PlannedWo
         </div>
         <StatusBadge w={w} />
       </div>
-    </button>
+    </div>
   );
 }
-
-type Patches = { id: string; patch: WorkoutPatch }[];
 
 /** Pick a day (a week around the workout, or any date) and move or swap. */
 function MovePanel({ w, busy, onMove }: { w: PlannedWorkout; busy: boolean; onMove: (patches: Patches, message: string) => void }) {
@@ -206,6 +249,7 @@ export function WorkoutDetail({ w, onClose }: { w: PlannedWorkout | null; onClos
   const [mode, setMode] = useState<'view' | 'log' | 'move'>('view');
   const [logKm, setLogKm] = useState('');
   const [logMin, setLogMin] = useState('');
+  const mover = useMoveWorkout();
 
   if (!w || !plan) return null;
   const paces = plan.fitness.paces;
@@ -228,8 +272,11 @@ export function WorkoutDetail({ w, onClose }: { w: PlannedWorkout | null; onClos
     }
   };
 
-  const persist = async (patches: Patches) => {
-    await Promise.all(patches.map((p) => api.updateWorkout(p.id, p.patch)));
+  const moveAndClose = async (patches: Patches, message: string) => {
+    if (await mover.move(patches, message)) {
+      setMode('view');
+      onClose();
+    }
   };
   const home = w.original_date && w.original_date !== w.date ? w.original_date : null;
   const canGoHome = !!home && canMove(w) && inBounds(home, moveBounds(today, plan.race_date));
@@ -283,8 +330,8 @@ export function WorkoutDetail({ w, onClose }: { w: PlannedWorkout | null; onClos
               <ArrowRightLeft className="h-4 w-4 shrink-0" /> Originally planned for {fmtDate(home, { weekday: 'long', day: 'numeric', month: 'short' })}.
             </span>
             {canGoHome && (
-              <Button size="sm" variant="secondary" loading={busy} icon={<Undo2 className="h-4 w-4" />}
-                onClick={() => act(() => persist(movePatches(workouts, w, home, today, false)), 'Back on its original day')}>
+              <Button size="sm" variant="secondary" loading={mover.busy} icon={<Undo2 className="h-4 w-4" />}
+                onClick={() => moveAndClose(movePatches(workouts, w, home, today, false), 'Back on its original day.')}>
                 Move back
               </Button>
             )}
@@ -294,7 +341,7 @@ export function WorkoutDetail({ w, onClose }: { w: PlannedWorkout | null; onClos
           <div className="font-semibold text-slate-900">Why: {purposeFor(w.kind).headline}</div>
           <p className="mt-0.5 text-slate-700">{purposeFor(w.kind).why}</p>
         </div>
-        {w.note && <Notice tone="warn">{w.note}</Notice>}
+        {w.note && <Notice tone={isBreakNote(w.note) ? 'info' : 'warn'}>{isBreakNote(w.note) ? w.note.replace(/^Break:s*/, '').replace(/^./, (c) => c.toUpperCase()) : w.note}</Notice>}
 
         <div className="flex gap-4 rounded-xl bg-slate-50 p-3 text-sm">
           {w.distance_km ? (
@@ -363,7 +410,7 @@ export function WorkoutDetail({ w, onClose }: { w: PlannedWorkout | null; onClos
           </div>
         )}
 
-        {mode === 'move' && <MovePanel w={w} busy={busy} onMove={(patches, message) => act(() => persist(patches), message)} />}
+        {mode === 'move' && <MovePanel w={w} busy={mover.busy} onMove={moveAndClose} />}
 
         {mode === 'view' && (
           <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
