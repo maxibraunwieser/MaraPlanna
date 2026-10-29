@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRightLeft, Bike, Check, CircleDashed, Dumbbell, Flag, Footprints, Gauge, PersonStanding, RotateCcw, SkipForward, Sparkles, Target, Waves, X, Zap } from 'lucide-react';
+import { ArrowRightLeft, Bike, Check, CircleDashed, Dumbbell, Flag, Footprints, Gauge, PersonStanding, RotateCcw, SkipForward, Sparkles, Target, Undo2, Waves, X, Zap } from 'lucide-react';
 import { purposeFor } from '../lib/analysis';
 import type { Activity, Paces, PlannedWorkout, Units, WorkoutKind } from '../lib/types';
 import { describeStep, fmtDate, fmtDistance, fmtDuration, fmtMinutes, fmtPace, keyPace, fromUnit, toUnit } from '../lib/format';
-import { isRunWorkout } from '../lib/planner/adapt';
+import { isRunWorkout, type WorkoutPatch } from '../lib/planner/adapt';
+import { addDays } from '../lib/planner/dates';
+import { canMove, inBounds, moveBounds, moveDays, movePatches, moveWarnings, swapCandidate } from '../lib/planner/move';
 import { useAuth } from '../lib/auth';
 import { useData } from '../lib/data';
 import * as api from '../lib/api';
@@ -121,15 +123,89 @@ export function WorkoutRow({ w, paces, units, onClick, compact }: { w: PlannedWo
   );
 }
 
+type Patches = { id: string; patch: WorkoutPatch }[];
+
+/** Pick a day (a week around the workout, or any date) and move or swap. */
+function MovePanel({ w, busy, onMove }: { w: PlannedWorkout; busy: boolean; onMove: (patches: Patches, message: string) => void }) {
+  const { plan, workouts, today } = useData();
+  const [target, setTarget] = useState<string | null>(null);
+  if (!plan) return null;
+  const bounds = moveBounds(today, plan.race_date);
+  const days = moveDays(w, today, plan.race_date);
+  const dayName = (d: string) => (d === today ? 'Today' : d === addDays(today, 1) ? 'Tomorrow' : fmtDate(d, { weekday: 'short' }));
+  const onDay = (d: string) => workouts.filter((o) => o.id !== w.id && o.date === d && o.status !== 'skipped');
+  const valid = !!target && target !== w.date && inBounds(target, bounds);
+  const swap = valid ? swapCandidate(workouts, w, target, today) : null;
+  const warnings = valid ? moveWarnings(workouts, movePatches(workouts, w, target, today, !!swap)) : [];
+
+  return (
+    <div className="space-y-3 rounded-xl bg-slate-50 p-3">
+      <div className="text-sm font-semibold text-slate-900">Move to</div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {days.map((d) => {
+          const current = d === w.date;
+          const items = onDay(d);
+          return (
+            <button
+              key={d}
+              type="button"
+              disabled={current}
+              onClick={() => setTarget(d)}
+              className={cx(
+                'rounded-lg p-2 text-left transition',
+                target === d ? 'bg-brand-soft ring-2 ring-brand' : 'bg-white ring-1 ring-slate-200 hover:ring-slate-300',
+                current && 'cursor-default opacity-50',
+              )}
+            >
+              <div className="text-xs font-semibold text-slate-900">{dayName(d)}</div>
+              <div className="truncate text-[11px] text-slate-500">
+                {fmtDate(d, { day: 'numeric', month: 'short' })} · {current ? 'now' : items.length ? items.map((o) => KIND_STYLE[o.kind].label).join(' + ') : 'Rest'}
+              </div>
+              {d === w.original_date && !current && <div className="text-[11px] font-semibold text-sky-700">Original day</div>}
+            </button>
+          );
+        })}
+      </div>
+      <Field label="Or any other day">
+        <Input type="date" min={bounds.min} max={bounds.max} value={target && !days.includes(target) ? target : ''} onChange={(e) => setTarget(e.target.value || null)} />
+      </Field>
+      {target && !valid && target !== w.date && (
+        <Notice tone="error">Pick a day from today until {fmtDate(bounds.max)} – workouts can't move into the past.</Notice>
+      )}
+      {valid && (
+        <>
+          {warnings.map((m) => (
+            <Notice key={m} tone="warn">{m}</Notice>
+          ))}
+          <div className="flex flex-wrap gap-2">
+            {swap && (
+              <Button loading={busy} onClick={() => onMove(movePatches(workouts, w, target, today, true), `Swapped with ${swap.title}`)} icon={<ArrowRightLeft className="h-4 w-4" />}>
+                Swap days
+              </Button>
+            )}
+            <Button variant={swap ? 'secondary' : 'primary'} loading={busy} onClick={() => onMove(movePatches(workouts, w, target, today, false), `Moved to ${fmtDate(target)}`)}>
+              {swap ? 'Move – keep both' : `Move to ${fmtDate(target)}`}
+            </Button>
+          </div>
+          {swap && (
+            <p className="text-xs text-slate-500">
+              Swap puts "{swap.title}" on {fmtDate(w.date)} instead.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export function WorkoutDetail({ w, onClose }: { w: PlannedWorkout | null; onClose: () => void }) {
-  const { plan, units, activities, adapt, reload, today } = useData();
+  const { plan, units, activities, workouts, adapt, reload, today } = useData();
   const { user } = useAuth();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<'view' | 'log' | 'move'>('view');
   const [logKm, setLogKm] = useState('');
   const [logMin, setLogMin] = useState('');
-  const [moveTo, setMoveTo] = useState('');
 
   if (!w || !plan) return null;
   const paces = plan.fitness.paces;
@@ -151,6 +227,12 @@ export function WorkoutDetail({ w, onClose }: { w: PlannedWorkout | null; onClos
       setBusy(false);
     }
   };
+
+  const persist = async (patches: Patches) => {
+    await Promise.all(patches.map((p) => api.updateWorkout(p.id, p.patch)));
+  };
+  const home = w.original_date && w.original_date !== w.date ? w.original_date : null;
+  const canGoHome = !!home && canMove(w) && inBounds(home, moveBounds(today, plan.race_date));
 
   const logDone = () =>
     act(async () => {
@@ -195,7 +277,19 @@ export function WorkoutDetail({ w, onClose }: { w: PlannedWorkout | null; onClos
           <span className="capitalize">{w.phase} phase</span>
           <StatusBadge w={w} />
         </div>
-        {w.original_date && <Notice tone="info">Moved from {fmtDate(w.original_date)} by the planner.</Notice>}
+        {home && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-sky-50 px-3 py-2 text-sm text-sky-900 ring-1 ring-sky-200">
+            <span className="flex items-center gap-1.5">
+              <ArrowRightLeft className="h-4 w-4 shrink-0" /> Originally planned for {fmtDate(home, { weekday: 'long', day: 'numeric', month: 'short' })}.
+            </span>
+            {canGoHome && (
+              <Button size="sm" variant="secondary" loading={busy} icon={<Undo2 className="h-4 w-4" />}
+                onClick={() => act(() => persist(movePatches(workouts, w, home, today, false)), 'Back on its original day')}>
+                Move back
+              </Button>
+            )}
+          </div>
+        )}
         <div className="rounded-xl bg-brand-soft/60 p-3 text-sm">
           <div className="font-semibold text-slate-900">Why: {purposeFor(w.kind).headline}</div>
           <p className="mt-0.5 text-slate-700">{purposeFor(w.kind).why}</p>
@@ -269,20 +363,7 @@ export function WorkoutDetail({ w, onClose }: { w: PlannedWorkout | null; onClos
           </div>
         )}
 
-        {mode === 'move' && (
-          <div className="flex items-end gap-2 rounded-xl bg-slate-50 p-3">
-            <Field label="Move to" className="flex-1">
-              <Input type="date" min={today} max={plan.race_date} value={moveTo} onChange={(e) => setMoveTo(e.target.value)} />
-            </Field>
-            <Button
-              disabled={!moveTo}
-              loading={busy}
-              onClick={() => act(() => api.updateWorkout(w.id, { date: moveTo, original_date: w.original_date ?? w.date, status: 'planned', status_source: 'auto' }), 'Workout moved')}
-            >
-              Move
-            </Button>
-          </div>
-        )}
+        {mode === 'move' && <MovePanel w={w} busy={busy} onMove={(patches, message) => act(() => persist(patches), message)} />}
 
         {mode === 'view' && (
           <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
@@ -291,11 +372,13 @@ export function WorkoutDetail({ w, onClose }: { w: PlannedWorkout | null; onClos
                 Log as done
               </Button>
             )}
+            {canMove(w) && (
+              <Button size="sm" variant="secondary" onClick={() => setMode('move')} icon={<ArrowRightLeft className="h-4 w-4" />}>
+                Move
+              </Button>
+            )}
             {w.status === 'planned' && w.kind !== 'race' && (
               <>
-                <Button size="sm" variant="secondary" onClick={() => setMode('move')} icon={<ArrowRightLeft className="h-4 w-4" />}>
-                  Move
-                </Button>
                 <Button
                   size="sm"
                   variant="secondary"
