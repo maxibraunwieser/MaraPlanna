@@ -21,9 +21,6 @@ An adaptive marathon training planner powered by your Garmin data.
    - rebuilds the upcoming weeks from your real level after a break or when you ran < 70 % of the planned volume;
    - updates your training paces when your Garmin runs show your fitness changed;
    - offers "make today easy" when your resting HR, HRV, sleep or Body Battery signal fatigue on a key-session day.
-7. **Put a session on your watch.** Every planned run has an *On your watch* box:
-   - **Send to Garmin:** one tap puts the session, with warm-up, repeats and pace targets, in your Garmin Connect calendar, and the watch gets it on its next sync. It goes through [intervals.icu](https://intervals.icu), because Garmin's Personal API can only read data.
-   - **Download .FIT:** a Garmin workout file you copy to `GARMIN/NewFiles` on the watch over USB. No extra account needed.
 
 The site runs on **GitHub Pages**. **Supabase** holds the logins, the database and one Edge Function that talks to Garmin.
 
@@ -82,15 +79,6 @@ The key is exchanged for 24-hour access tokens server-side, stored AES-GCM encry
 
 If you have no key, you can still get a plan from your answers, import `.FIT` / `.zip` exports from Garmin Connect on the Activities page, or log sessions by hand.
 
-### 4. Workouts to the watch (optional, each user)
-
-1. Create a free account at [intervals.icu](https://intervals.icu).
-2. In intervals.icu, open *Settings → Garmin Connect → Connect*, and allow everything on Garmin's page, including workouts / training.
-3. In the same Settings page, scroll to *Developer Settings* and copy the **API key**.
-4. In MaraPlanna, go to *Settings → Workouts to your watch* and paste the key.
-
-The key is stored AES-GCM encrypted (same secret as the Garmin key). On connect, MaraPlanna switches on "Upload planned workouts" if it is off. On the first send, it sets your Run threshold pace if none is set, because intervals.icu drops pace targets for Garmin without one. Sending a workout again replaces the earlier copy.
-
 ---
 
 ## Local development
@@ -107,7 +95,7 @@ npm run build
 
 After pulling a new version:
 
-1. **Database:** run any new files from `supabase/migrations/` in the Supabase SQL Editor, oldest first, or run `npx supabase db push`. The analysis needs `20261026000000_activity_details.sql`, and sending workouts to the watch needs `20261028000000_watch_sync.sql`.
+1. **Database:** run any new files from `supabase/migrations/` in the Supabase SQL Editor, oldest first, or run `npx supabase db push`. The analysis needs `20261026000000_activity_details.sql`.
 2. **Garmin function:** run `npx supabase functions deploy garmin --no-verify-jwt`.
 3. **Website:** pushing to `main` redeploys GitHub Pages automatically.
 4. **Plan:** to use a new planning model, open *Settings → Edit answers*, then *Replace my plan*. Your activities stay.
@@ -135,7 +123,6 @@ All of the planning logic is plain TypeScript in [`src/lib/planner`](src/lib/pla
 | `generate.ts` | Phases counted back from race day, volume +6–10 %/week with an easier week every 3rd/4th week, long run up to 30–34 km (time-capped), quality-session ladders, best spacing of run days, weekday time limits, race week |
 | `extras.ts` | Strength (upper / lower / full), core, plyometrics, mobility, cycling, swimming and custom sessions by phase and equipment. Leg-heavy work never lands on or right before the long run or a key session; it drops to maintenance in the taper and stops in race week |
 | `../analysis.ts` | Workout analysis: goal, execution score, interval detection, HR zones, decoupling, VDOT signal, Tanda projection |
-| `../watch.ts`, `../watchFit.ts` | Planned run → watch workout: intervals.icu workout text, or a Garmin .FIT workout file |
 | `adapt.ts` | Matches activities to workouts, reschedules missed sessions, rebuilds after breaks or low compliance, updates paces |
 | `readiness.ts` | Daily readiness from resting HR, HRV, sleep and Body Battery |
 
@@ -147,7 +134,7 @@ src/                 React app (Vite + TypeScript + Tailwind)
   pages/             Login, onboarding, Garmin connect, dashboard, plan, activities, settings
 supabase/
   migrations/        tables + Row Level Security
-  functions/garmin/  Edge Function: Garmin Personal API bridge + intervals.icu workout push
+  functions/garmin/  Edge Function: Garmin Personal API bridge
 .github/workflows/   GitHub Pages deploy, optional Supabase deploy
 ```
 

@@ -9,7 +9,6 @@ import { fmtDate, fmtDistance, fmtDuration, fmtRelative } from '../lib/format';
 import type { Units } from '../lib/types';
 import { Badge, Button, Card, CardTitle, Field, Input, PageHeader, Segmented, useToast } from '../components/ui';
 import { extraLabel } from '../components/WeekBuilder';
-import { WatchSettings } from '../components/WatchSync';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -105,8 +104,6 @@ export function Settings() {
           <Button size="sm" variant="secondary">{connection ? 'Manage connection' : 'Connect Garmin'}</Button>
         </Link>
       </Card>
-
-      <WatchSettings />
 
       <Card>
         <CardTitle>Account</CardTitle>
