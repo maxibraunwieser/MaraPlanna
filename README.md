@@ -10,7 +10,7 @@ An adaptive marathon training planner powered by your Garmin data.
 4. **Get your plan.** It is evidence-based (see *How the coach works*): periodised, with long runs building to **30–35 km** depending on level, ~80 % easy running, a 3-week taper and VDOT paces.
 5. **Analyse every workout.** Each run gets:
    - **Goal and evidence:** what the session is for and why it matters for the marathon.
-   - **Execution score:** completion, pace in the target zone, interval reps detected from laps or the pace stream, heart-rate effort, and aerobic decoupling on long runs.
+   - **Execution score:** completion, pace in the target zone, interval reps (from the watch's workout laps, the lap button or the pace stream, down to 1-minute reps), heart-rate effort, and aerobic decoupling on long runs.
    - **Charts and zones:** pace and heart-rate charts, plus time in each HR zone.
    - **Fitness signal:** the VDOT this run points to.
    - **Marathon projection:** the effect of this run on your training-based marathon projection (Tanda model).

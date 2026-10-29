@@ -226,57 +226,143 @@ function segmentStats(samples: ActivitySample[], from: number, to: number) {
   return { distanceM, durationS, avgHr: hr.length ? hr.reduce((a, b) => a + b, 0) / hr.length : null };
 }
 
-/** Find the work repetitions of a structured session in laps or the pace stream. */
-function detectReps(details: ActivityDetails | null, reps: number, targetPace: number, easyPace: number, repSeconds: number): RepResult[] | null {
-  if (!details) return null;
-  const cutoff = (targetPace + easyPace) / 2;
-  const make = (list: { distanceM: number; durationS: number; avgHr: number | null }[]) =>
-    list
-      .filter((r) => r.distanceM > 50)
-      .map((r, i) => {
-        const p = r.durationS / (r.distanceM / 1000);
-        return { index: i + 1, ...r, paceS: p, targetPaceS: targetPace, deviationPct: ((p - targetPace) / targetPace) * 100 };
-      });
+export interface RepPlan {
+  /** Planned number of work reps. */
+  reps: number;
+  /** Target pace of the reps, s/km. */
+  targetPace: number;
+  /** Fast end of the easy range, s/km. */
+  easyPace: number;
+  /** Planned duration of one rep and of the recovery between reps, s. */
+  repSeconds: number;
+  recoverySeconds: number;
+}
 
-  // 1) Laps pressed by the athlete / structured workout laps.
-  const lapReps = details.laps.filter(
-    (l) => l.avgSpeed && pace(l.avgSpeed) <= cutoff && l.durationS >= repSeconds * 0.5 && l.durationS <= repSeconds * 1.6,
-  );
-  if (lapReps.length >= Math.max(1, Math.ceil(reps * 0.6))) {
-    return make(lapReps.map((l) => ({ distanceM: l.distanceM, durationS: l.durationS, avgHr: l.avgHr })));
-  }
+type RepStat = { distanceM: number; durationS: number; avgHr: number | null; paceS?: number };
 
-  // 2) Segment the pace stream: runs of samples faster than the cut-off.
-  const s = details.samples;
-  if (s.length < 10) return null;
-  const smooth = s.map((_, i) => {
-    const w = s.slice(Math.max(0, i - 1), i + 2).filter((x) => x.v);
-    return w.length ? w.reduce((a, b) => a + b.v!, 0) / w.length : 0;
-  });
-  const segments: [number, number][] = [];
-  let start = -1;
-  for (let i = 0; i < s.length; i++) {
-    const fast = smooth[i] > 0 && pace(smooth[i]) <= cutoff;
-    if (fast && start < 0) start = i;
-    if ((!fast || i === s.length - 1) && start >= 0) {
-      segments.push([start, fast ? i : i - 1]);
-      start = -1;
+/** Weighted two-class split (Otsu) of speeds: where "fast" and "slow" running separate best. */
+function speedSplit(values: { v: number; w: number }[]) {
+  const xs = [...values].sort((a, b) => a.v - b.v);
+  const W = xs.reduce((s, x) => s + x.w, 0);
+  const S = xs.reduce((s, x) => s + x.w * x.v, 0);
+  let best: { threshold: number; slow: number; fast: number } | null = null;
+  let bestVar = 0;
+  let w0 = 0;
+  let s0 = 0;
+  for (let k = 0; k < xs.length - 1; k++) {
+    w0 += xs[k].w;
+    s0 += xs[k].w * xs[k].v;
+    if (xs[k + 1].v === xs[k].v) continue;
+    const m0 = s0 / w0;
+    const m1 = (S - s0) / (W - w0);
+    const between = w0 * (W - w0) * (m1 - m0) ** 2;
+    if (between > bestVar) {
+      bestVar = between;
+      best = { threshold: (xs[k].v + xs[k + 1].v) / 2, slow: m0, fast: m1 };
     }
   }
-  const merged: [number, number][] = [];
-  for (const seg of segments) {
-    const prev = merged[merged.length - 1];
-    if (prev && s[seg[0]].t - s[prev[1]].t < 20) prev[1] = seg[1];
-    else merged.push([...seg]);
+  return best;
+}
+
+/** Work reps in the pace stream. Speeds come from distance over time (robust against single GPS readings). */
+function streamReps(samples: ActivitySample[], plan: RepPlan): RepStat[] | null {
+  if (samples.length < 10) return null;
+  const iv: { dt: number; dd: number; v: number; hr: number | null }[] = [];
+  for (let i = 1; i < samples.length; i++) {
+    const a = samples[i - 1];
+    const b = samples[i];
+    const dt = b.t - a.t;
+    if (dt <= 0) continue;
+    const dd = Math.max(0, b.d - a.d);
+    // A long gap is a pause; without distance (treadmill) fall back to the speed reading.
+    const v = dt > 30 ? 0 : dd > 0 ? dd / dt : (b.v ?? 0);
+    const hrs = [a.hr, b.hr].filter((h): h is number => !!h);
+    iv.push({ dt, dd, v, hr: hrs.length ? hrs.reduce((x, y) => x + y, 0) / hrs.length : null });
   }
-  const candidates = merged
-    .map(([a, b]) => ({ a, b, dur: s[b].t - s[a].t }))
-    .filter((c) => c.dur >= Math.max(40, repSeconds * 0.4))
-    .sort((x, y) => y.dur - x.dur)
-    .slice(0, reps)
-    .sort((x, y) => x.a - y.a);
-  if (!candidates.length) return null;
-  return make(candidates.map((c) => segmentStats(s, c.a, c.b)));
+
+  // Fast vs slow: split the run's own speeds; fall back to halfway between target and easy pace.
+  const easySpeed = 1000 / plan.easyPace;
+  const split = speedSplit(iv.filter((x) => x.v > 1).map((x) => ({ v: x.v, w: x.dt })));
+  const cut = split && split.fast / split.slow >= 1.08 && split.threshold > easySpeed ? split.threshold : 1000 / ((plan.targetPace + plan.easyPace) / 2);
+  const fast = iv.map((x) => x.v >= cut);
+  const slowRef = split?.slow ?? easySpeed * 0.9;
+
+  // Segments of fast running; short dips (GPS) inside a rep are bridged, the planned recovery is not.
+  const bridge = Math.min(20, Math.max(8, plan.recoverySeconds * 0.35));
+  const segments: { start: number; end: number }[] = [];
+  let cur: { start: number; end: number } | null = null;
+  let gap = 0;
+  for (let k = 0; k < iv.length; k++) {
+    if (fast[k]) {
+      if (cur && gap <= bridge) cur.end = k;
+      else {
+        if (cur) segments.push(cur);
+        cur = { start: k, end: k };
+      }
+      gap = 0;
+    } else if (cur) {
+      gap += iv[k].dt;
+    }
+  }
+  if (cur) segments.push(cur);
+
+  const stats = segments.map((s) => {
+    const core = iv.slice(s.start, s.end + 1);
+    const work = core.filter((_, j) => fast[s.start + j]);
+    const workS = work.reduce((x, y) => x + y.dt, 0);
+    const speed = work.reduce((x, y) => x + y.dd, 0) / workS || work.reduce((x, y) => x + y.v * y.dt, 0) / workS;
+    let durationS = core.reduce((x, y) => x + y.dt, 0);
+    // The intervals either side are partly rep, partly recovery: count the fast share.
+    for (const edge of [iv[s.start - 1], iv[s.end + 1]]) {
+      if (edge && edge.v > slowRef && speed > slowRef) durationS += Math.min(1, (edge.v - slowRef) / (speed - slowRef)) * edge.dt;
+    }
+    const hrw = core.filter((x) => x.hr);
+    const avgHr = hrw.length ? hrw.reduce((x, y) => x + y.hr! * y.dt, 0) / hrw.reduce((x, y) => x + y.dt, 0) : null;
+    return { durationS, distanceM: durationS * speed, paceS: 1000 / speed, avgHr, start: s.start };
+  });
+
+  // Reps are about the planned length; much shorter surges (strides) and long easy stretches drop out.
+  const E = plan.repSeconds;
+  let cands = stats.filter((c) => c.durationS >= Math.max(15, E * 0.45) && c.durationS <= E * 2.2 + 20);
+  if (!cands.length) return null;
+  if (cands.length > plan.reps) {
+    cands = [...cands].sort((a, b) => Math.abs(Math.log(a.durationS / E)) - Math.abs(Math.log(b.durationS / E))).slice(0, plan.reps);
+  }
+  return cands.sort((a, b) => a.start - b.start).map(({ start: _, ...r }) => r);
+}
+
+/**
+ * Find the work reps of a structured session: the watch's own workout laps,
+ * laps pressed by the athlete, or the pace stream.
+ */
+export function detectReps(details: ActivityDetails | null, plan: RepPlan): RepResult[] | null {
+  if (!details) return null;
+  const E = plan.repSeconds;
+  const enough = (n: number) => n >= Math.max(1, Math.ceil(plan.reps * 0.6));
+  const make = (list: RepStat[]): RepResult[] =>
+    list
+      .filter((r) => r.distanceM > 30 && r.durationS > 0)
+      .map((r, i) => {
+        const p = r.paceS ?? r.durationS / (r.distanceM / 1000);
+        return { index: i + 1, distanceM: r.distanceM, durationS: r.durationS, avgHr: r.avgHr, paceS: p, targetPaceS: plan.targetPace, deviationPct: ((p - plan.targetPace) / plan.targetPace) * 100 };
+      });
+  const fromLap = (l: ActivityDetails['laps'][number]): RepStat => ({ distanceM: l.distanceM, durationS: l.durationS, avgHr: l.avgHr });
+
+  // 1) A structured workout run on the watch marks work and rest laps.
+  const laps = details.laps;
+  if (laps.some((l) => l.intensity === 'rest' || l.intensity === 'recovery')) {
+    const work = laps.filter((l) => (l.intensity === 'active' || l.intensity === 'interval') && l.durationS >= E * 0.4 && l.durationS <= E * 2.5 && l.distanceM > 0);
+    if (enough(work.length)) return make(work.slice(0, plan.reps).map(fromLap));
+  }
+
+  // 2) Lap button pressed at the start and end of each rep.
+  const cutoff = (plan.targetPace + plan.easyPace) / 2;
+  const lapReps = laps.filter((l) => l.avgSpeed && pace(l.avgSpeed) <= cutoff && l.durationS >= E * 0.5 && l.durationS <= E * 1.6);
+  if (enough(lapReps.length)) return make(lapReps.map(fromLap));
+
+  // 3) The pace stream.
+  const fromStream = streamReps(details.samples, plan);
+  return fromStream ? make(fromStream) : null;
 }
 
 function mainStep(steps: Step[]) {
@@ -386,7 +472,8 @@ export function analyze(input: {
     const target = zonePace(paces, main.zone);
     const repCount = main.repeat ?? 1;
     const repSeconds = main.durationMin ? main.durationMin * 60 : (main.distanceKm ?? 1) * target;
-    reps = detectReps(details, repCount, target, paces.easy[0], repSeconds);
+    const recoverySeconds = main.recoveryMin ? main.recoveryMin * 60 : (main.recoveryKm ?? 0) * zonePace(paces, 'recovery');
+    reps = detectReps(details, { reps: repCount, targetPace: target, easyPace: paces.easy[0], repSeconds, recoverySeconds });
     if (reps?.length) {
       const devs = reps.map((r) => r.deviationPct);
       const meanAbs = devs.reduce((s, d) => s + Math.abs(d), 0) / devs.length;

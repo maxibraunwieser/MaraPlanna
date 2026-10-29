@@ -292,11 +292,12 @@ function fitDetails(bytes: Uint8Array) {
   let lastT = -Infinity;
   for (const r of records) {
     const t = (ms(r.timestamp) - t0) / 1000;
-    if (!Number.isFinite(t) || t - lastT < 10) continue;
+    // ~5 s resolution: enough to find 1-minute reps, small enough to store.
+    if (!Number.isFinite(t) || t - lastT < 5) continue;
     lastT = t;
     samples.push({
       t: Math.round(t),
-      d: round(r.distance) ?? (samples.length ? samples[samples.length - 1].d : 0),
+      d: round(r.distance, 1) ?? (samples.length ? samples[samples.length - 1].d : 0),
       hr: round(r.heartRate),
       v: round(r.enhancedSpeed ?? r.speed, 2),
       alt: round(r.enhancedAltitude ?? r.altitude, 1),

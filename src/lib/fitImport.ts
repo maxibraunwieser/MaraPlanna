@@ -21,7 +21,7 @@ const localDate = (d: Date) =>
 const ms = (v: unknown) => (v instanceof Date ? v.getTime() : typeof v === 'number' ? v : NaN);
 const num = (v: unknown, digits = 0) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v * 10 ** digits) / 10 ** digits : null);
 
-/** Laps + a stream downsampled to ~10 s, same shape the Garmin sync stores. */
+/** Laps + a stream downsampled to ~5 s, same shape the Garmin sync stores. */
 function extractDetails(messages: Record<string, unknown>): ActivityDetails {
   const records = (messages.recordMesgs ?? []) as Record<string, unknown>[];
   const laps = (messages.lapMesgs ?? []) as Record<string, unknown>[];
@@ -30,11 +30,11 @@ function extractDetails(messages: Record<string, unknown>): ActivityDetails {
   let lastT = -Infinity;
   for (const r of records) {
     const t = (ms(r.timestamp) - t0) / 1000;
-    if (!Number.isFinite(t) || t - lastT < 10) continue;
+    if (!Number.isFinite(t) || t - lastT < 5) continue;
     lastT = t;
     samples.push({
       t: Math.round(t),
-      d: num(r.distance) ?? (samples.length ? samples[samples.length - 1].d : 0),
+      d: num(r.distance, 1) ?? (samples.length ? samples[samples.length - 1].d : 0),
       hr: num(r.heartRate),
       v: num(r.enhancedSpeed ?? r.speed, 2),
       alt: num(r.enhancedAltitude ?? r.altitude, 1),
