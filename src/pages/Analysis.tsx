@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useMemo, type ReactElement } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, CircleAlert, Info, Lightbulb, Target, TrendingUp, XCircle } from 'lucide-react';
 import { useData } from '../lib/data';
 import { analyze, purposeFor, type CheckStatus } from '../lib/analysis';
-import { fetchActivityDetails } from '../lib/api';
+import { useActivityDetails } from '../lib/details';
 import { estimateMaxHr } from '../lib/planner/fitness';
 import { describeStep, fmtDate, fmtDistance, fmtDuration, fmtMinSec, fmtPace, KM_PER_MI } from '../lib/format';
-import type { ActivityDetails } from '../lib/types';
 import { Badge, Card, CardTitle, cx, Notice, Spinner } from '../components/ui';
 import { KIND_STYLE } from '../components/Workout';
 import { LineChart } from '../components/LineChart';
@@ -46,29 +45,13 @@ function ScoreRing({ score, grade }: { score: number; grade: string }) {
 export function Analysis() {
   const { activityId } = useParams();
   const { plan, workouts, activities, metrics, units, connection, today } = useData();
-  const [details, setDetails] = useState<ActivityDetails | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const activity = activities.find((a) => a.id === activityId) ?? null;
   const workout = workouts.find((w) => w.activity_id === activityId) ?? null;
-
-  useEffect(() => {
-    if (!activity) return;
-    if (activity.details) {
-      setDetails(activity.details);
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    fetchActivityDetails(activity)
-      .then((d) => !cancelled && setDetails(d))
-      .catch((e) => !cancelled && setError((e as Error).message))
-      .finally(() => !cancelled && setLoading(false));
-    return () => {
-      cancelled = true;
-    };
-  }, [activity?.id]);
+  // Same source as the dashboard and the weekly report, so the score matches everywhere.
+  const { ready, detailsOf, errorOf } = useActivityDetails(activity ? [activity] : []);
+  const details = activity ? detailsOf(activity) : null;
+  const loading = !!activity && !ready;
+  const error = activity ? errorOf(activity) : null;
 
   const maxHr = plan ? estimateMaxHr(plan.inputs, connection?.profile ?? null, activities, today) : null;
   const result = useMemo(
@@ -120,7 +103,11 @@ export function Analysis() {
           <h1 className="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">{workout?.title ?? activity.name ?? 'Activity'}</h1>
           <p className="text-sm text-slate-500">{fmtDate(activity.local_date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
         </div>
-        {result.score !== null && result.grade && <ScoreRing score={result.score} grade={result.grade} />}
+        {loading ? (
+          <div className="h-24 w-24 animate-pulse rounded-full bg-slate-100" aria-label="Loading score" />
+        ) : (
+          result.score !== null && result.grade && <ScoreRing score={result.score} grade={result.grade} />
+        )}
       </div>
 
       {error && <Notice tone="warn">{error}</Notice>}
@@ -195,7 +182,12 @@ export function Analysis() {
         </Card>
       </div>
 
-      {result.checks.length > 0 && (
+      {loading ? (
+        <Card>
+          <CardTitle>Execution check</CardTitle>
+          <Spinner label="Checking the session against your lap data…" />
+        </Card>
+      ) : result.checks.length > 0 && (
         <Card>
           <CardTitle>Execution check</CardTitle>
           <ul className="divide-y divide-slate-100">
@@ -302,7 +294,7 @@ export function Analysis() {
         <Card>
           <CardTitle icon={<TrendingUp className="h-5 w-5 text-brand" />}>Fitness & marathon projection</CardTitle>
           <dl className="space-y-3 text-sm">
-            {result.fitness.vdot && (
+            {!loading && result.fitness.vdot && (
               <div className="flex justify-between gap-3">
                 <dt className="text-slate-500">Fitness shown by this run</dt>
                 <dd className="font-semibold">
@@ -339,7 +331,7 @@ export function Analysis() {
         </Card>
       </div>
 
-      {result.insights.length > 0 && (
+      {!loading && result.insights.length > 0 && (
         <Card>
           <CardTitle icon={<Lightbulb className="h-5 w-5 text-brand" />}>Coach notes</CardTitle>
           <ul className="space-y-3">

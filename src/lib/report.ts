@@ -1,7 +1,7 @@
 // Weekly report: what was planned, what was done, how well, how the body
 // coped and what comes next – with a few coach notes on top.
 
-import type { Activity, DailyMetric, PlannedWorkout, TrainingPlan, Units, WeekSummary } from './types';
+import type { Activity, ActivityDetails, DailyMetric, PlannedWorkout, TrainingPlan, Units, WeekSummary } from './types';
 import { analyze, tandaProjection } from './analysis';
 import { addDays } from './planner/dates';
 import { isRunWorkout } from './planner/adapt';
@@ -69,8 +69,11 @@ export function weekReport(input: {
   today: string;
   maxHr: number | null;
   units: Units;
+  /** Laps + streams (same source as the full analysis, so the scores match). */
+  detailsOf?: (a: Activity) => ActivityDetails | null;
 }): WeekReport {
   const { plan, workouts, activities, metrics, weekStart: start, today, maxHr, units } = input;
+  const detailsOf = input.detailsOf ?? ((a: Activity) => a.details ?? null);
   const end = addDays(start, 6);
   const state = today > end ? 'past' : today < start ? 'future' : 'current';
   const cutoff = state === 'current' ? today : end;
@@ -104,7 +107,7 @@ export function weekReport(input: {
   const byId = new Map(activities.map((a) => [a.id, a]));
   const linked = new Set(ws.map((w) => w.activity_id).filter(Boolean));
   const score = (w: PlannedWorkout | null, a: Activity) => {
-    const r = analyze({ workout: w, activity: a, details: a.details ?? null, plan, activities, metrics, maxHr });
+    const r = analyze({ workout: w, activity: a, details: detailsOf(a), plan, activities, metrics, maxHr });
     const steady = !w || STEADY.has(w.kind);
     return { score: r.score, tooFast: steady && a.sport === 'run' && r.checks.some((c) => c.label === 'Pace' && c.status !== 'good') };
   };

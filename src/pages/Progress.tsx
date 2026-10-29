@@ -5,8 +5,10 @@ import { useData } from '../lib/data';
 import { projectionHistory } from '../lib/projection';
 import { weekReport, type ReportItem, type ReportNote, type WeekReport } from '../lib/report';
 import { estimateMaxHr } from '../lib/planner/fitness';
+import { useActivityDetails } from '../lib/details';
 import { addDays, mondayOf, weekdayOf } from '../lib/planner/dates';
 import { isRunWorkout } from '../lib/planner/adapt';
+import type { Activity } from '../lib/types';
 import { fmtDate, fmtDistance, fmtDuration, fmtPace } from '../lib/format';
 import { Badge, Card, CardTitle, cx, PageHeader, Spinner } from '../components/ui';
 import { KIND_STYLE } from '../components/Workout';
@@ -250,6 +252,11 @@ function ReportBody({ r }: { r: WeekReport }) {
   );
 }
 
+const runsOfWeek = (activities: Activity[], start: string) => {
+  const end = addDays(start, 6);
+  return activities.filter((a) => a.sport === 'run' && a.local_date >= start && a.local_date <= end);
+};
+
 /** The week a report opens on: last week early in the week, otherwise this week. */
 export const defaultReportWeek = (today: string) => (weekdayOf(today) <= 1 ? addDays(mondayOf(today), -7) : mondayOf(today));
 
@@ -261,12 +268,24 @@ function WeeklyReportCard() {
   const wanted = params.get('week');
   const fallback = weeks.includes(defaultReportWeek(today)) ? defaultReportWeek(today) : weeks[weeks.length - 1];
   const start = wanted && weeks.includes(wanted) ? wanted : fallback;
+  const weekRuns = useMemo(() => (start ? runsOfWeek(activities, start) : []), [activities, start]);
+  const { ready, detailsOf } = useActivityDetails(weekRuns);
   const report = useMemo(() => {
-    if (!plan || !start) return null;
+    if (!plan || !start || !ready) return null;
     const maxHr = estimateMaxHr(plan.inputs, connection?.profile ?? null, activities, today);
-    return weekReport({ plan, workouts, activities, metrics, weekStart: start, today, maxHr, units });
-  }, [plan, workouts, activities, metrics, start, today, units, connection]);
-  if (!plan || !report || !start) return null;
+    return weekReport({ plan, workouts, activities, metrics, weekStart: start, today, maxHr, units, detailsOf });
+    // detailsOf reads a shared cache; `ready` covers its changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan, workouts, activities, metrics, start, today, units, connection, ready]);
+  if (!plan || !start) return null;
+  if (!report) {
+    return (
+      <Card>
+        <CardTitle icon={<ClipboardCheck className="h-5 w-5 text-brand" />}>Weekly report</CardTitle>
+        <Spinner label="Loading lap data…" />
+      </Card>
+    );
+  }
 
   const i = weeks.indexOf(start);
   const go = (d: string) => setParams((p) => {
@@ -325,11 +344,15 @@ export function Progress() {
 export function ReportTeaser() {
   const { plan, workouts, activities, metrics, units, today, connection } = useData();
   const start = addDays(mondayOf(today), -7);
+  const show = !!plan && weekdayOf(today) <= 2 && plan.weeks.some((w) => w.startDate === start);
+  const weekRuns = useMemo(() => (show ? runsOfWeek(activities, start) : []), [activities, start, show]);
+  const { ready, detailsOf } = useActivityDetails(weekRuns);
   const report = useMemo(() => {
-    if (!plan || weekdayOf(today) > 2 || !plan.weeks.some((w) => w.startDate === start)) return null;
+    if (!plan || !show || !ready) return null;
     const maxHr = estimateMaxHr(plan.inputs, connection?.profile ?? null, activities, today);
-    return weekReport({ plan, workouts, activities, metrics, weekStart: start, today, maxHr, units });
-  }, [plan, workouts, activities, metrics, start, today, units, connection]);
+    return weekReport({ plan, workouts, activities, metrics, weekStart: start, today, maxHr, units, detailsOf });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan, workouts, activities, metrics, start, today, units, connection, show, ready]);
   if (!report || (!report.sessions.planned && !report.doneKm)) return null;
   const runsPlanned = workouts.some((w) => w.date >= start && w.date <= report.end && isRunWorkout(w));
   return (

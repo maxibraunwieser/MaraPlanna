@@ -8,6 +8,7 @@ import { useData } from '../lib/data';
 import { addDays, daysBetween, mondayOf, weekdayOf } from '../lib/planner/dates';
 import { findEasySwap, isRunWorkout } from '../lib/planner/adapt';
 import { readiness } from '../lib/planner/readiness';
+import { useActivityDetails } from '../lib/details';
 import { describeStep, fmtDate, fmtDistance, fmtDuration, fmtRelative, zonePaceText } from '../lib/format';
 import { logAdjustment, updateWorkout } from '../lib/api';
 import type { PlannedWorkout } from '../lib/types';
@@ -62,12 +63,13 @@ function ReadinessCard() {
 
 function LatestRun() {
   const { plan, workouts, activities, metrics, units, connection, today } = useData();
-  if (!plan) return null;
   const run = activities.find((a) => a.sport === 'run' && (a.distance_m ?? 0) > 1000);
-  if (!run) return null;
+  // Score from the same lap/stream data as the full analysis.
+  const { ready, detailsOf } = useActivityDetails(run ? [run] : []);
+  if (!plan || !run) return null;
   const workout = workouts.find((w) => w.activity_id === run.id) ?? null;
   const maxHr = estimateMaxHr(plan.inputs, connection?.profile ?? null, activities, today);
-  const res = analyze({ workout, activity: run, details: null, plan, activities, metrics, maxHr });
+  const res = analyze({ workout, activity: run, details: detailsOf(run), plan, activities, metrics, maxHr });
   const moving = run.moving_s ?? run.duration_s ?? 0;
   const tone = res.score === null ? 'text-slate-500' : res.score >= 85 ? 'text-emerald-600' : res.score >= 70 ? 'text-lime-600' : res.score >= 50 ? 'text-amber-600' : 'text-red-600';
   return (
@@ -76,11 +78,18 @@ function LatestRun() {
         Latest run
       </CardTitle>
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-        {res.score !== null && (
-          <div>
-            <div className={`text-3xl font-extrabold tabular-nums ${tone}`}>{res.score}</div>
-            <div className="text-xs capitalize text-slate-500">{res.grade} execution</div>
+        {!ready ? (
+          <div className="w-16">
+            <div className="h-8 animate-pulse rounded-lg bg-slate-100" />
+            <div className="mt-1 h-3 animate-pulse rounded bg-slate-100" />
           </div>
+        ) : (
+          res.score !== null && (
+            <div>
+              <div className={`text-3xl font-extrabold tabular-nums ${tone}`}>{res.score}</div>
+              <div className="text-xs capitalize text-slate-500">{res.grade} execution</div>
+            </div>
+          )
         )}
         <div className="min-w-0 flex-1">
           <div className="font-semibold text-slate-900">{workout?.title ?? run.name ?? 'Run'}</div>
@@ -90,7 +99,7 @@ function LatestRun() {
             {run.avg_hr ? ` · ♥ ${run.avg_hr}` : ''}
           </div>
           <div className="mt-1 text-sm text-slate-700">
-            <b>{res.purpose.headline}:</b> {res.insights[0] ?? res.purpose.marathon}
+            <b>{res.purpose.headline}:</b> {ready ? (res.insights[0] ?? res.purpose.marathon) : res.purpose.marathon}
           </div>
         </div>
       </div>

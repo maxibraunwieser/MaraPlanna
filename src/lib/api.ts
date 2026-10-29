@@ -58,6 +58,16 @@ export async function fetchActivityDetails(activity: Activity): Promise<Activity
   return res.details;
 }
 
+/** Stored laps + streams of several activities in one query (activities without any are left out). */
+export async function fetchStoredDetails(ids: string[]): Promise<Map<string, ActivityDetails>> {
+  const out = new Map<string, ActivityDetails>();
+  if (!ids.length) return out;
+  const { data, error } = await supabase.from('activities').select('id, details').in('id', ids).not('details', 'is', null);
+  if (error) throw new Error(error.message.includes('details') ? 'Database update needed – run the latest migration (see README).' : error.message);
+  for (const row of (data ?? []) as { id: string; details: ActivityDetails }[]) out.set(row.id, row.details);
+  return out;
+}
+
 export async function fetchWorkouts(planId: string): Promise<PlannedWorkout[]> {
   return check(await supabase.from('planned_workouts').select('*').eq('plan_id', planId).order('date').limit(5000)) as PlannedWorkout[];
 }
