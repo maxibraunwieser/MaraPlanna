@@ -102,7 +102,7 @@ The chat coach calls the Claude API from an Edge Function. Without the steps bel
    npx supabase secrets set ANTHROPIC_API_KEY=<your key> --project-ref <your-project-ref>
    ```
 3. **Function:** `npx supabase functions deploy coach --project-ref <your-project-ref> --no-verify-jwt`.
-4. **Check:** open the **Coach** page. It shows a notice if the key is missing. The message *"The coach could not sign in … the API key was rejected"* means the key is wrong or has no access to the model.
+4. **Check:** click the round coach button at the bottom right of any page. The chat shows a notice if the key is missing. The message *"The coach could not sign in … the API key was rejected"* means the key is wrong or has no access to the model.
 
 **How the key is protected.** It lives only in the function's secrets, which Supabase stores encrypted and hands to the function at run time. It is not in the repository, not in the database and never sent to the browser, and the function does not log it or put it into answers or error messages. (A hash would not work here: the function has to send the real key to Claude. Encrypting it again inside the function would not add protection, because the decryption key would have to sit in the same place.) If a key was ever pasted somewhere it should not be, for example into a chat or a ticket, revoke it in the Console and create a new one.
 

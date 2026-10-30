@@ -15,7 +15,6 @@ import { Activities } from './pages/Activities';
 import { Settings } from './pages/Settings';
 import { Analysis } from './pages/Analysis';
 import { Progress } from './pages/Progress';
-import { Coach } from './pages/Coach';
 
 function FullPageSpinner() {
   return (
@@ -71,7 +70,6 @@ export default function App() {
                 <Route path="/plan" element={<PlanPage />} />
                 <Route path="/plan/new" element={<CreatePlan />} />
                 <Route path="/progress" element={<Progress />} />
-                <Route path="/coach" element={<Coach />} />
                 <Route path="/activities" element={<Activities />} />
                 <Route path="/connect" element={<ConnectGarmin />} />
                 <Route path="/settings" element={<Settings />} />

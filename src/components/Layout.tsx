@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { CalendarDays, Home, ListChecks, MessageCircle, RefreshCw, Settings, TrendingUp, Watch } from 'lucide-react';
+import { CalendarDays, Home, ListChecks, RefreshCw, Settings, TrendingUp, Watch } from 'lucide-react';
 import { useData } from '../lib/data';
 import { fmtRelative } from '../lib/format';
 import { cx } from './ui';
+import { CoachWidget } from './CoachWidget';
 
 export function Logo({ className, light }: { className?: string; light?: boolean }) {
   return (
@@ -23,7 +24,6 @@ export function Logo({ className, light }: { className?: string; light?: boolean
 const NAV = [
   { to: '/', label: 'Today', icon: Home, end: true },
   { to: '/plan', label: 'Plan', icon: CalendarDays },
-  { to: '/coach', label: 'Coach', icon: MessageCircle },
   { to: '/progress', label: 'Progress', icon: TrendingUp },
   { to: '/activities', label: 'Activities', icon: ListChecks },
   { to: '/settings', label: 'Settings', icon: Settings },
@@ -82,7 +82,7 @@ export function AppLayout() {
         <Outlet />
       </main>
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden">
-        <div className="grid grid-cols-6">
+        <div className="grid grid-cols-5">
           {NAV.map((n) => (
             <NavLink
               key={n.to}
@@ -96,6 +96,7 @@ export function AppLayout() {
           ))}
         </div>
       </nav>
+      <CoachWidget />
     </div>
   );
 }
