@@ -6,3 +6,10 @@ dist
 .DS_Store
 supabase/.temp
 supabase/.branches
+
+# Garmin watch face build output and signing key
+garmin-watchface/bin/
+*.prg
+*.iq
+*.der
+*.pem

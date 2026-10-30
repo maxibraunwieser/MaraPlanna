@@ -42,12 +42,12 @@ const minSec = (total: number) => {
   const s = Math.round(total);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
-const distance = (km: number, units: CalUnits) => {
+export const distance = (km: number, units: CalUnits) => {
   const v = units === 'mi' ? km / KM_PER_MI : km;
   return `${v.toFixed(v >= 100 ? 0 : 1).replace(/\.0$/, '')} ${units}`;
 };
 const perUnit = (s: number, units: CalUnits) => minSec(units === 'mi' ? s * KM_PER_MI : s);
-const paceText = (paces: CalPaces, zone: CalZone, units: CalUnits) => {
+export const paceText = (paces: CalPaces, zone: CalZone, units: CalUnits) => {
   const p = paces[zone];
   return Array.isArray(p) ? `${perUnit(p[0], units)}–${perUnit(p[1], units)} /${units}` : `${perUnit(p, units)} /${units}`;
 };

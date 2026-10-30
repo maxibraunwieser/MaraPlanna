@@ -9,3 +9,7 @@ verify_jwt = false
 [functions.calendar]
 # Calendar apps can't log in: the secret token in the URL authorises the feed.
 verify_jwt = false
+
+[functions.watch]
+# Watches authenticate with their own secret; the website calls are checked in the function.
+verify_jwt = false

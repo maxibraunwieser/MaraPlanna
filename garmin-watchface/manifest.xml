@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<!-- Products are generated from the installed device files: node tools/products.cjs -->
+<iq:manifest version="3" xmlns:iq="http://www.garmin.com/xml/connectiq">
+    <iq:application id="4e92f9a7d4bc43458fc75c3e6abf12d1" type="watchface" name="@Strings.AppName" entry="MaraPlannaApp" launcherIcon="@Drawables.LauncherIcon" minApiLevel="3.2.0">
+        <iq:products>
+            <iq:product id="fr265"/>
+        </iq:products>
+        <iq:permissions>
+            <iq:uses-permission id="Background"/>
+            <iq:uses-permission id="Communications"/>
+        </iq:permissions>
+        <iq:languages>
+            <iq:language>eng</iq:language>
+        </iq:languages>
+        <iq:barrels/>
+    </iq:application>
+</iq:manifest>

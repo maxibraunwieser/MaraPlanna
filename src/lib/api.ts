@@ -283,3 +283,30 @@ export async function invokeGarmin<T = SyncResult>(body: Record<string, unknown>
   }
   return data as T;
 }
+
+// ---------------------------------------------------------------------------
+// Garmin watch face (served by the "watch" Edge Function)
+// ---------------------------------------------------------------------------
+
+export interface WatchDevice {
+  id: string;
+  model: string | null;
+  paired_at: string | null;
+  last_seen_at: string | null;
+}
+
+async function invokeWatch<T>(body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke('watch', { body });
+  if (error) {
+    if (error instanceof FunctionsHttpError) {
+      const payload = await error.context.json().catch(() => null);
+      throw new Error(payload?.error ?? `Watch request failed (${error.context.status})`);
+    }
+    throw new Error(error.message.includes('fetch') ? 'Could not reach the MaraPlanna watch function. Is it deployed?' : error.message);
+  }
+  return data as T;
+}
+
+export const linkWatch = (code: string) => invokeWatch<{ linked: boolean }>({ action: 'link', code });
+export const listWatches = () => invokeWatch<{ devices: WatchDevice[] }>({ action: 'list' });
+export const unlinkWatch = (id: string) => invokeWatch<{ unlinked: boolean }>({ action: 'unlink', id });

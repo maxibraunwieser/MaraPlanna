@@ -32,3 +32,4 @@ jobs:
           true
       - run: supabase functions deploy garmin --project-ref "$PROJECT_REF" --no-verify-jwt
       - run: supabase functions deploy calendar --project-ref "$PROJECT_REF" --no-verify-jwt
+      - run: supabase functions deploy watch --project-ref "$PROJECT_REF" --no-verify-jwt

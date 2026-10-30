@@ -10,6 +10,7 @@ import type { Units } from '../lib/types';
 import { Badge, Button, Card, CardTitle, Field, Input, PageHeader, Segmented, useToast } from '../components/ui';
 import { extraLabel } from '../components/WeekBuilder';
 import { CalendarSubscribe } from '../components/CalendarFeed';
+import { WatchFaceCard } from '../components/WatchFace';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -110,6 +111,8 @@ export function Settings() {
         <CardTitle icon={<CalendarSync className="h-5 w-5 text-brand" />}>Calendar</CardTitle>
         <CalendarSubscribe />
       </Card>
+
+      <WatchFaceCard />
 
       <Card>
         <CardTitle>Account</CardTitle>

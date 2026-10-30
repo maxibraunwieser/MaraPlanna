@@ -26,6 +26,7 @@ An adaptive marathon training planner powered by your Garmin data.
    - **Weekly report:** distance done vs planned, sessions, key sessions, long run, execution scores and recovery markers (resting HR, HRV, sleep vs the week before). It adds coach notes and a preview of the next week. On Mondays the dashboard shows last week's report.
    - **Marathon projection over time:** the training-based estimate (Tanda) week by week, the plan's race-day projection and your goal.
 9. **Calendar subscription.** Every session, with distance, paces and steps, can appear in Apple, Google or Outlook calendar and updates by itself when the plan changes.
+10. **Garmin watch face.** Today's session with its target pace, the week's distance and the race countdown on your watch face. Link it with the 6-digit code it shows. See [`garmin-watchface/`](garmin-watchface/README.md).
 
 The site runs on **GitHub Pages**. **Supabase** holds the logins and the database, plus two Edge Functions: one talks to Garmin, the other serves the calendar feed.
 
@@ -102,8 +103,8 @@ npm run build
 
 After pulling a new version:
 
-1. **Database:** run any new files from `supabase/migrations/` in the Supabase SQL Editor, oldest first, or run `npx supabase db push`. The analysis needs `20261026000000_activity_details.sql`. The calendar subscription needs `20261029000000_calendar_feeds.sql`.
-2. **Edge Functions:** run `npx supabase functions deploy garmin --no-verify-jwt` and `npx supabase functions deploy calendar --no-verify-jwt`.
+1. **Database:** run any new files from `supabase/migrations/` in the Supabase SQL Editor, oldest first, or run `npx supabase db push`. The analysis needs `20261026000000_activity_details.sql`. The calendar subscription needs `20261029000000_calendar_feeds.sql`, and the watch face needs `20261030000000_watch_devices.sql`.
+2. **Edge Functions:** run `npx supabase functions deploy <name> --no-verify-jwt` for `garmin`, `calendar` and `watch`.
 3. **Website:** pushing to `main` redeploys GitHub Pages automatically.
 4. **Plan:** to use a new planning model, open *Settings → Edit answers*, then *Replace my plan*. Your activities stay.
 
@@ -146,6 +147,8 @@ supabase/
   migrations/        tables + Row Level Security
   functions/garmin/  Edge Function: Garmin Personal API bridge
   functions/calendar/ Edge Function: calendar subscription (.ics)
+  functions/watch/   Edge Function: watch face pairing + data
+garmin-watchface/    Connect IQ watch face (Monkey C)
 .github/workflows/   GitHub Pages deploy, optional Supabase deploy
 ```
 
