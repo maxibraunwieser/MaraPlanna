@@ -376,6 +376,13 @@ const textTurn = (parts: string[], stop = 'end_turn') => [
   sseEvent('message_stop', { type: 'message_stop' }),
 ];
 
+const thinkingStart = (index: number, signature: string) => [
+  sseEvent('content_block_start', { type: 'content_block_start', index, content_block: { type: 'thinking', thinking: '', signature: '' } }),
+  sseEvent('content_block_delta', { type: 'content_block_delta', index, delta: { type: 'thinking_delta', thinking: '' } }),
+  sseEvent('content_block_delta', { type: 'content_block_delta', index, delta: { type: 'signature_delta', signature } }),
+  sseEvent('content_block_stop', { type: 'content_block_stop', index }),
+];
+
 const toolTurn = (intro: string, id: string, name: string, input: unknown) => {
   const json = JSON.stringify(input);
   return [
@@ -522,6 +529,50 @@ describe('the coach loop', () => {
     expect(body.system[0].text).toContain('left knee after long runs');
     expect(JSON.stringify(body)).not.toContain(KEY);
     expect(body.tools.length).toBe(TOOL_DEFS.length);
+  });
+});
+
+describe('thinking and effort', () => {
+  it('sends the effort, and keeps the reasoning blocks when it continues after a tool call', async () => {
+    const think = thinkingStart(0, 'SIG-ONE');
+    const tool = [
+      sseEvent('message_start', { type: 'message_start', message: { usage: { input_tokens: 10 } } }),
+      ...think,
+      sseEvent('content_block_start', { type: 'content_block_start', index: 1, content_block: { type: 'tool_use', id: 'tu_t', name: 'get_wellness', input: {} } }),
+      sseEvent('content_block_delta', { type: 'content_block_delta', index: 1, delta: { type: 'input_json_delta', partial_json: '{"from":"2026-10-01","to":"2026-10-31"}' } }),
+      sseEvent('content_block_stop', { type: 'content_block_stop', index: 1 }),
+      sseEvent('message_delta', { type: 'message_delta', delta: { stop_reason: 'tool_use' }, usage: { output_tokens: 20 } }),
+    ];
+    const m = mockFetch([tool, textTurn(['Your HRV looks fine.'])]);
+    const out = await runCoach(cfg(m.fn, { effort: 'medium' }));
+    expect(out.text).toBe('Your HRV looks fine.');
+    expect((m.calls[0].body as unknown as { output_config?: unknown }).output_config).toEqual({ effort: 'medium' });
+    // the second request carries the assistant turn with its reasoning block first, unchanged
+    const assistant = m.calls[1].body.messages.at(-2) as { role: string; content: { type: string; signature?: string }[] };
+    expect(assistant.role).toBe('assistant');
+    expect(assistant.content.map((b) => b.type)).toEqual(['thinking', 'tool_use']);
+    expect(assistant.content[0].signature).toBe('SIG-ONE');
+  });
+
+  it('leaves the effort out when none is set', async () => {
+    const m = mockFetch([textTurn(['ok'])]);
+    await runCoach(cfg(m.fn));
+    expect('output_config' in m.calls[0].body).toBe(false);
+  });
+
+  it('keeps redacted reasoning blocks too, and never shows reasoning as text', async () => {
+    const turn = [
+      sseEvent('message_start', { type: 'message_start', message: { usage: { input_tokens: 5 } } }),
+      sseEvent('content_block_start', { type: 'content_block_start', index: 0, content_block: { type: 'redacted_thinking', data: 'ENC' } }),
+      sseEvent('content_block_stop', { type: 'content_block_stop', index: 0 }),
+      sseEvent('content_block_start', { type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } }),
+      sseEvent('content_block_delta', { type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: 'Answer.' } }),
+      sseEvent('message_delta', { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 5 } }),
+    ];
+    const pieces: string[] = [];
+    const r = await streamMessage(mockFetch([turn]).fn, { apiKey: KEY, baseUrl: 'https://x', model: 'm', maxTokens: 10, system: 'S', messages: [] }, (t) => pieces.push(t));
+    expect(pieces.join('')).toBe('Answer.');
+    expect(r.blocks.map((b) => b.type)).toEqual(['redacted_thinking', 'text']);
   });
 });
 

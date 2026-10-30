@@ -15,7 +15,17 @@ export interface ToolUseBlock {
   name: string;
   input: Json;
 }
-export type Block = TextBlock | ToolUseBlock;
+/** The model's reasoning. Its text is usually empty (not returned by default); the signature is what counts. */
+export interface ThinkingBlock {
+  type: 'thinking';
+  thinking: string;
+  signature: string;
+}
+export interface RedactedThinkingBlock {
+  type: 'redacted_thinking';
+  data: string;
+}
+export type Block = TextBlock | ToolUseBlock | ThinkingBlock | RedactedThinkingBlock;
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -80,7 +90,7 @@ export interface StreamResult {
 /** One streamed model call. Calls onText for every piece of text as it arrives. */
 export async function streamMessage(
   fetchFn: typeof fetch,
-  cfg: { apiKey: string; baseUrl: string; model: string; maxTokens: number; system: string; messages: ChatMessage[]; signal?: AbortSignal },
+  cfg: { apiKey: string; baseUrl: string; model: string; maxTokens: number; effort?: string; system: string; messages: ChatMessage[]; signal?: AbortSignal },
   onText: (s: string) => void,
 ): Promise<StreamResult> {
   const res = await fetchFn(`${cfg.baseUrl}/v1/messages`, {
@@ -91,6 +101,8 @@ export async function streamMessage(
       model: cfg.model,
       max_tokens: cfg.maxTokens,
       stream: true,
+      // The models think by default; effort sets how much (and what it costs). Thinking counts towards max_tokens.
+      ...(cfg.effort ? { output_config: { effort: cfg.effort } } : {}),
       // The data block is large and stays the same within a conversation: cache it.
       system: [{ type: 'text', text: cfg.system, cache_control: { type: 'ephemeral' } }],
       tools: TOOL_DEFS,
@@ -130,7 +142,14 @@ export async function streamMessage(
     } else if (type === 'content_block_start') {
       const b = msg.content_block as Json;
       const i = Number(msg.index);
-      blocks[i] = b.type === 'tool_use' ? { type: 'tool_use', id: String(b.id), name: String(b.name), input: {}, _json: '' } : { type: 'text', text: String(b.text ?? '') };
+      blocks[i] =
+        b.type === 'tool_use'
+          ? { type: 'tool_use', id: String(b.id), name: String(b.name), input: {}, _json: '' }
+          : b.type === 'thinking'
+            ? { type: 'thinking', thinking: String(b.thinking ?? ''), signature: String(b.signature ?? '') }
+            : b.type === 'redacted_thinking'
+              ? { type: 'redacted_thinking', data: String(b.data ?? '') }
+              : { type: 'text', text: String(b.text ?? '') };
     } else if (type === 'content_block_delta') {
       const i = Number(msg.index);
       const delta = msg.delta as Json;
@@ -139,6 +158,10 @@ export async function streamMessage(
         const t = String(delta.text ?? '');
         block.text += t;
         if (t) onText(t);
+      } else if (delta.type === 'thinking_delta' && block?.type === 'thinking') {
+        block.thinking += String(delta.thinking ?? '');
+      } else if (delta.type === 'signature_delta' && block?.type === 'thinking') {
+        block.signature += String(delta.signature ?? '');
       } else if (delta.type === 'input_json_delta' && block?.type === 'tool_use') {
         block._json = (block._json ?? '') + String(delta.partial_json ?? '');
       }
@@ -158,6 +181,9 @@ export async function streamMessage(
         input = {};
       }
       out.push({ type: 'tool_use', id: b.id, name: b.name, input });
+    } else if (b.type === 'thinking' || b.type === 'redacted_thinking') {
+      // Passed back unchanged with the tool results: the model needs its own reasoning to continue.
+      out.push(b);
     } else if (b.text) {
       out.push(b);
     }
@@ -187,6 +213,8 @@ export interface CoachRun {
   baseUrl: string;
   model: string;
   maxTokens: number;
+  /** low | medium | high | xhigh | max; leave out to use the model's default. */
+  effort?: string;
   system: string;
   history: ChatMessage[];
   state: ToolState;
@@ -213,7 +241,7 @@ export async function runCoach(run: CoachRun): Promise<CoachOutcome> {
     let first = true;
     const result = await streamMessage(
       run.fetchFn,
-      { apiKey: run.apiKey, baseUrl: run.baseUrl, model: run.model, maxTokens: run.maxTokens, system: run.system, messages, signal: run.signal },
+      { apiKey: run.apiKey, baseUrl: run.baseUrl, model: run.model, maxTokens: run.maxTokens, effort: run.effort, system: run.system, messages, signal: run.signal },
       (t) => {
         if (first && text && !text.endsWith('\n')) {
           text += '\n\n';

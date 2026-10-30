@@ -62,7 +62,13 @@ function apiKey(): string | null {
 const settings = () => ({
   baseUrl: (Deno.env.get('ANTHROPIC_BASE_URL') ?? 'https://api.anthropic.com').replace(/\/$/, ''),
   model: Deno.env.get('COACH_MODEL') ?? 'claude-sonnet-5-5',
-  maxTokens: Math.min(4000, Math.max(300, Number(Deno.env.get('COACH_MAX_TOKENS') ?? 1800))),
+  // Thinking counts towards the limit, so it is generous: answers are short, but reasoning is not.
+  maxTokens: Math.min(8000, Math.max(1000, Number(Deno.env.get('COACH_MAX_TOKENS') ?? 4000))),
+  // How hard the model thinks: medium suits chat; "off" leaves it to the model's default.
+  effort: ((): string | undefined => {
+    const e = (Deno.env.get('COACH_EFFORT') ?? 'medium').trim().toLowerCase();
+    return ['low', 'medium', 'high', 'xhigh', 'max'].includes(e) ? e : undefined;
+  })(),
   dailyLimit: Math.max(1, Number(Deno.env.get('COACH_DAILY_LIMIT') ?? 40)),
 });
 
@@ -183,7 +189,7 @@ Deno.serve(async (req) => {
       if (body.test === true) {
         if (!key) return json({ ...result, ok: false, error: 'The ANTHROPIC_API_KEY secret is not set.' });
         try {
-          await streamMessage(fetch, { apiKey: key, baseUrl: cfg.baseUrl, model: cfg.model, maxTokens: 5, system: 'Reply with one word.', messages: [{ role: 'user', content: 'Hi' }] }, () => {});
+          await streamMessage(fetch, { apiKey: key, baseUrl: cfg.baseUrl, model: cfg.model, maxTokens: 64, effort: 'low', system: 'Reply with one word.', messages: [{ role: 'user', content: 'Hi' }] }, () => {});
           result.ok = true;
         } catch (e) {
           result.ok = false;
@@ -243,6 +249,7 @@ Deno.serve(async (req) => {
             baseUrl: cfg.baseUrl,
             model: cfg.model,
             maxTokens: cfg.maxTokens,
+            effort: cfg.effort,
             system: systemPrompt(buildContext(data)),
             history: messages,
             state: { data, actions: [], laps: (id) => lapsOf(admin, userId, id), newId: () => crypto.randomUUID() },
