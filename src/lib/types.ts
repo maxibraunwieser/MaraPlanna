@@ -62,6 +62,8 @@ export interface OnboardingAnswers {
   maxHr: number | null;
   injuryProne: boolean;
   injuries: string;
+  /** Weekdays whose easy runs get no strides (set through the coach). */
+  noStridesDays?: Weekday[];
   approach: Approach;
   units: Units;
 }

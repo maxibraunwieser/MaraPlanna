@@ -25,6 +25,9 @@ const WORKOUTS: CoachWorkout[] = [
   workout(7, '2026-11-08', 'long', 'Long run', 26),
   workout(8, '2027-04-18', 'race', 'Race day: Vienna', 42.2, { key_session: true }),
   workout(9, '2026-11-02', 'strength_lower', 'Lower body', null),
+  workout(10, '2026-11-06', 'easy', 'Easy run + strides', 8, { has_strides: true }),
+  workout(11, '2026-11-13', 'easy', 'Easy run + strides', 8, { has_strides: true }),
+  workout(12, '2026-11-20', 'easy', 'Easy run', 8),
 ];
 
 const act = (n: number, date: string, km: number, mins: number, over: Partial<CoachActivity> = {}): CoachActivity => ({
@@ -162,6 +165,86 @@ describe('coach tools: reading', () => {
       expect.arrayContaining(['get_activities', 'get_activity_laps', 'get_workouts', 'get_wellness', 'propose_move_workout', 'propose_skip_workouts', 'propose_scale_workouts', 'propose_plan_changes']),
     );
     expect((await runTool('delete_everything', {}, state())).isError).toBe(true);
+  });
+});
+
+describe('coach tools: filtering and strides in the data', () => {
+  it('marks sessions with strides and filters by kind and weekday', async () => {
+    expect(buildContext(DATA)).toContain(`[${short(10)}] Fri 2026-11-06 · Easy run + strides · 8 km, 46 min · +strides · easy · planned`);
+    const fridays = await runTool('get_workouts', { from: '2026-10-30', to: '2026-12-31', kind: 'easy', weekday: 'fri' }, state());
+    expect(fridays.content).toContain('4 sessions');
+    expect(fridays.content).toContain('Fri 2026-11-13');
+    expect(fridays.content).not.toContain('Tue 2026-11-03');
+    expect((await runTool('get_workouts', { from: '2026-10-30', to: '2026-12-31', weekday: 'funday' }, state())).isError).toBe(true);
+    expect((await runTool('get_workouts', { from: '2026-10-30', to: '2026-12-31', kind: 'swim' }, state())).content).toBe('No planned sessions match.');
+  });
+});
+
+describe('coach tools: editing sessions (strides, distance, easy)', () => {
+  it('proposes taking strides off every Friday easy run and remembering it', async () => {
+    const s = state();
+    const r = await runTool('propose_edit_workouts', { edits: [{ workout_id: short(10), remove_strides: true }, { workout_id: short(11), remove_strides: true }], remember_no_strides_days: ['fri'], reason: 'no strides on Fridays' }, s);
+    expect(r.isError).toBeUndefined();
+    expect(r.content).toContain('NOTHING has been changed');
+    expect(s.actions[0]).toMatchObject({
+      tool: 'edit_workouts',
+      status: 'pending',
+      noStridesDays: [4],
+      edits: [{ workoutId: uuid(10), removeStrides: true }, { workoutId: uuid(11), removeStrides: true }],
+    });
+    expect(s.actions[0].summary).toContain('Easy run + strides on Fri 2026-11-06: remove the strides (the easy part gets their distance)');
+    expect(s.actions[0].summary).toContain('From now on, easy runs on Fri get no strides, also when the plan is rebuilt.');
+  });
+
+  it('can only remember the wish, or clear it again', async () => {
+    const a = state();
+    await runTool('propose_edit_workouts', { remember_no_strides_days: ['fri', 'tue'], reason: 'x' }, a);
+    expect(a.actions[0]).toMatchObject({ tool: 'edit_workouts', edits: [], noStridesDays: [1, 4] });
+    const b = state();
+    await runTool('propose_edit_workouts', { remember_no_strides_days: [], reason: 'x' }, b);
+    expect(b.actions[0].summary).toContain('may get strides again');
+  });
+
+  it('sets a distance, adds strides, and turns a hard session into an easy run', async () => {
+    const s = state();
+    const r = await runTool(
+      'propose_edit_workouts',
+      { edits: [{ workout_id: short(12), distance_km: 10.2 }, { workout_id: short(5), add_strides: true }, { workout_id: short(6), make_easy: true }], reason: 'x' },
+      s,
+    );
+    expect(r.isError).toBeUndefined();
+    const a = s.actions[0] as Extract<CoachAction, { tool: 'edit_workouts' }>;
+    expect(a.edits).toEqual([
+      { workoutId: uuid(12), distanceKm: 10 },
+      { workoutId: uuid(5), addStrides: true },
+      { workoutId: uuid(6), makeEasy: true },
+    ]);
+  });
+
+  it.each([
+    ['no strides to remove', { workout_id: short(12), remove_strides: false, add_strides: false }, /No change given/],
+    ['removing strides that are not there', { workout_id: short(12), remove_strides: true }, /no strides to remove/],
+    ['adding strides that are there', { workout_id: short(10), add_strides: true }, /already has strides/],
+    ['strides on a long run', { workout_id: short(4), add_strides: true }, /only be added to easy runs/],
+    ['the race', { workout_id: short(8), distance_km: 10 }, /cannot be edited/],
+    ['a done session', { workout_id: short(1), distance_km: 10 }, /already completed/],
+    ['a distance on a hard session without make_easy', { workout_id: short(6), distance_km: 14 }, /built from reps/],
+    ['making an easy run easy', { workout_id: short(12), make_easy: true }, /not a hard session/],
+    ['an absurd distance', { workout_id: short(12), distance_km: 90 }, /between 2 and 45/],
+    ['an unknown session', { workout_id: 'deadbeef', distance_km: 10 }, /No planned session/],
+  ])('rejects: %s', async (_name, edit, message) => {
+    const s = state();
+    const r = await runTool('propose_edit_workouts', { edits: [edit], reason: 'x' }, s);
+    expect(r.isError).toBe(true);
+    expect(r.content).toMatch(message);
+    expect(s.actions).toHaveLength(0);
+  });
+
+  it('rejects an empty proposal, bad weekdays and too many sessions', async () => {
+    expect((await runTool('propose_edit_workouts', { reason: 'x' }, state())).isError).toBe(true);
+    expect((await runTool('propose_edit_workouts', { remember_no_strides_days: ['funday'], reason: 'x' }, state())).content).toMatch(/weekdays like/);
+    const many = Array.from({ length: 41 }, () => ({ workout_id: short(10), remove_strides: true }));
+    expect((await runTool('propose_edit_workouts', { edits: many, reason: 'x' }, state())).content).toMatch(/At most 40/);
   });
 });
 

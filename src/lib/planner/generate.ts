@@ -305,7 +305,7 @@ const LEVEL_OFFSET: Record<Level, number> = { beginner: 0, intermediate: 1, adva
 
 const warmup = (km = 2): Step => ({ type: 'run', label: 'Warm-up', zone: 'easy', distanceKm: km });
 const cooldown = (km = 1.5): Step => ({ type: 'run', label: 'Cool-down', zone: 'easy', distanceKm: km });
-const strides = (n = 6): Step => ({ type: 'run', label: 'Strides (20 s fast, relaxed)', zone: 'repetition', durationMin: 1 / 3, repeat: n, recoveryMin: 1 });
+export const strides = (n = 6): Step => ({ type: 'run', label: 'Strides (20 s fast, relaxed)', zone: 'repetition', durationMin: 1 / 3, repeat: n, recoveryMin: 1 });
 
 const repLabel = (km: number, metres: boolean) => (metres || km < 1 ? `${Math.round(km * 1000)} m` : `${km} km`);
 
@@ -599,11 +599,12 @@ export function generateWeeks(ctx: GenerateContext): { weeks: WeekSummary[]; wor
     if (w === n) {
       // Race week: same number of runs (frequency kept), all short; one sharpener.
       const raceDay = daysBetween(weekStart, raceDate);
-      const easy = (km: number, st: boolean) => () => {
-        const e = easyRun(km, st);
+      const noStrides = new Set<number>(answers.noStridesDays ?? []);
+      const easy = (km: number, st: boolean) => (day: number) => {
+        const e = easyRun(km, st && !noStrides.has(day));
         return runDraft(e.kind, e.title, e.steps, false);
       };
-      const items: { offset: number; minDays: number; build: () => Omit<WorkoutDraft, 'date' | 'week' | 'phase'> }[] = [
+      const items: { offset: number; minDays: number; build: (day: number) => Omit<WorkoutDraft, 'date' | 'week' | 'phase'> }[] = [
         { offset: -6, minDays: 4, build: easy(6, true) },
         { offset: -5, minDays: 6, build: easy(5, false) },
         {
@@ -642,16 +643,16 @@ export function generateWeeks(ctx: GenerateContext): { weeks: WeekSummary[]; wor
           if (template[d].run === 'rest') continue;
           const it = d === raceDay - 1 ? items.find((x) => x.offset === -1)! : d === sharpenerDay ? items.find((x) => x.offset === -4)! : { build: easy(d >= raceDay - 2 ? 4 : 5, d === 0) };
           dayType[d] = 'easy';
-          push(d, it.build());
+          push(d, it.build(d));
         }
         dayType[raceDay] = 'race';
-        push(raceDay, items.find((x) => x.offset === 0)!.build());
+        push(raceDay, items.find((x) => x.offset === 0)!.build(raceDay));
       } else {
         for (const it of items) {
           const day = raceDay + it.offset;
           if (day < 0 || runDays < it.minDays) continue;
           dayType[day] = it.offset === 0 ? 'race' : 'easy';
-          push(day, it.build());
+          push(day, it.build(day));
         }
       }
       for (let d = raceDay; d < 7; d++) dayType[d] = 'race';
@@ -778,6 +779,8 @@ export function generateWeeks(ctx: GenerateContext): { weeks: WeekSummary[]; wor
     const recoveryDays = layout.runDays.filter((d) => dayType[d] === 'recovery');
     if ((phase === 'base' || recovery) && plain.length) stridesDays.add(plain[0]);
     if (phase === 'base' && level === 'beginner' && plain.length > 1) stridesDays.add(plain[plain.length - 1]);
+    // Days the athlete wants without strides (the easy run just gets its distance).
+    for (const d of answers.noStridesDays ?? []) stridesDays.delete(d);
     let remaining = volume - usedKm;
     const stridesKm = workoutKm([strides()], paces);
     const stridesMin = workoutMinutes([strides()], paces);

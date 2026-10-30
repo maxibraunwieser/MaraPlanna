@@ -14,6 +14,7 @@ import type {
   Profile,
   Step,
   TrainingPlan,
+  WorkoutKind,
   WeekSummary,
   WorkoutDraft,
 } from './types';
@@ -150,7 +151,10 @@ export async function updateWorkout(id: string, patch: WorkoutPatch) {
 }
 
 /** Replace what a session consists of (when the coach shortens or lengthens it). */
-export async function updateWorkoutContent(id: string, patch: { steps: Step[]; title: string; distance_km: number | null; duration_min: number | null }) {
+export async function updateWorkoutContent(
+  id: string,
+  patch: { steps: Step[]; title: string; distance_km: number | null; duration_min: number | null; kind?: WorkoutKind; key_session?: boolean },
+) {
   check(await supabase.from('planned_workouts').update(patch).eq('id', id));
 }
 

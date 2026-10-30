@@ -102,6 +102,34 @@ describe('plan changes from the coach', () => {
   });
 });
 
+describe('editing sessions from the coach', () => {
+  const withStrides = workouts.filter((w) => w.kind === 'easy' && w.date >= TODAY && w.steps.some((s) => s.type === 'run' && /stride/i.test(s.label)));
+
+  it('previews the real result and caps the list', () => {
+    expect(withStrides.length).toBeGreaterThan(7);
+    const a = action({
+      tool: 'edit_workouts',
+      edits: withStrides.map((w) => ({ workoutId: w.id, removeStrides: true })),
+      noStridesDays: [4],
+      summary: 'x\nFrom now on, easy runs on Fri get no strides, also when the plan is rebuilt.',
+    });
+    const lines = previewAction(a, ctx());
+    expect(lines).toHaveLength(8); // 6 sessions, "and N more", the remembered wish
+    expect(lines[0]).toMatch(/Easy run( \+ strides)? on \d{4}-\d{2}-\d{2}: [\d.]+ km → [\d.]+ km \(now "Easy run"\)/);
+    expect(lines[6]).toBe(`… and ${withStrides.length - 6} more sessions like these`);
+    expect(lines[7]).toContain('From now on');
+  });
+
+  it('is stale once nothing can change any more, but remembering the wish never is', () => {
+    const w = withStrides[0];
+    const a = action({ tool: 'edit_workouts', edits: [{ workoutId: w.id, removeStrides: true }] });
+    expect(staleReason(a, ctx())).toBeNull();
+    const done = workouts.map((x) => (x.id === w.id ? { ...x, status: 'completed' as const } : x));
+    expect(staleReason(a, ctx({ workouts: done }))).toMatch(/no longer open/);
+    expect(staleReason(action({ tool: 'edit_workouts', edits: [], noStridesDays: [4] }), ctx())).toBeNull();
+  });
+});
+
 describe('proposals that no longer fit', () => {
   it('a moved-away or finished session makes a move proposal stale', () => {
     const w = upcoming('easy');

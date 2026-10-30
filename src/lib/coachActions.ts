@@ -9,6 +9,7 @@ import type { Activity, OnboardingAnswers, PlannedWorkout, Profile, TrainingPlan
 import { addDays, daysBetween, mondayOf, weekdayOf } from './planner/dates';
 import { canMove, inBounds, moveBounds, movePatches } from './planner/move';
 import { scaleWorkout } from './planner/scale';
+import { editWorkout, type WorkoutEdit } from './planner/edit';
 
 export type { CoachAction };
 
@@ -21,6 +22,23 @@ export interface ActionContext {
 }
 
 const byId = (workouts: PlannedWorkout[], id: string) => workouts.find((w) => w.id === id);
+
+const specOf = (e: { removeStrides?: boolean; addStrides?: boolean; distanceKm?: number; makeEasy?: boolean }): WorkoutEdit => ({
+  removeStrides: e.removeStrides,
+  addStrides: e.addStrides,
+  distanceKm: e.distanceKm,
+  makeEasy: e.makeEasy,
+});
+
+/** The sessions of an edit proposal that can still be changed, with their result. */
+function editable(a: Extract<CoachAction, { tool: 'edit_workouts' }>, ctx: ActionContext) {
+  return a.edits.flatMap((e) => {
+    const w = byId(ctx.workouts, e.workoutId);
+    if (!w || w.status !== 'planned' || w.date < ctx.today) return [];
+    const result = editWorkout(w, specOf(e), ctx.plan.fitness.paces);
+    return result ? [{ w, result }] : [];
+  });
+}
 
 /** The questionnaire answers after the proposed changes. */
 export function answersFromChanges(current: OnboardingAnswers, c: PlanChanges): OnboardingAnswers {
@@ -73,6 +91,9 @@ export function staleReason(a: CoachAction, ctx: ActionContext): string | null {
       });
       return open.length ? null : 'Those sessions are no longer open or would not change.';
     }
+    case 'edit_workouts':
+      // Only remembering "no strides" needs no open session.
+      return a.edits.length === 0 || editable(a, ctx).length ? null : 'Those sessions are no longer open or already look like that.';
     case 'change_plan':
       return replanStart(ctx.plan, ctx.activities, ctx.today).tooLate ? 'Too close to the race to rebuild the plan.' : null;
   }
@@ -80,6 +101,16 @@ export function staleReason(a: CoachAction, ctx: ActionContext): string | null {
 
 /** The lines shown on the confirmation card: what will really happen, not what the coach estimated. */
 export function previewAction(a: CoachAction, ctx: ActionContext): string[] {
+  if (a.tool === 'edit_workouts') {
+    const rows = editable(a, ctx);
+    const shown = rows.slice(0, 6).map(({ w, result }) => {
+      const now = result.title !== w.title ? ` (now "${result.title}")` : '';
+      return `${w.title} on ${w.date}: ${w.distance_km ?? '?'} km → ${result.distance_km} km${now}`;
+    });
+    const more = rows.length > 6 ? [`… and ${rows.length - 6} more sessions like these`] : [];
+    const remember = a.summary.split('\n').filter((l) => /^(From now on|Easy runs may)/.test(l));
+    return [...shown, ...more, ...remember];
+  }
   if (a.tool !== 'scale_workouts') return a.summary.split('\n');
   return a.items.map((i) => {
     const w = byId(ctx.workouts, i.workoutId);
@@ -109,6 +140,22 @@ export async function applyAction(a: CoachAction, ctx: ActionContext): Promise<v
       const w = byId(ctx.workouts, item.workoutId);
       const s = w && w.status === 'planned' && w.date >= today ? scaleWorkout(w, item.factor, plan.fitness.paces) : null;
       if (w && s) await api.updateWorkoutContent(w.id, { steps: s.steps, title: s.title, distance_km: s.distance_km, duration_min: s.duration_min });
+    }
+  } else if (a.tool === 'edit_workouts') {
+    for (const { w, result } of editable(a, ctx)) {
+      await api.updateWorkoutContent(w.id, {
+        steps: result.steps,
+        title: result.title,
+        kind: result.kind,
+        key_session: result.key_session,
+        distance_km: result.distance_km,
+        duration_min: result.duration_min,
+      });
+    }
+    if (a.noStridesDays !== undefined) {
+      const inputs = { ...plan.inputs, noStridesDays: a.noStridesDays as Weekday[] };
+      await api.updatePlanInputs(plan.id, inputs);
+      if (ctx.profile?.onboarding) await api.saveProfile(plan.user_id, { onboarding: { ...ctx.profile.onboarding, noStridesDays: a.noStridesDays as Weekday[] } });
     }
   } else {
     const inputs = answersFromChanges(plan.inputs, a.changes);

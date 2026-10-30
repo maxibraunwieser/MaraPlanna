@@ -107,7 +107,7 @@ async function loadData(admin: SupabaseClient, userId: string, today: string): P
   const { data: workouts } = plan
     ? await admin
         .from('planned_workouts')
-        .select('id, date, kind, title, distance_km, duration_min, key_session, status, note')
+        .select('id, date, kind, title, steps, distance_km, duration_min, key_session, status, note')
         .eq('plan_id', (plan as Rec).id as string)
         .limit(1000)
     : { data: [] };
@@ -116,7 +116,10 @@ async function loadData(admin: SupabaseClient, userId: string, today: string): P
     units: (profile as Rec | null)?.units === 'mi' ? 'mi' : 'km',
     displayName: typeof (profile as Rec | null)?.display_name === 'string' ? ((profile as Rec).display_name as string).slice(0, 40) : null,
     plan: plan ? (plan as unknown as CoachPlan) : null,
-    workouts: (workouts ?? []) as CoachWorkout[],
+    workouts: ((workouts ?? []) as (CoachWorkout & { steps?: { type?: string; label?: string }[] })[]).map(({ steps, ...w }) => ({
+      ...w,
+      has_strides: Array.isArray(steps) && steps.some((s) => s?.type === 'run' && /stride/i.test(String(s.label ?? ''))),
+    })),
     activities: (activities ?? []) as CoachActivity[],
     metrics: (metrics ?? []) as CoachMetric[],
     garminConnected: (conn as Rec | null)?.status === 'connected',

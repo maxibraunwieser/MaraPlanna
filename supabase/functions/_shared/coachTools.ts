@@ -10,6 +10,16 @@ import { activityLine, addDays, clock, dayLabel, metricLine, paceText, shortId, 
 
 export type ActionStatus = 'pending' | 'applied' | 'dismissed' | 'failed';
 
+/** One edit of a planned session; the website carries it out with the planner's own functions. */
+export interface WorkoutEditSpec {
+  workoutId: string;
+  removeStrides?: boolean;
+  addStrides?: boolean;
+  /** Total distance in km. */
+  distanceKm?: number;
+  makeEasy?: boolean;
+}
+
 export interface PlanChanges {
   runsPerWeek?: number;
   /** 0 = Monday … 6 = Sunday */
@@ -34,6 +44,7 @@ export type CoachAction =
   | (ActionBase & { tool: 'move_workout'; workoutId: string; date: string })
   | (ActionBase & { tool: 'skip_workouts'; workoutIds: string[] })
   | (ActionBase & { tool: 'scale_workouts'; items: { workoutId: string; factor: number }[] })
+  | (ActionBase & { tool: 'edit_workouts'; edits: WorkoutEditSpec[]; noStridesDays?: number[] })
   | (ActionBase & { tool: 'change_plan'; changes: PlanChanges });
 
 export const RUN_KINDS = new Set(['easy', 'recovery', 'long', 'long_mp', 'threshold', 'intervals', 'marathon_pace', 'fartlek', 'shakeout']);
@@ -86,8 +97,18 @@ export const TOOL_DEFS = [
   },
   {
     name: 'get_workouts',
-    description: 'List planned sessions of the training plan in a date range (max 60), with ids and status. Use it for dates outside the window in the context.',
-    input_schema: { type: 'object', properties: { from: DATE, to: DATE }, required: ['from', 'to'] },
+    description:
+      'List planned sessions of the training plan in a date range (max 80), with ids, status and whether they include strides. Use it for dates outside the window in the context. Optional filters: kind (e.g. easy, long, intervals) and weekday, handy for "all my Friday easy runs".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        from: DATE,
+        to: DATE,
+        kind: { type: 'string', description: 'Optional session type: easy, recovery, long, long_mp, threshold, intervals, marathon_pace, fartlek, shakeout' },
+        weekday: { type: 'string', enum: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] },
+      },
+      required: ['from', 'to'],
+    },
   },
   {
     name: 'get_wellness',
@@ -132,6 +153,37 @@ export const TOOL_DEFS = [
     },
   },
   {
+    name: 'propose_edit_workouts',
+    description:
+      'Propose changing what individual planned running sessions consist of: remove the strides from easy runs (the easy part gets the distance the strides covered, so the total stays), add strides, set the total distance, or turn a hard session into a plain easy run. Pass every session that should change (up to 40, e.g. all future Friday easy runs from get_workouts). To keep a "no strides" wish when the plan is rebuilt later, also pass remember_no_strides_days. The athlete confirms with a button first.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        edits: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              workout_id: ID,
+              remove_strides: { type: 'boolean' },
+              add_strides: { type: 'boolean' },
+              distance_km: { type: 'number', description: 'New total distance of the session in km (2 to 45)' },
+              make_easy: { type: 'boolean', description: 'Turn intervals, threshold, fartlek or marathon-pace sessions into an easy run of the same distance' },
+            },
+            required: ['workout_id'],
+          },
+        },
+        remember_no_strides_days: {
+          type: 'array',
+          items: { type: 'string', enum: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] },
+          description: 'Weekdays whose easy runs should never get strides, also when the plan is rebuilt later. An empty list allows strides again. Leave out if the wish is only for the listed sessions.',
+        },
+        reason: { type: 'string' },
+      },
+      required: ['reason'],
+    },
+  },
+  {
     name: 'propose_plan_changes',
     description:
       'Propose changing the plan\'s settings so that the coming weeks are rebuilt: runs per week, which weekdays are available, the long-run day, a time limit for weekday sessions, the training approach, injury flags. Sessions already done stay. Use only for lasting changes; for single sessions use the other tools. The goal time and race date cannot be changed here.',
@@ -152,7 +204,7 @@ export const TOOL_DEFS = [
   },
 ] as const;
 
-export const PROPOSAL_TOOLS = new Set(['propose_move_workout', 'propose_skip_workouts', 'propose_scale_workouts', 'propose_plan_changes']);
+export const PROPOSAL_TOOLS = new Set(['propose_move_workout', 'propose_skip_workouts', 'propose_scale_workouts', 'propose_edit_workouts', 'propose_plan_changes']);
 
 /** Shown to the model after a proposal: it must not claim that anything has changed. */
 const PROPOSED =
@@ -222,9 +274,14 @@ export async function runTool(name: string, input: Record<string, unknown>, stat
     case 'get_workouts': {
       const r = range(input);
       if (!r) return fail('from and to must be dates (YYYY-MM-DD) with from <= to.');
-      const rows = data.workouts.filter((w) => w.date >= r.from && w.date <= r.to).sort((a, b) => a.date.localeCompare(b.date));
-      if (!rows.length) return { content: 'No planned sessions in that range.' };
-      return { content: `${rows.length} sessions${rows.length > 60 ? ' (showing the first 60)' : ''}:\n${rows.slice(0, 60).map(workoutLine).join('\n')}` };
+      const kind = typeof input.kind === 'string' ? input.kind.toLowerCase() : null;
+      const wd = input.weekday === undefined ? -1 : dayIndex(input.weekday);
+      if (input.weekday !== undefined && wd < 0) return fail('weekday must be mon, tue, wed, thu, fri, sat or sun.');
+      const rows = data.workouts
+        .filter((w) => w.date >= r.from && w.date <= r.to && (!kind || w.kind === kind) && (wd < 0 || weekdayOf(w.date) === wd))
+        .sort((a, b) => a.date.localeCompare(b.date));
+      if (!rows.length) return { content: 'No planned sessions match.' };
+      return { content: `${rows.length} sessions${rows.length > 80 ? ' (showing the first 80)' : ''}:\n${rows.slice(0, 80).map(workoutLine).join('\n')}` };
     }
 
     case 'get_wellness': {
@@ -240,6 +297,8 @@ export async function runTool(name: string, input: Record<string, unknown>, stat
       return proposeSkip(input, state);
     case 'propose_scale_workouts':
       return proposeScale(input, state);
+    case 'propose_edit_workouts':
+      return proposeEdit(input, state);
     case 'propose_plan_changes':
       return proposePlanChanges(input, state);
     default:
@@ -321,6 +380,65 @@ function proposeScale(input: Record<string, unknown>, state: ToolState): ToolRes
     lines.push(`Change "${w.title}" on ${dayLabel(w.date)}: about ${Math.round(w.distance_km * 10) / 10} km → ${newKm} km (${pct >= 0 ? '+' : ''}${pct} %)`);
   }
   return pending(state, { tool: 'scale_workouts', items: out, reason: text(input.reason, 300), summary: lines.join('\n') });
+}
+
+const EDIT_KINDS = new Set(['easy', 'recovery', 'long', 'long_mp', 'shakeout', 'threshold', 'intervals', 'fartlek', 'marathon_pace']);
+const HARD_KINDS = new Set(['threshold', 'intervals', 'fartlek', 'marathon_pace']);
+
+function proposeEdit(input: Record<string, unknown>, state: ToolState): ToolResult {
+  const { data } = state;
+  if (!data.plan) return fail('There is no active plan.');
+  const raw = Array.isArray(input.edits) ? (input.edits as Record<string, unknown>[]) : [];
+  const days: number[] | undefined = Array.isArray(input.remember_no_strides_days)
+    ? [...new Set((input.remember_no_strides_days as unknown[]).map(dayIndex))].sort((x, y) => x - y)
+    : undefined;
+  if (days?.includes(-1)) return fail('remember_no_strides_days must list weekdays like "fri".');
+  if (!raw.length && days === undefined) return fail('Nothing to change: pass edits and/or remember_no_strides_days.');
+  if (raw.length > 40) return fail('At most 40 sessions per proposal. Split it into two.');
+
+  const edits: WorkoutEditSpec[] = [];
+  const lines: string[] = [];
+  for (const e of raw) {
+    const w = resolveWorkout(data.workouts, e?.workout_id);
+    if (typeof w === 'string') return fail(w);
+    if (edits.some((x) => x.workoutId === w.id)) continue;
+    if (!EDIT_KINDS.has(w.kind)) return fail(`"${w.title}" (${w.kind}) cannot be edited this way.`);
+    if (w.status !== 'planned') return fail(`"${w.title}" on ${w.date} is already ${w.status}.`);
+    if (w.date < data.today) return fail(`"${w.title}" on ${w.date} is in the past.`);
+    const spec: WorkoutEditSpec = { workoutId: w.id };
+    const parts: string[] = [];
+    if (e.remove_strides === true) {
+      if (!w.has_strides) return fail(`"${w.title}" on ${w.date} has no strides to remove.`);
+      spec.removeStrides = true;
+      parts.push('remove the strides (the easy part gets their distance)');
+    }
+    if (e.add_strides === true) {
+      if (w.has_strides) return fail(`"${w.title}" on ${w.date} already has strides.`);
+      if (w.kind !== 'easy') return fail(`Strides can only be added to easy runs ("${w.title}" is ${w.kind}).`);
+      if (spec.removeStrides) return fail('Do not remove and add strides in one edit.');
+      spec.addStrides = true;
+      parts.push('add strides (the easy part gets shorter)');
+    }
+    if (e.distance_km !== undefined) {
+      const km = Number(e.distance_km);
+      if (!Number.isFinite(km) || km < 2 || km > 45) return fail('distance_km must be between 2 and 45.');
+      if (HARD_KINDS.has(w.kind) && e.make_easy !== true) return fail(`"${w.title}" is built from reps or blocks; set a distance only together with make_easy, or use propose_scale_workouts.`);
+      spec.distanceKm = Math.round(km * 2) / 2;
+      parts.push(`total distance ${w.distance_km ? `${Math.round(w.distance_km * 10) / 10} → ` : ''}${spec.distanceKm} km`);
+    }
+    if (e.make_easy === true) {
+      if (!HARD_KINDS.has(w.kind)) return fail(`"${w.title}" is not a hard session.`);
+      spec.makeEasy = true;
+      parts.push('turn into an easy run');
+    }
+    if (!parts.length) return fail(`No change given for "${w.title}" on ${w.date}.`);
+    edits.push(spec);
+    lines.push(`${w.title} on ${dayLabel(w.date)}: ${parts.join(', ')}`);
+  }
+  if (days !== undefined) {
+    lines.push(days.length ? `From now on, easy runs on ${dayList(days)} get no strides, also when the plan is rebuilt.` : 'Easy runs may get strides again when the plan is rebuilt.');
+  }
+  return pending(state, { tool: 'edit_workouts', edits, ...(days !== undefined ? { noStridesDays: days } : {}), reason: text(input.reason, 300), summary: lines.join('\n') });
 }
 
 function proposePlanChanges(input: Record<string, unknown>, state: ToolState): ToolResult {

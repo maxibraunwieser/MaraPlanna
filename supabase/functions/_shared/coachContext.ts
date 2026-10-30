@@ -13,6 +13,8 @@ export interface CoachWorkout {
   key_session: boolean;
   status: string;
   note: string | null;
+  /** The session ends with strides. */
+  has_strides?: boolean;
 }
 
 export interface CoachActivity {
@@ -148,6 +150,8 @@ function describeAthlete(d: CoachData): string[] {
       `${days.length ? ` on ${days.join(', ')}` : ''}${longDay !== null ? `; long run ${WEEKDAYS_LONG[longDay]}` : ''}` +
       `${num(a.weekdayMaxMinutes) ? `; weekday sessions max ${a.weekdayMaxMinutes} min` : ''}`,
   );
+  const noStrides = Array.isArray(a.noStridesDays) ? (a.noStridesDays as number[]).filter((n) => n >= 0 && n <= 6).map((n) => WEEKDAYS[n]) : [];
+  if (noStrides.length) lines.push(`- no strides on easy runs on: ${noStrides.join(', ')}`);
   const extras = Array.isArray(a.extras) ? (a.extras as Rec[]) : [];
   if (extras.length) {
     lines.push(`- extra sessions per week: ${extras.map((e) => `${str(e.name) ?? str(e.type) ?? '?'} ×${num(e.perWeek) ?? 1}`).join(', ')}${str(a.equipment) ? ` (${a.equipment})` : ''}`);
@@ -205,7 +209,7 @@ function describeWeeks(d: CoachData, n: number): string[] {
 
 export function workoutLine(w: CoachWorkout): string {
   const size = [w.distance_km ? `${oneDecimal(w.distance_km)} km` : null, w.duration_min ? `${Math.round(w.duration_min)} min` : null].filter(Boolean).join(', ');
-  return `[${shortId(w.id)}] ${dayLabel(w.date)} · ${w.title}${size ? ` · ${size}` : ''}${w.key_session ? ' · KEY' : ''} · ${w.kind} · ${w.status}${w.note ? ` · note: ${clip(w.note, 80)}` : ''}`;
+  return `[${shortId(w.id)}] ${dayLabel(w.date)} · ${w.title}${size ? ` · ${size}` : ''}${w.key_session ? ' · KEY' : ''}${w.has_strides ? ' · +strides' : ''} · ${w.kind} · ${w.status}${w.note ? ` · note: ${clip(w.note, 80)}` : ''}`;
 }
 
 export function activityLine(a: CoachActivity): string {

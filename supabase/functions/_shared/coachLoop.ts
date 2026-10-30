@@ -177,6 +177,7 @@ const STATUS: Record<string, string> = {
   propose_move_workout: 'Preparing a change to your plan…',
   propose_skip_workouts: 'Preparing a change to your plan…',
   propose_scale_workouts: 'Preparing a change to your plan…',
+  propose_edit_workouts: 'Preparing a change to your plan…',
   propose_plan_changes: 'Preparing a change to your plan…',
 };
 
