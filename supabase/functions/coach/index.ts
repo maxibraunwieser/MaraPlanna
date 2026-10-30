@@ -61,7 +61,7 @@ function apiKey(): string | null {
 
 const settings = () => ({
   baseUrl: (Deno.env.get('ANTHROPIC_BASE_URL') ?? 'https://api.anthropic.com').replace(/\/$/, ''),
-  model: Deno.env.get('COACH_MODEL') ?? 'claude-sonnet-5-5',
+  model: Deno.env.get('COACH_MODEL') ?? 'claude-haiku-5-5',
   // Thinking counts towards the limit, so it is generous: answers are short, but reasoning is not.
   maxTokens: Math.min(8000, Math.max(1000, Number(Deno.env.get('COACH_MAX_TOKENS') ?? 4000))),
   // How hard the model thinks: medium suits chat; "off" leaves it to the model's default.
