@@ -39,20 +39,27 @@ const dbError = (m: string) => (/watch_devices|schema cache|does not exist/.test
 // Watch side
 // ---------------------------------------------------------------------------
 
+/** Write a new random code (unique among open codes) with `save`, retrying on a clash. */
+async function withNewCode(save: (code: string, expires: string) => Promise<{ error: { message: string } | null }>) {
+  const expires = new Date(Date.now() + CODE_MINUTES * 60_000).toISOString();
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, '0');
+    const { error } = await save(code, expires);
+    if (!error) return code;
+    if (!/duplicate|unique/i.test(error.message)) throw new Error(dbError(error.message));
+  }
+  throw new Error('Could not create a pairing code, please try again.');
+}
+
 async function pair(admin: SupabaseClient, model: string | null) {
   // Forget pairing attempts that were never completed.
   await admin.from('watch_devices').delete().is('user_id', null).lt('code_expires_at', new Date(Date.now() - 86_400_000).toISOString());
   const secret = hex(crypto.getRandomValues(new Uint8Array(32)));
-  const expires = new Date(Date.now() + CODE_MINUTES * 60_000).toISOString();
-  for (let attempt = 0; attempt < 6; attempt++) {
-    const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, '0');
-    const { error } = await admin
-      .from('watch_devices')
-      .insert({ secret_hash: await sha256(secret), pair_code: code, code_expires_at: expires, model: model?.slice(0, 60) ?? null });
-    if (!error) return { code, secret, expiresIn: CODE_MINUTES * 60 };
-    if (!/duplicate|unique/i.test(error.message)) throw new Error(dbError(error.message));
-  }
-  throw new Error('Could not create a pairing code, please try again.');
+  const hash = await sha256(secret);
+  const code = await withNewCode(async (c, expires) =>
+    await admin.from('watch_devices').insert({ secret_hash: hash, pair_code: c, code_expires_at: expires, model: model?.slice(0, 60) ?? null }),
+  );
+  return { code, secret, expiresIn: CODE_MINUTES * 60 };
 }
 
 async function feed(admin: SupabaseClient, secret: string, date: string) {
@@ -65,7 +72,13 @@ async function feed(admin: SupabaseClient, secret: string, date: string) {
   if (!dev) return { revoked: true };
   if (!dev.user_id) {
     const expired = !dev.code_expires_at || Date.parse(dev.code_expires_at) < Date.now();
-    return expired ? { paired: false, expired: true } : { paired: false, code: dev.pair_code };
+    if (!expired) return { paired: false, code: dev.pair_code };
+    // The code ran out before it was entered: give this watch a fresh one right away
+    // (it keeps its secret, so there is no gap on the watch face).
+    const code = await withNewCode(async (c, expires) =>
+      await admin.from('watch_devices').update({ pair_code: c, code_expires_at: expires }).eq('id', dev.id),
+    );
+    return { paired: false, code };
   }
   await admin.from('watch_devices').update({ last_seen_at: new Date().toISOString() }).eq('id', dev.id);
 
