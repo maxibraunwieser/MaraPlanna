@@ -1,5 +1,7 @@
 <strings>
-    <string id="AppName">MaraPlanna Lauf</string>
+    <string id="AppName">MaraPlanna</string>
+    <!-- Name der Aktivität in Garmin Connect (ohne Workout) -->
+    <string id="ActivityName">MaraPlanna Lauf</string>
 
     <!-- Lauftypen (Reihenfolge = pace_zone in der FIT-Datei) -->
     <string id="ZoneFree">Freier Lauf</string>

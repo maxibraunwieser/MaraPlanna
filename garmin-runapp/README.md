@@ -1,4 +1,4 @@
-# MaraPlanna Lauf (Garmin Connect IQ device app)
+# MaraPlanna (Garmin Connect IQ device app)
 
 A run recording app with the target paces from MaraPlanna. The texts on the watch are German.
 
@@ -27,7 +27,7 @@ The watch vibrates and beeps on start, pause, lap/step and save, but only if the
 ## Where the paces come from
 
 1. **MaraPlanna (linked watch):** on first start the app shows a 6-digit code. Enter it on the website under **Settings → Garmin watch**. The app then loads your paces, VDOT and today's session through the phone (`GET /watch/run`, see `supabase/functions/_shared/runFeed.ts`). It does this every time it starts, and keeps the data for runs without the phone.
-2. **App settings:** without a link, the paces can be entered in the Garmin Connect app (*Connect IQ apps → MaraPlanna Lauf → Settings*), e.g. `5:26-5:59` for a range or `4:57` for a single pace (±5 s). This only works when the app was installed from the Connect IQ Store.
+2. **App settings:** without a link, the paces can be entered in the Garmin Connect app (*Connect IQ apps → MaraPlanna → Settings*), e.g. `5:26-5:59` for a range or `4:57` for a single pace (±5 s). This only works when the app was installed from the Connect IQ Store.
 3. **No paces:** only "Freier Lauf", with a hint on the start screen.
 
 Paces in the feed are seconds per km; ranges are `[fast, slow]`, and single values get ±5 s.
@@ -39,8 +39,8 @@ Same setup as the watch face (Connect IQ SDK and Java 11+):
 ```bash
 cd garmin-runapp
 node tools/products.cjs        # writes every supported watch into manifest.xml
-monkeyc -f monkey.jungle -d fr265 -l 3 -o bin/MaraPlannaLauf.prg -y <path>/developer_key.der
-monkeyc -f monkey.jungle -e -r -l 3 -o bin/MaraPlannaLauf.iq -y <path>/developer_key.der
+monkeyc -f monkey.jungle -d fr265 -l 3 -o bin/MaraPlanna.prg -y <path>/developer_key.der
+monkeyc -f monkey.jungle -e -r -l 3 -o bin/MaraPlanna.iq -y <path>/developer_key.der
 ```
 
 `-l 3` is Garmin's strictest type checking; the app builds with it, without warnings, for every supported watch.
@@ -68,12 +68,12 @@ For moving data in the simulator, use **Simulation → Activity Data**: choose *
 
 ## Put it on your watch (sideload)
 
-1. Build `MaraPlannaLauf.prg` for your watch model, e.g. `-d fr265`. The ids are in `manifest.xml`.
+1. Build `MaraPlanna.prg` for your watch model, e.g. `-d fr265`. The ids are in `manifest.xml`.
 2. Connect the watch over USB. On Windows it shows up in Explorer as a drive or a device.
 3. Copy the `.prg` into `GARMIN/APPS/`, then unplug the watch.
-4. Open the app list on the watch (START button → activities/apps): **MaraPlanna Lauf** is there.
+4. Open the app list on the watch (START button → activities/apps): **MaraPlanna** is there (the activity is named "MaraPlanna Lauf" in Garmin Connect).
 5. On first start the app shows the code: enter it on the website under **Settings → Garmin watch**, with the phone nearby and Garmin Connect running.
 
 Limits of a sideloaded app: the settings in the Garmin Connect app (pace entry) and the labels of the custom FIT fields in Garmin Connect only appear for apps installed from the Store. The recording itself (time, distance, pace, heart rate, laps) syncs to Garmin Connect as usual.
 
-**For everyone:** upload `MaraPlannaLauf.iq` in the [Connect IQ developer dashboard](https://apps.garmin.com/developer/) as a new app (*Device App*). After Garmin's review, it is in the Connect IQ Store.
+**For everyone:** upload `MaraPlanna.iq` in the [Connect IQ developer dashboard](https://apps.garmin.com/developer/) as a new app (*Device App*). After Garmin's review, it is in the Connect IQ Store.

@@ -71,7 +71,7 @@ class RecordingController {
         }
         self.zone = zone;
         self.workout = workout;
-        var name = workout != null ? (workout as Workout).title : WatchUi.loadResource(Rez.Strings.AppName) as String;
+        var name = workout != null ? (workout as Workout).title : WatchUi.loadResource(Rez.Strings.ActivityName) as String;
         var session = ActivityRecording.createSession({
             :name => name.length() > 15 ? name.substring(0, 15) as String : name,
             :sport => Activity.SPORT_RUNNING,

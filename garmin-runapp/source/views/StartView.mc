@@ -76,7 +76,7 @@ class StartView extends WatchUi.View {
         var miles = zones != null && (zones as PaceZones).miles;
         var unit = miles ? " /mi" : " /km";
 
-        Draw.lineAlt(dc, h * 0.15, Graphics.FONT_XTINY, Draw.ORANGE, ["MARAPLANNA LAUF", "MARAPLANNA"] as Array<String>);
+        Draw.lineAlt(dc, h * 0.15, Graphics.FONT_XTINY, Draw.ORANGE, ["MARAPLANNA"] as Array<String>);
 
         // Gewählte Option
         var opt = choice();

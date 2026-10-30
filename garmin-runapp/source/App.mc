@@ -1,4 +1,4 @@
-// MaraPlanna Lauf: Lauf-Aktivität mit Zielpaces aus MaraPlanna aufzeichnen.
+// MaraPlanna: Lauf-Aktivität mit Zielpaces aus MaraPlanna aufzeichnen.
 
 import Toybox.Application;
 import Toybox.Lang;
