@@ -2,7 +2,7 @@
 
 A run recording app with the target paces from MaraPlanna. The texts on the watch are German.
 
-- **Before the run:** pick today's MaraPlanna session or a run type (Easy, Long, Recovery, Marathon, Threshold, Interval, Repetition, Freier Lauf). The start screen also shows the GPS and heart rate status. You can start without a GPS fix, e.g. on a treadmill.
+- **Before the run:** a minimal start screen. In the middle it says **HEUTE GEPLANT** with today's MaraPlanna session (title, distance and duration), or the run type with its pace range (Easy, Long, Recovery, Marathon, Threshold, Interval, Repetition, Freier Lauf). The start button at the bottom shows the GPS state without any text: orange rings pulse outward while GPS is searched, a calm green ring means GPS is ready. You can start without a GPS fix, e.g. on a treadmill. At the top the heart rate (a grey heart until the sensor delivers a value) or, while the watch is not linked, the pairing code. The dots at the bottom show which entry is chosen (UP/DOWN or swipe), START begins.
 - **During the run:** up to ten data pages, refreshed every second, with a clean frame: a red dot (recording) or pause bars at the top, a hint line below the page (LANGSAMER, SCHNELLER, KEIN GPS, pause) and page dots at the bottom. Pages that make no sense right now (the interval pages without a session) are skipped.
 
   | Page | Shows |

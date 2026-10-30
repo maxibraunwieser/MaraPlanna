@@ -110,6 +110,14 @@ module Pace {
         return h > 0 ? h.format("%d") + ":" + m.format("%02d") + ":" + (s % 60).format("%02d") : m.format("%d") + ":" + (s % 60).format("%02d");
     }
 
+    // Meter → "9,5" (km bzw. mi, eine Nachkommastelle, deutsches Komma).
+    function distance1(metres as Numeric?, miles as Boolean) as String {
+        var m = metres == null || metres < 0 ? 0.0 : metres.toFloat();
+        var text = (m / (miles ? 1609.344 : 1000.0)).format("%.1f");
+        var dot = text.find(".");
+        return dot == null ? text : text.substring(0, dot) + "," + text.substring(dot + 1, text.length());
+    }
+
     // Meter → "12,34" (km bzw. mi, deutsches Komma).
     function distance(metres as Numeric?, miles as Boolean) as String {
         var m = metres == null ? 0.0 : metres.toFloat();

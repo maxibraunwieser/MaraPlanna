@@ -293,3 +293,19 @@ function testSwipeDirections(logger as Logger) as Boolean {
     Test.assertEqual(Swipe.step(WatchUi.SWIPE_DOWN), -1);
     return true;
 }
+
+(:test)
+function testStartScreenNumbers(logger as Logger) as Boolean {
+    Test.assertEqual(Pace.distance1(9480.0, false), "9,5");
+    Test.assertEqual(Pace.distance1(12000.0, false), "12,0");
+    Test.assertEqual(Pace.distance1(null, false), "0,0");
+    Test.assertEqual(Pace.distance1(-5.0, false), "0,0");
+    // geplante Strecke: Meter-Schritte plus Zeitschritte über ihre Pace (120 s bei 360 s/km = 333 m)
+    var steps = [
+        { "n" => "Einlaufen", "t" => "w", "d" => 2000, "lo" => 340, "hi" => 370, "z" => 1 },
+        { "n" => "Trabpause", "t" => "r", "s" => 120, "z" => 3 }
+    ] as Array<Dictionary>;
+    var w = new Workout("Test", 1, steps);
+    Test.assert((w.plannedMeters() - (2000.0 + 120.0 / 360.0 * 1000.0)).abs() < 1.0);
+    return true;
+}

@@ -146,10 +146,35 @@ module Draw {
         return out;
     }
 
-    // Hat die Uhr AUF/AB-Tasten? Sonst (Venu, vivoactive) wird gewischt.
-    function hasUpDown() as Boolean {
-        var b = System.getDeviceSettings().inputButtons as Number;
-        return (b & System.BUTTON_INPUT_UP) != 0 && (b & System.BUTTON_INPUT_DOWN) != 0;
+    // Farbe zwischen zwei Farben (t = 0 → a, t = 1 → b), z. B. für abklingende Ringe.
+    function blend(a as Number, b as Number, t as Float) as Number {
+        var r = (((a >> 16) & 0xFF) * (1.0 - t) + ((b >> 16) & 0xFF) * t).toNumber();
+        var g = (((a >> 8) & 0xFF) * (1.0 - t) + ((b >> 8) & 0xFF) * t).toNumber();
+        var bl = ((a & 0xFF) * (1.0 - t) + (b & 0xFF) * t).toNumber();
+        return (r << 16) | (g << 8) | bl;
+    }
+
+    // Herz mit Halbbreite s bei cx,cy.
+    function heart(dc as Graphics.Dc, cx as Numeric, cy as Numeric, s as Numeric, color as Number) as Void {
+        dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+        dc.fillCircle(cx - s * 0.5, cy - s * 0.3, s * 0.56);
+        dc.fillCircle(cx + s * 0.5, cy - s * 0.3, s * 0.56);
+        dc.fillPolygon([[cx - s * 1.04, cy - s * 0.05], [cx + s * 1.04, cy - s * 0.05], [cx, cy + s * 1.0]] as Array<[Numeric, Numeric]>);
+    }
+
+    // Play-Dreieck, optisch mittig.
+    function play(dc as Graphics.Dc, cx as Numeric, cy as Numeric, s as Numeric, color as Number) as Void {
+        dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+        dc.fillPolygon([[cx - s * 0.5, cy - s * 0.75], [cx - s * 0.5, cy + s * 0.75], [cx + s * 0.8, cy]] as Array<[Numeric, Numeric]>);
+    }
+
+    // Drei Linien (Menü-Symbol).
+    function menuIcon(dc as Graphics.Dc, cx as Numeric, cy as Numeric, s as Numeric, color as Number) as Void {
+        dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+        var h = s * 0.18 < 2 ? 2 : s * 0.18;
+        for (var i = -1; i <= 1; i++) {
+            dc.fillRoundedRectangle(cx - s * 0.8, cy + i * s * 0.55 - h / 2, s * 1.6, h, h / 2);
+        }
     }
 
     // 2x2-Raster zwischen top und bottom: kleine Beschriftung über großem Wert.

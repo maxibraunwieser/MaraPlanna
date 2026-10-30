@@ -208,6 +208,16 @@ class Workout {
         return stepLength(i) / 1000.0 * midPace(i);
     }
 
+    // Geplante Strecke in Metern (Zeitschritte über ihre Pace umgerechnet).
+    function plannedMeters() as Float {
+        var sum = 0.0;
+        for (var i = 0; i < _steps.size(); i++) {
+            var d = Pace.toNum(_steps[i].get("d") as Object?);
+            sum += d != null ? d.toFloat() : plannedSeconds(i) / midPace(i) * 1000.0;
+        }
+        return sum;
+    }
+
     function plannedTotal() as Float {
         var sum = 0.0;
         for (var i = 0; i < _steps.size(); i++) {
