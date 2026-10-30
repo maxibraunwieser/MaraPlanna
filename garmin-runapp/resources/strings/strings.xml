@@ -16,6 +16,7 @@
     <!-- Pausenmenü -->
     <string id="MenuTitle">Pause</string>
     <string id="Resume">Fortsetzen</string>
+    <string id="Pages">Datenseiten</string>
     <string id="Save">Speichern</string>
     <string id="Discard">Verwerfen</string>
     <string id="DiscardConfirm">Aktivität verwerfen?</string>

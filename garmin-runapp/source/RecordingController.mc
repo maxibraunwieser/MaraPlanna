@@ -32,6 +32,11 @@ class RecordingController {
     var laps as Number = 1;
     // Zum Anzeigen eines Schrittwechsels für ein paar Sekunden.
     var stepChangedAt as Number = -100000;
+    // Verlauf (Diagramme) und gelaufene Strecke (Karte)
+    var history as History = new History();
+    var track as Track = new Track();
+    // Laufrichtung in Radiant (0 = Norden), von App.onPosition
+    var heading as Float? = null;
 
     private var _session as ActivityRecording.Session?;
     private var _fit as FitFields?;
@@ -71,6 +76,9 @@ class RecordingController {
         }
         self.zone = zone;
         self.workout = workout;
+        if (workout != null) {
+            (workout as Workout).bindZones(zones);
+        }
         var name = workout != null ? (workout as Workout).title : WatchUi.loadResource(Rez.Strings.ActivityName) as String;
         var session = ActivityRecording.createSession({
             :name => name.length() > 15 ? name.substring(0, 15) as String : name,
@@ -172,6 +180,14 @@ class RecordingController {
         _count += 1;
         var oldest = _count >= WINDOW ? _count % WINDOW : 0;
         pace = _count >= 3 ? Pace.fromDelta(ms - _ms[oldest], dist - _dist[oldest]) : null;
+
+        // Verlauf und Strecke für Diagramme und Karte
+        history.add(info != null ? info.currentHeartRate : null, pace == null ? 0.0 : 1000.0 / (pace as Float));
+        var loc = info != null ? info.currentLocation : null;
+        if (loc != null) {
+            var deg = loc.toDegrees();
+            track.add(deg[0].toFloat(), deg[1].toFloat());
+        }
 
         // Workout: Schritt erledigt → nächster Schritt mit Runde und Hinweis.
         if (workout != null && (workout as Workout).update(ms, dist)) {

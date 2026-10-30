@@ -10,6 +10,8 @@ class PaceZones {
     var source as String = "";
     var vdot as Float? = null;
     var miles as Boolean = false;
+    // Wunschzeit für den Marathon (Sekunden) aus MaraPlanna, für die Prognose-Seite
+    var goalS as Float? = null;
     // Index wie Pace.ZONES → [lo, hi] oder null
     private var _ranges as Array = new [8];
 
@@ -20,6 +22,7 @@ class PaceZones {
     function load() as Void {
         _ranges = new [8];
         vdot = null;
+        goalS = null;
         source = "";
         var feed = Application.Storage.getValue("run");
         if (feed instanceof Dictionary && feed.get("paces") instanceof Dictionary) {
@@ -38,6 +41,11 @@ class PaceZones {
         var v = feed.get("vdot");
         vdot = v instanceof Lang.Float || v instanceof Lang.Number || v instanceof Lang.Double ? (v as Lang.Numeric).toFloat() : null;
         miles = "mi".equals(feed.get("units") as Object?);
+        var goal = feed.get("goal");
+        if (goal instanceof Dictionary) {
+            var g = Pace.toNum(goal.get("s") as Object?);
+            goalS = g == null ? null : g.toFloat();
+        }
         source = "MaraPlanna";
     }
 

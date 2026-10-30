@@ -89,4 +89,17 @@ describe('run app feed', () => {
     // Watch fonts are Latin-1 only.
     for (const l of labels) expect(stepName(l)).toMatch(/^[\x20-\xff]+$/);
   });
+
+  it('race day: guided with the goal pace, and the goal time goes to the watch', () => {
+    const race: CalWorkout = {
+      id: 'r', date: '2027-04-18', kind: 'race', title: 'Race day: Vienna', distance_km: 42.2, duration_min: 225, key_session: true,
+      steps: [{ type: 'run', label: 'Marathon', zone: 'marathon', distanceKm: 42.195 }], status: 'planned', note: null,
+    } as CalWorkout;
+    const feed = buildRunFeed({ vdot: 46, paces, units: 'km', workouts: [race], goalS: 13500 });
+    expect(feed.goal).toEqual({ m: 42195, s: 13500 });
+    expect(feed.workout?.steps).toHaveLength(1);
+    const pace = 13500 / 42.195;
+    expect(feed.workout?.steps[0]).toMatchObject({ d: 42195, lo: Math.round(pace - 5), hi: Math.round(pace + 5) });
+    expect(buildRunFeed({ vdot: 46, paces, units: 'km', workouts: [], goalS: null }).goal).toBeNull();
+  });
 });

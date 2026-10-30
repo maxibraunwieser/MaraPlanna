@@ -139,6 +139,7 @@ async function run(admin: SupabaseClient, secret: string, date: string) {
     paces: plan?.fitness?.paces ?? null,
     units: (profile?.units === 'mi' ? 'mi' : 'km') as CalUnits,
     workouts: (workouts ?? []) as CalWorkout[],
+    goalS: plan?.fitness?.targetMarathonS ?? null,
   });
 }
 

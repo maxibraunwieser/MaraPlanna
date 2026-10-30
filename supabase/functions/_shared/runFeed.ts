@@ -30,8 +30,12 @@ export interface RunFeed {
   units: CalUnits;
   /** s/km; ranges are [fast, slow]. */
   paces: CalPaces | null;
+  /** Marathon goal time for the finish forecast on the watch (seconds for 42,195 m). */
+  goal: { m: number; s: number } | null;
   workout: { title: string; z: number; steps: RunStep[] } | null;
 }
+
+const MARATHON_M = 42195;
 
 /** Order of the run types on the watch (index = pace_zone in the FIT file; 0 = free run). */
 export const ZONES: (CalZone | 'free')[] = ['free', 'easy', 'long', 'recovery', 'marathon', 'threshold', 'interval', 'repetition'];
@@ -73,16 +77,22 @@ export function runSteps(steps: CalStep[], paces: CalPaces): RunStep[] {
   return out;
 }
 
-export function buildRunFeed(input: { vdot: number | null; paces: CalPaces | null; units: CalUnits; workouts: CalWorkout[] }): RunFeed {
+export function buildRunFeed(input: { vdot: number | null; paces: CalPaces | null; units: CalUnits; workouts: CalWorkout[]; goalS?: number | null }): RunFeed {
   const { paces } = input;
-  const runs = input.workouts.filter((w) => RUNS.has(w.kind) && w.status !== 'skipped' && w.kind !== 'race');
+  const goalS = input.goalS && input.goalS > 0 ? Math.round(input.goalS) : null;
+  const runs = input.workouts.filter((w) => RUNS.has(w.kind) && w.status !== 'skipped');
   const main = runs.find((w) => w.key_session) ?? runs[0];
   let workout: RunFeed['workout'] = null;
   if (main && paces) {
     const zones = main.steps.flatMap((s) => (s.type === 'run' ? [s.zone] : []));
     const hardest = HARDEST.find((z) => zones.includes(z)) ?? 'easy';
-    const steps = runSteps(main.steps, paces);
+    let steps = runSteps(main.steps, paces);
+    if (main.kind === 'race' && goalS) {
+      // Race day: the target is the goal time, not the training marathon pace.
+      const gp = goalS / (MARATHON_M / 1000);
+      steps = steps.map((s) => (s.t === 'a' ? { ...s, lo: Math.round(gp - PACE_TOLERANCE_S), hi: Math.round(gp + PACE_TOLERANCE_S) } : s));
+    }
     if (steps.length) workout = { title: glyphs(main.title), z: zoneIndex(hardest), steps };
   }
-  return { v: 1, paired: true, vdot: input.vdot === null ? null : Math.round(input.vdot * 10) / 10, units: input.units, paces, workout };
+  return { v: 1, paired: true, vdot: input.vdot === null ? null : Math.round(input.vdot * 10) / 10, units: input.units, paces, goal: goalS ? { m: MARATHON_M, s: goalS } : null, workout };
 }

@@ -8,7 +8,8 @@ import Toybox.Lang;
 import Toybox.WatchUi;
 
 class StartView extends WatchUi.View {
-    // -1 = heutige Einheit, 0 = freier Lauf, 1..7 = Lauftyp wie Pace.ZONES
+    // -1 = heutige Einheit, 0 = freier Lauf, 1..7 = Lauftyp wie Pace.ZONES,
+    // -2 = Menü "Datenseiten" (kein Lauf)
     var options as Array<Number> = [] as Array<Number>;
     var selected as Number = 0;
     var workout as Workout?;
@@ -35,6 +36,7 @@ class StartView extends WatchUi.View {
             }
         }
         options.add(0);
+        options.add(-2);
         selected = 0;
         for (var i = 0; i < options.size(); i++) {
             if (options[i] == keep) {
@@ -80,9 +82,11 @@ class StartView extends WatchUi.View {
 
         // Gewählte Option
         var opt = choice();
-        var title = opt == -1 ? "Heute: " + (workout as Workout).title : zoneName(opt);
+        var title = opt == -2 ? "Datenseiten" : (opt == -1 ? "Heute: " + (workout as Workout).title : zoneName(opt));
         var detail = "Ohne Zielpace";
-        if (opt == -1) {
+        if (opt == -2) {
+            detail = Pages.enabledCount() + " von " + Pages.COUNT + " aktiv";
+        } else if (opt == -1) {
             detail = (workout as Workout).size() + " Schritte, geführt";
         } else if (opt > 0 && zones != null) {
             detail = Pace.formatRange((zones as PaceZones).range(opt), miles) + unit;
@@ -94,6 +98,8 @@ class StartView extends WatchUi.View {
         var pos = (selected + 1) + "/" + options.size();
         var hint = options.size() < 2
             ? ["START drücken", "START"]
+            : opt == -2
+                ? [pos + "  START: ändern", pos + "  START", pos]
             : Draw.hasUpDown()
                 ? [pos + "  AUF/AB wählen, START", pos + "  AUF/AB, START", pos]
                 : [pos + "  Wischen, dann START", pos + "  Wischen, START", pos];

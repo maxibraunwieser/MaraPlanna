@@ -3,10 +3,25 @@
 A run recording app with the target paces from MaraPlanna. The texts on the watch are German.
 
 - **Before the run:** pick today's MaraPlanna session or a run type (Easy, Long, Recovery, Marathon, Threshold, Interval, Repetition, Freier Lauf). The start screen also shows the GPS and heart rate status. You can start without a GPS fix, e.g. on a treadmill.
-- **During the run:** three pages, refreshed every second.
-  1. Time, distance, current pace, heart rate.
-  2. Average pace, lap pace, lap distance, lap time.
-  3. The target range of the current step, how far you are off it and, in a session, what is left of the step and what comes next.
+- **During the run:** up to ten data pages, refreshed every second, with a clean frame: a red dot (recording) or pause bars at the top, a hint line below the page (LANGSAMER, SCHNELLER, KEIN GPS, pause) and page dots at the bottom. Pages that make no sense right now (the interval pages without a session) are skipped.
+
+  | Page | Shows |
+  |---|---|
+  | Übersicht | time, distance, pace, heart rate |
+  | Pace | the current pace big, a scale with the target range (green) and a dot for you, the deviation in seconds |
+  | Puls | heart rate big, zone 1-5 from your Garmin profile as a segmented bar, average and maximum |
+  | Runden | average pace, lap pace, lap distance, lap time (off by default) |
+  | Pace-Verlauf | a line chart of the pace over the whole run, with the target range as a band on runs without a session |
+  | Puls-Verlauf | a line chart of the heart rate over the whole run |
+  | Intervall | the current step with what is left (m, km or time), a progress bar, pace against the step's target, what comes next |
+  | Intervall-Reps | one row per rep with its average pace and the difference to the target, coloured green, orange (too fast) or blue (too slow) |
+  | Karte | the route so far, the start, your position and an arrow back to the start with its distance |
+  | Prognose | with a session: planned time, expected finish time and whether you are on target; without: 5 km, 10 km, half marathon and marathon at your average pace, the marathon against your goal time |
+
+- **Choosing pages:** on the start screen the last entry is **Datenseiten**, and the pause menu has the same entry. Each page can be switched on or off. The choice is saved on the watch. At least one page stays on.
+- **Charts:** the history has a fixed size (160 points). When it is full, neighbouring points are merged, so a 10-minute run and a 4-hour run both fit.
+- **Map:** Connect IQ gives apps no map tiles on most watches, so the app draws the route itself. That works on every watch. There is no planned route to follow, because MaraPlanna has none; the arrow points back to where you started.
+- **Finish forecast:** with a session, the ratio of your actual to the planned time so far is applied to the rest of the plan (limited to 0.7-1.5). "On target" means within 1 %, at least 15 s. On race day the target is your goal time. Without a session it is simply the time so far plus the remaining distance at your average pace.
 - **Pace alerts:** the pace is smoothed over about 10 s. Outside the target range the watch shows "LANGSAMER" or "SCHNELLER" and vibrates. Alerts come at most every 30 s, and not in the first 20 s of a step.
 - **Today's session:** the steps run one after the other: warm-up, every rep, recoveries, cool-down. Distance and time steps switch by themselves, each switch adds a lap, and the lap button skips to the next step.
 - **FIT file:** besides the normal running data, the activity gets `target_pace_min` and `target_pace_max` (record, s/km, 0 = no target), `pace_zone` (record, 0 = free run … 7 = Repetition) and `vdot` (session).
@@ -17,10 +32,11 @@ A run recording app with the target paces from MaraPlanna. The texts on the watc
 |---|---|---|---|
 | START | start | pause + menu | resume |
 | BACK | close the app | lap (next step in a session) | menu |
-| UP / DOWN, swipe | choose run type | change page | change page |
-| Tap | start | change page | change page |
+| UP / DOWN | choose run type | next / previous page | next / previous page |
+| Swipe (touch watches) | choose run type | any direction changes the page | any direction changes the page |
+| Tap (touch watches) | start | next page | next page |
 
-The pause menu offers **Fortsetzen**, **Speichern** and **Verwerfen**. Verwerfen asks for confirmation first. BACK never ends a recording. If the system closes the app during a recording, the run is **saved**: Connect IQ can't show a question at that point, so saving is the only way to lose nothing.
+While recording, swiping right does **not** count as BACK, so it can't trigger a lap by accident. The pause menu offers **Fortsetzen**, **Datenseiten**, **Speichern** and **Verwerfen**. Verwerfen asks for confirmation first. BACK never ends a recording. If the system closes the app during a recording, the run is **saved**: Connect IQ can't show a question at that point, so saving is the only way to lose nothing.
 
 The watch vibrates and beeps on start, pause, lap/step and save, but only if the watch supports it and vibration and tones are switched on.
 

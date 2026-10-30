@@ -53,6 +53,9 @@ class RunApp extends Application.AppBase {
 
     function onPosition(info as Position.Info) as Void {
         gps = info.accuracy;
+        if (controller != null && info.heading != null) {
+            (controller as RecordingController).heading = info.heading as Float;
+        }
         WatchUi.requestUpdate();
     }
 

@@ -1,8 +1,9 @@
-// Live-Daten während des Laufs, drei Seiten (▲▼ bzw. Wischen/Tippen):
-//   1  Zeit, Distanz, aktuelle Pace, Puls
-//   2  Ø-Pace, Rundenpace, Rundendistanz, Rundenzeit
-//   3  Zielbereich + Abweichung (+ Workout-Schritt)
-// Aktualisierung jede Sekunde durch den RecordingController.
+// Live-Ansicht während des Laufs: Rahmen um die Datenseiten (Pages.mc, Inhalt in PageViews.mc).
+//   oben    Aufnahmestatus (roter Punkt / Pause) und Seitenname bzw. Name des aktuellen Schritts
+//   Mitte   die gewählte Seite
+//   unten   Hinweis (Pause, LANGSAMER/SCHNELLER, kein GPS) und Seitenpunkte
+// Seiten wechseln per AUF/AB, Wischen oder Tippen. Aktualisierung jede Sekunde durch den
+// RecordingController.
 
 import Toybox.Activity;
 import Toybox.Graphics;
@@ -10,17 +11,23 @@ import Toybox.Lang;
 import Toybox.WatchUi;
 
 class DataView extends WatchUi.View {
-    var page as Number = 0;
-    private const PAGES = 3;
-    private const HEADER_Y = 0.12;
+    // ID der angezeigten Seite (Pages.*)
+    var page as Number = Pages.OVERVIEW;
+    private const HEADER_Y = 0.115;
     private const FOOTER_Y = 0.865;
+    private const DOTS_Y = 0.945;
 
     function initialize() {
         View.initialize();
     }
 
+    // Nächste (1) bzw. vorherige (-1) Seite unter den sichtbaren.
     function flip(step as Number) as Void {
-        page = (page + step + PAGES) % PAGES;
+        var c = getApp().controller as RecordingController;
+        var ids = Pages.active(c.workout);
+        var at = ids.indexOf(page);
+        at = at < 0 ? 0 : at;
+        page = ids[(at + step + ids.size()) % ids.size()];
         WatchUi.requestUpdate();
     }
 
@@ -30,124 +37,78 @@ class DataView extends WatchUi.View {
         dc.clear();
         var app = getApp();
         var c = app.controller as RecordingController;
-        var miles = c.zones.miles;
         var info = Activity.getActivityInfo();
         var ms = c.timerMs(info);
 
-        header(dc, c, app.gpsReady(), ms);
-
-        // Raster zwischen Kopf- und Fußzeile
-        var top = h * HEADER_Y + dc.getFontHeight(Graphics.FONT_XTINY) / 2 + 2;
-        var bottom = h * FOOTER_Y - dc.getFontHeight(Graphics.FONT_SMALL) / 2 - 2;
-        var white = Graphics.COLOR_WHITE;
-        if (page == 0) {
-            var hr = info != null ? info.currentHeartRate : null;
-            Draw.grid(dc, top, bottom,
-                ["ZEIT", miles ? "MEILEN" : "KM", "PACE", "PULS"] as Array<String>,
-                [Pace.time(ms), Pace.distance(c.distance(info), miles), Pace.format(c.pace, miles), hr == null ? "--" : hr.format("%d")] as Array<String>,
-                [white, white, paceColor(c.hint), white] as Array<Number>);
-        } else if (page == 1) {
-            Draw.grid(dc, top, bottom,
-                ["Ø PACE", "RUNDE " + c.laps, "RD-DIST", "RD-ZEIT"] as Array<String>,
-                [Pace.format(c.averagePace(), miles), Pace.format(c.lapPace(), miles), Pace.distance(c.lapDistance(), miles), Pace.time(c.lapMs())] as Array<String>,
-                [white, white, white, white] as Array<Number>);
-        } else {
-            targetPage(dc, c, miles, ms, info, top, bottom);
+        var ids = Pages.active(c.workout);
+        var at = ids.indexOf(page);
+        if (at < 0) {
+            at = 0;
+            page = ids[0];
         }
 
+        header(dc, c, ms);
+        var top = h * HEADER_Y + dc.getFontHeight(Graphics.FONT_XTINY) / 2.0 + 3;
+        var bottom = h * FOOTER_Y - dc.getFontHeight(Graphics.FONT_SMALL) / 2.0 - 2;
+        body(dc, c, top, bottom, info, ms);
         footer(dc, c, app.gpsReady());
+        Draw.dots(dc, h * DOTS_Y, ids.size(), at);
     }
 
-    // Oben: Aufzeichnungsstatus, GPS, bei Workouts der aktuelle Schritt.
-    private function header(dc as Graphics.Dc, c as RecordingController, gps as Boolean, ms as Number) as Void {
+    private function body(dc as Graphics.Dc, c as RecordingController, top as Float, bottom as Float, info as Activity.Info?, ms as Number) as Void {
+        if (page == Pages.PACE) {
+            PageViews.pace(dc, c, top, bottom, info, ms);
+        } else if (page == Pages.HEART) {
+            PageViews.heart(dc, c, top, bottom, info, ms);
+        } else if (page == Pages.LAPS) {
+            PageViews.laps(dc, c, top, bottom, info, ms);
+        } else if (page == Pages.PACE_GRAPH) {
+            PageViews.paceGraph(dc, c, top, bottom, info, ms);
+        } else if (page == Pages.HR_GRAPH) {
+            PageViews.hrGraph(dc, c, top, bottom, info, ms);
+        } else if (page == Pages.INTERVAL) {
+            PageViews.interval(dc, c, top, bottom, info, ms);
+        } else if (page == Pages.REPS) {
+            PageViews.reps(dc, c, top, bottom, info, ms);
+        } else if (page == Pages.MAP) {
+            PageViews.map(dc, c, top, bottom, info, ms);
+        } else if (page == Pages.FORECAST) {
+            PageViews.forecast(dc, c, top, bottom, info, ms);
+        } else {
+            PageViews.overview(dc, c, top, bottom, info, ms);
+        }
+    }
+
+    // Oben: Aufnahmestatus; als Titel der Seitenname, auf den Hauptseiten bei einer Einheit
+    // stattdessen der aktuelle Schritt.
+    private function header(dc as Graphics.Dc, c as RecordingController, ms as Number) as Void {
         var h = dc.getHeight();
-        var status = c.state == Rec.PAUSED ? "PAUSE" : "REC";
-        var color = c.state == Rec.PAUSED ? Draw.ORANGE : Draw.RED;
-        var texts = [status + (gps ? "  GPS" : ""), status] as Array<String>;
-        if (c.workout != null) {
+        var paused = c.state == Rec.PAUSED;
+        Draw.recDot(dc, paused);
+        var texts = [Pages.NAMES[page], Pages.SHORT[page]] as Array<String>;
+        var color = Draw.GRAY;
+        var main = page == Pages.OVERVIEW || page == Pages.PACE || page == Pages.HEART || page == Pages.LAPS;
+        if (c.workout != null && main) {
             var wk = c.workout as Workout;
-            var step = wk.finished ? "Einheit geschafft" : wk.name(wk.current());
-            color = ms - c.stepChangedAt < 5000 ? Draw.GREEN : (c.state == Rec.PAUSED ? Draw.ORANGE : Draw.GRAY);
-            texts = (c.state == Rec.PAUSED ? ["PAUSE · " + step, "PAUSE"] : [step]) as Array<String>;
+            texts = [wk.finished ? "Einheit geschafft" : wk.name(wk.current())] as Array<String>;
+            color = ms - c.stepChangedAt < 5000 ? Draw.GREEN : Draw.GRAY;
         }
         Draw.lineAlt(dc, h * HEADER_Y, Graphics.FONT_XTINY, color, texts);
     }
 
-    // Unten: Pace-Hinweis, sonst Bedienhinweis bzw. Seitenanzeige.
-    // Ohne GPS-Fix wird weiter aufgezeichnet (z. B. Laufband), unten steht dann ein Hinweis.
+    // Unten: ein Hinweis, der wichtigste zuerst. Ohne GPS-Fix läuft die Aufzeichnung weiter.
     private function footer(dc as Graphics.Dc, c as RecordingController, gps as Boolean) as Void {
         var h = dc.getHeight();
+        var y = h * FOOTER_Y;
+        var small = [Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY] as Array<Graphics.FontDefinition>;
         if (c.state == Rec.PAUSED) {
-            Draw.lineAlt(dc, h * FOOTER_Y, Graphics.FONT_XTINY, Draw.ORANGE, ["START weiter · BACK Menü", "START: weiter", "PAUSE"] as Array<String>);
+            Draw.lineAlt(dc, y, Graphics.FONT_XTINY, Draw.ORANGE, ["START weiter · BACK Menü", "START: weiter", "PAUSE"] as Array<String>);
         } else if (c.hint < 0) {
-            Draw.lineFit(dc, h * FOOTER_Y, [Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY] as Array<Graphics.FontDefinition>, Draw.ORANGE, "LANGSAMER");
+            Draw.lineFit(dc, y, small, Draw.ORANGE, "LANGSAMER");
         } else if (c.hint > 0) {
-            Draw.lineFit(dc, h * FOOTER_Y, [Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY] as Array<Graphics.FontDefinition>, Draw.BLUE, "SCHNELLER");
+            Draw.lineFit(dc, y, small, Draw.BLUE, "SCHNELLER");
         } else if (!gps) {
-            Draw.lineAlt(dc, h * FOOTER_Y, Graphics.FONT_XTINY, Draw.ORANGE, ["KEIN GPS · " + (page + 1) + "/3", "KEIN GPS"] as Array<String>);
-        } else {
-            Draw.line(dc, h * FOOTER_Y, Graphics.FONT_XTINY, Draw.DIM, (page + 1) + "/3");
+            Draw.lineAlt(dc, y, Graphics.FONT_XTINY, Draw.ORANGE, ["KEIN GPS", "KEIN GPS"] as Array<String>);
         }
-    }
-
-    // Zielseite: Zielbereich, aktuelle Pace mit Abweichung, im Workout Rest und nächster Schritt.
-    private function targetPage(dc as Graphics.Dc, c as RecordingController, miles as Boolean, ms as Number, info as Activity.Info?, top as Numeric, bottom as Numeric) as Void {
-        var range = c.target();
-        var unit = miles ? " /mi" : " /km";
-        var big = [Graphics.FONT_MEDIUM, Graphics.FONT_SMALL, Graphics.FONT_TINY] as Array<Graphics.FontDefinition>;
-        var mid = [Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY] as Array<Graphics.FontDefinition>;
-        var tiny = [Graphics.FONT_XTINY] as Array<Graphics.FontDefinition>;
-        var zone = StartView.zoneName(c.currentZone()).toUpper();
-        var fonts = [tiny, big, mid] as Array<Array<Graphics.FontDefinition>>;
-        var colors = [Draw.GRAY, Graphics.COLOR_WHITE, paceColor(c.hint)] as Array<Number>;
-        var texts = [
-            ["ZIEL " + zone, zone],
-            [range == null ? "nach Gefühl" : Pace.formatRange(range, miles) + unit, range == null ? "frei" : Pace.formatRange(range, miles)],
-            paceTexts(c.pace, range, miles)
-        ] as Array<Array<String>>;
-
-        // Workout: Rest des Schritts und was danach kommt
-        if (c.workout != null) {
-            var wk = c.workout as Workout;
-            if (wk.finished) {
-                fonts.add(mid);
-                colors.add(Draw.GREEN);
-                texts.add(["Alle Schritte erledigt", "Erledigt"] as Array<String>);
-            } else {
-                var left = wk.remaining(ms, c.distance(info));
-                if (left != null) {
-                    var txt = (left[1] as Boolean) ? Pace.distance(left[0] as Numeric, miles) + (miles ? " mi" : " km") : Pace.time((left[0] as Number) * 1000);
-                    fonts.add(mid);
-                    colors.add(Graphics.COLOR_WHITE);
-                    texts.add(["noch " + txt, txt] as Array<String>);
-                }
-                var next = wk.next();
-                var name = next == null ? "Ende der Einheit" : wk.name(next);
-                fonts.add(tiny);
-                colors.add(Draw.GRAY);
-                texts.add(["danach: " + name, name] as Array<String>);
-            }
-        }
-        Draw.stack(dc, top, bottom, fonts, colors, texts);
-    }
-
-    // "4:52  +36 s zu langsam", kürzer "4:52  +36 s"; ohne Ziel bzw. Pace nur die Pace.
-    private function paceTexts(pace as Float?, range as Array<Number>?, miles as Boolean) as Array<String> {
-        var p = Pace.format(pace, miles);
-        if (range == null || pace == null) {
-            return ["Pace " + p, p] as Array<String>;
-        }
-        var v = pace as Float;
-        var off = v < range[0] ? v - range[0] : (v > range[1] ? v - range[1] : 0.0);
-        var s = (miles ? off * Pace.KM_PER_MI : off).toNumber();
-        if (s == 0) {
-            return [p + "  im Bereich", p + "  OK", p] as Array<String>;
-        }
-        var delta = (s > 0 ? "+" : "") + s + " s";
-        return [p + "  " + delta + (s > 0 ? " zu langsam" : " zu schnell"), p + "  " + delta, p] as Array<String>;
-    }
-
-    private function paceColor(hint as Number) as Number {
-        return hint < 0 ? Draw.ORANGE : hint > 0 ? Draw.BLUE : Graphics.COLOR_WHITE;
     }
 }

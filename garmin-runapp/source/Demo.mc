@@ -13,10 +13,9 @@ module Demo {
     // (Start, Seiten, Runde, Pause-Menü, Verwerfen-Rückfrage, Speichern) und schreibt
     // jeden Schritt in die Konsole, damit Screenshots dazu passen.
     (:demo)
-    const STEPS = ["select", "shot", "next", "next", "back", "select", "back", "select", "select", "discard", "keep", "save"] as Array<String>;
-    // Sekunden vor dem jeweiligen Schritt (vor dem Start Zeit für die Simulationsdaten).
-    (:demo)
-    const DELAYS = [12, 20, 4, 4, 4, 6, 4, 4, 6, 4, 4, 4] as Array<Number>;
+    // Start, alle neun Seiten durchblättern, Runde, Pause + Menü, Seiten-Menü ("Runden" einschalten),
+    // zurück, Verwerfen-Rückfrage mit "Nein", Speichern.
+    const STEPS = ["select", "next", "next", "next", "next", "next", "next", "next", "next", "back", "select", "pages", "toggle", "back", "discard", "keep", "save"] as Array<String>;
     (:demo)
     var stepIndex as Number = 0;
     (:demo)
@@ -35,7 +34,7 @@ module Demo {
             System.println("demo ready");
             timer = new Timer.Timer();
         }
-        (timer as Timer.Timer).start(new Lang.Method(Demo, :step), DELAYS[stepIndex] * 1000, false);
+        (timer as Timer.Timer).start(new Lang.Method(Demo, :step), (stepIndex == 0 ? 12 : 5) * 1000, false);
     }
 
     (:demo)
@@ -43,19 +42,32 @@ module Demo {
         var d = WatchUi.getCurrentView()[1];
         var action = STEPS[stepIndex];
         stepIndex += 1;
-        System.println("autopilot " + stepIndex + ": " + action);
+        var kind = d instanceof PauseMenuDelegate ? "pause-menu" : (d instanceof PagesMenuDelegate ? "pages-menu" : (d instanceof DiscardDelegate ? "discard" : "view"));
+        System.println("autopilot " + stepIndex + ": " + action + " [" + kind + "]");
         var info = Activity.getActivityInfo();
+        var rc = getApp().controller;
+        if (rc != null && (rc as RecordingController).workout != null) {
+            var wk = (rc as RecordingController).workout as Workout;
+            var tm = (rc as RecordingController).timerMs(Activity.getActivityInfo());
+            var ds = (rc as RecordingController).distance(Activity.getActivityInfo());
+            System.println("  plan=" + wk.plannedTotal() + " done=" + wk.plannedDone(tm, ds) + " actual=" + tm / 1000.0 + " step=" + wk.index + " frac=" + wk.fraction(tm, ds));
+        }
         if (info != null) {
             System.println("  dist=" + info.elapsedDistance + " timer=" + info.timerTime + " speed=" + info.currentSpeed + " hr=" + info.currentHeartRate + " view=" + WatchUi.getCurrentView()[0]);
         }
-        if (action.equals("shot")) {
-            // nur Screenshot
-        } else if (d instanceof PauseMenuDelegate) {
-            var ids = { "discard" => :discard, "save" => :save, "select" => :resume };
+        if (d instanceof PauseMenuDelegate) {
+            var ids = { "discard" => :discard, "save" => :save, "select" => :resume, "pages" => :pages };
             if (action.equals("back")) {
                 d.onBack();
             } else {
                 d.onSelect(new WatchUi.MenuItem("", null, ids.get(action) as Symbol, null));
+            }
+        } else if (d instanceof PagesMenuDelegate) {
+            if (action.equals("toggle")) {
+                // wie das Menü: Schalter ist schon umgelegt, dann onSelect (hier: "Runden" an)
+                d.onSelect(new WatchUi.ToggleMenuItem("Runden", null, Pages.LAPS, true, null));
+            } else {
+                d.onBack();
             }
         } else if (d instanceof DiscardDelegate) {
             // "Nein" in der Rückfrage: Dialog schließen, zurück ins Menü.
@@ -92,6 +104,7 @@ module Demo {
     (:demo)
     function seed() as Void {
         Application.Storage.deleteValue("secret");
+        Application.Storage.deleteValue("pages");
         Application.Storage.deleteValue("code");
         Application.Storage.setValue("run", {
             "v" => 1,
