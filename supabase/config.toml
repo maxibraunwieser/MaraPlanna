@@ -13,3 +13,7 @@ verify_jwt = false
 [functions.watch]
 # Watches authenticate with their own secret; the website calls are checked in the function.
 verify_jwt = false
+
+[functions.coach]
+# The function verifies the caller's Supabase session itself and tracks a daily limit per user.
+verify_jwt = false

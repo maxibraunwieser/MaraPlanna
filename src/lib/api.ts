@@ -12,6 +12,7 @@ import type {
   PlanAdjustment,
   PlannedWorkout,
   Profile,
+  Step,
   TrainingPlan,
   WeekSummary,
   WorkoutDraft,
@@ -146,6 +147,15 @@ export async function createPlan(userId: string, answers: OnboardingAnswers, gen
 
 export async function updateWorkout(id: string, patch: WorkoutPatch) {
   check(await supabase.from('planned_workouts').update(patch).eq('id', id));
+}
+
+/** Replace what a session consists of (when the coach shortens or lengthens it). */
+export async function updateWorkoutContent(id: string, patch: { steps: Step[]; title: string; distance_km: number | null; duration_min: number | null }) {
+  check(await supabase.from('planned_workouts').update(patch).eq('id', id));
+}
+
+export async function updatePlanInputs(planId: string, inputs: OnboardingAnswers) {
+  check(await supabase.from('training_plans').update({ inputs, updated_at: new Date().toISOString() }).eq('id', planId));
 }
 
 export async function logAdjustment(plan: TrainingPlan, kind: string, message: string) {

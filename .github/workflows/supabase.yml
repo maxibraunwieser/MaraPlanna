@@ -18,6 +18,7 @@ jobs:
       PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
       GARMIN_ENCRYPTION_KEY: ${{ secrets.GARMIN_ENCRYPTION_KEY }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - uses: actions/checkout@v5
       - uses: supabase/setup-cli@v1
@@ -29,7 +30,9 @@ jobs:
         run: |
           [ -n "$GARMIN_ENCRYPTION_KEY" ] && supabase secrets set --project-ref "$PROJECT_REF" GARMIN_ENCRYPTION_KEY="$GARMIN_ENCRYPTION_KEY"
           [ -n "$CRON_SECRET" ] && supabase secrets set --project-ref "$PROJECT_REF" CRON_SECRET="$CRON_SECRET"
+          [ -n "$ANTHROPIC_API_KEY" ] && supabase secrets set --project-ref "$PROJECT_REF" ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
           true
       - run: supabase functions deploy garmin --project-ref "$PROJECT_REF" --no-verify-jwt
       - run: supabase functions deploy calendar --project-ref "$PROJECT_REF" --no-verify-jwt
       - run: supabase functions deploy watch --project-ref "$PROJECT_REF" --no-verify-jwt
+      - run: supabase functions deploy coach --project-ref "$PROJECT_REF" --no-verify-jwt

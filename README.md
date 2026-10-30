@@ -27,6 +27,7 @@ An adaptive marathon training planner powered by your Garmin data.
    - **Marathon projection over time:** the training-based estimate (Tanda) week by week, the plan's race-day projection and your goal.
 9. **Calendar subscription.** Every session, with distance, paces and steps, can appear in Apple, Google or Outlook calendar and updates by itself when the plan changes.
 10. **Garmin watch face.** Today's session with its target pace, the week's distance and the race countdown on your watch face. Link it with the 6-digit code it shows. See [`garmin-watchface/`](garmin-watchface/README.md).
+12. **AI coach (chat).** Ask about your training in plain words and get answers that quote your own runs, recovery and plan. Tell it what you need ("I can only run 3 days now", "this week was a mess") and it proposes a change of the plan as a card; nothing changes until you press Apply. See [AI coach](#4-ai-coach-optional).
 11. **Garmin run app (MaraPlanna).** Records runs with your target paces, warns when you are too fast or too slow, and guides you through today's session step by step. The target paces end up in the FIT file. Linked the same way. See [`garmin-runapp/`](garmin-runapp/README.md).
 
 The site runs on **GitHub Pages**. **Supabase** holds the logins and the database, plus two Edge Functions: one talks to Garmin, the other serves the calendar feed.
@@ -90,6 +91,25 @@ If you have no key, you can still get a plan from your answers, import `.FIT` / 
 
 ---
 
+### 4. AI coach (optional)
+
+The chat coach calls the Claude API from an Edge Function. Without the steps below the rest of MaraPlanna works as before, and the Coach page says it is not set up.
+
+1. **Database:** run [`supabase/migrations/20261031000000_coach_chat.sql`](supabase/migrations/20261031000000_coach_chat.sql) in the SQL Editor (the chat history).
+2. **API key:** create a key in the [Anthropic Console](https://console.anthropic.com/) and store it as a secret. Type it only into your own terminal, never into a file:
+
+   ```bash
+   npx supabase secrets set ANTHROPIC_API_KEY=<your key> --project-ref <your-project-ref>
+   ```
+3. **Function:** `npx supabase functions deploy coach --project-ref <your-project-ref> --no-verify-jwt`.
+4. **Check:** open the **Coach** page. It shows a notice if the key is missing. The message *"The coach could not sign in … the API key was rejected"* means the key is wrong or has no access to the model.
+
+**How the key is protected.** It lives only in the function's secrets, which Supabase stores encrypted and hands to the function at run time. It is not in the repository, not in the database and never sent to the browser, and the function does not log it or put it into answers or error messages. (A hash would not work here: the function has to send the real key to Claude. Encrypting it again inside the function would not add protection, because the decryption key would have to sit in the same place.) If a key was ever pasted somewhere it should not be, for example into a chat or a ticket, revoke it in the Console and create a new one.
+
+**Limits and cost.** Everyone using your installation shares the one key, so every user gets at most 40 coach messages per 24 hours (`COACH_DAILY_LIMIT`). Messages are capped at 2,000 characters and answers at 1,800 tokens (`COACH_MAX_TOKENS`). The model defaults to `claude-sonnet-5-5` and can be changed with the `COACH_MODEL` secret. Set these like the key with `supabase secrets set NAME=value`. The long, unchanging part of the prompt is cached, which keeps follow-up questions cheap.
+
+**What the coach sees and can do.** Per question the function sends the signed-in user's own profile, plan, the last six months of activities, eight weeks of wellness data and the recent conversation to Claude. It can look up more (older activities, laps of a run). It can **propose** moving, skipping or shortening sessions and changing the plan's settings (run days, long-run day, weekday time limit, approach, injury note). The function checks every proposal against the real plan first; the website applies it only after you press Apply, using the same functions as the Plan page. The race date and goal time are not changeable from the chat.
+
 ## Local development
 
 ```bash
@@ -104,8 +124,8 @@ npm run build
 
 After pulling a new version:
 
-1. **Database:** run any new files from `supabase/migrations/` in the Supabase SQL Editor, oldest first, or run `npx supabase db push`. The analysis needs `20261026000000_activity_details.sql`. The calendar subscription needs `20261029000000_calendar_feeds.sql`, and the watch face needs `20261030000000_watch_devices.sql`.
-2. **Edge Functions:** run `npx supabase functions deploy <name> --no-verify-jwt` for `garmin`, `calendar` and `watch`.
+1. **Database:** run any new files from `supabase/migrations/` in the Supabase SQL Editor, oldest first, or run `npx supabase db push`. The analysis needs `20261026000000_activity_details.sql`. The calendar subscription needs `20261029000000_calendar_feeds.sql`, the watch face needs `20261030000000_watch_devices.sql` and the AI coach needs `20261031000000_coach_chat.sql`.
+2. **Edge Functions:** run `npx supabase functions deploy <name> --no-verify-jwt` for `garmin`, `calendar`, `watch` and `coach`.
 3. **Website:** pushing to `main` redeploys GitHub Pages automatically.
 4. **Plan:** to use a new planning model, open *Settings → Edit answers*, then *Replace my plan*. Your activities stay.
 
@@ -149,6 +169,7 @@ supabase/
   functions/garmin/  Edge Function: Garmin Personal API bridge
   functions/calendar/ Edge Function: calendar subscription (.ics)
   functions/watch/   Edge Function: watch pairing + data for the watch face and run app
+  functions/coach/   Edge Function: AI coach (Claude API, streaming, tools)
 garmin-watchface/    Connect IQ watch face (Monkey C)
 garmin-runapp/       Connect IQ run app (Monkey C)
 .github/workflows/   GitHub Pages deploy, optional Supabase deploy

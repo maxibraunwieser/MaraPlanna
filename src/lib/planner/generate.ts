@@ -313,7 +313,7 @@ function mainStep(steps: Step[]) {
   return steps.find((s): s is Extract<Step, { type: 'run' }> => s.type === 'run' && s.label !== 'Warm-up' && s.label !== 'Cool-down');
 }
 
-function sessionTitle(kind: WorkoutKind, steps: Step[]): string {
+export function sessionTitle(kind: WorkoutKind, steps: Step[]): string {
   const m = mainStep(steps);
   if (!m) return 'Workout';
   const reps = m.repeat ?? 1;
