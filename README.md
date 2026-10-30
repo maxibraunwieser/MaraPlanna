@@ -27,6 +27,7 @@ An adaptive marathon training planner powered by your Garmin data.
    - **Marathon projection over time:** the training-based estimate (Tanda) week by week, the plan's race-day projection and your goal.
 9. **Calendar subscription.** Every session, with distance, paces and steps, can appear in Apple, Google or Outlook calendar and updates by itself when the plan changes.
 10. **Garmin watch face.** Today's session with its target pace, the week's distance and the race countdown on your watch face. Link it with the 6-digit code it shows. See [`garmin-watchface/`](garmin-watchface/README.md).
+11. **Garmin run app (MaraPlanna Lauf).** Records runs with your target paces, warns when you are too fast or too slow, and guides you through today's session step by step. The target paces end up in the FIT file. Linked the same way. See [`garmin-runapp/`](garmin-runapp/README.md).
 
 The site runs on **GitHub Pages**. **Supabase** holds the logins and the database, plus two Edge Functions: one talks to Garmin, the other serves the calendar feed.
 
@@ -147,8 +148,9 @@ supabase/
   migrations/        tables + Row Level Security
   functions/garmin/  Edge Function: Garmin Personal API bridge
   functions/calendar/ Edge Function: calendar subscription (.ics)
-  functions/watch/   Edge Function: watch face pairing + data
+  functions/watch/   Edge Function: watch pairing + data for the watch face and run app
 garmin-watchface/    Connect IQ watch face (Monkey C)
+garmin-runapp/       Connect IQ run app (Monkey C)
 .github/workflows/   GitHub Pages deploy, optional Supabase deploy
 ```
 

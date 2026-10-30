@@ -4,7 +4,7 @@ import { fmtDate, fmtRelative } from '../lib/format';
 import * as api from '../lib/api';
 import { Button, Card, CardTitle, Input, Notice, useToast } from './ui';
 
-/** Settings card: link the MaraPlanna watch face with the code it shows. */
+/** Settings card: link the MaraPlanna watch face or run app with the code it shows. */
 export function WatchFaceCard() {
   const toast = useToast();
   const [devices, setDevices] = useState<api.WatchDevice[] | null>(null);
@@ -50,12 +50,12 @@ export function WatchFaceCard() {
 
   return (
     <Card>
-      <CardTitle icon={<Watch className="h-5 w-5 text-brand" />}>Garmin watch face</CardTitle>
+      <CardTitle icon={<Watch className="h-5 w-5 text-brand" />}>Garmin watch</CardTitle>
       <p className="text-sm text-slate-600">
-        The MaraPlanna watch face shows today's session with its target pace, your week and the countdown to race day – right on your Garmin.
+        The <b>MaraPlanna</b> watch face shows today's session with its target pace, your week and the countdown to race day. The <b>MaraPlanna Lauf</b> app records your runs with your target paces and guides you through today's session step by step.
       </p>
       <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-slate-700">
-        <li>Install the <b>MaraPlanna</b> watch face on your watch.</li>
+        <li>Install the watch face or the run app on your watch (or both – each one is linked once).</li>
         <li>It shows a 6-digit code (the phone needs to be nearby with the Garmin Connect app).</li>
         <li>Enter the code here.</li>
       </ol>

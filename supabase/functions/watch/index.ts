@@ -3,7 +3,9 @@
 // The watch (through the Garmin Connect app on the phone):
 //   POST /functions/v1/watch/pair                      → { code, secret, expiresIn }
 //   GET  /functions/v1/watch/data?date=YYYY-MM-DD      header X-Watch-Secret
-//        → the feed, { paired: false, code } while waiting, { revoked: true } if unlinked
+//        → the watch face feed, { paired: false, code } while waiting, { revoked: true } if unlinked
+//   GET  /functions/v1/watch/run?date=YYYY-MM-DD       same, for the MaraPlanna Run app:
+//        VDOT, paces and today's run as steps
 // The website (with the user's Supabase session):
 //   POST /functions/v1/watch  { action: "link", code } | { action: "list" } | { action: "unlink", id }
 //
@@ -12,6 +14,7 @@
 
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { buildWatchFeed, addDays, mondayOf } from '../_shared/watchFeed.ts';
+import { buildRunFeed } from '../_shared/runFeed.ts';
 import type { CalUnits, CalWorkout } from '../_shared/calendar.ts';
 
 const CODE_MINUTES = 30;
@@ -62,33 +65,39 @@ async function pair(admin: SupabaseClient, model: string | null) {
   return { code, secret, expiresIn: CODE_MINUTES * 60 };
 }
 
-async function feed(admin: SupabaseClient, secret: string, date: string) {
+/** The device behind a secret: its user id once linked, otherwise what to tell the watch. */
+async function device(admin: SupabaseClient, secret: string): Promise<{ userId: string } | { reply: Record<string, unknown> }> {
   const { data: dev, error } = await admin
     .from('watch_devices')
     .select('id, user_id, pair_code, code_expires_at')
     .eq('secret_hash', await sha256(secret))
     .maybeSingle();
   if (error) throw new Error(dbError(error.message));
-  if (!dev) return { revoked: true };
+  if (!dev) return { reply: { revoked: true } };
   if (!dev.user_id) {
     const expired = !dev.code_expires_at || Date.parse(dev.code_expires_at) < Date.now();
-    if (!expired) return { paired: false, code: dev.pair_code };
+    if (!expired) return { reply: { paired: false, code: dev.pair_code } };
     // The code ran out before it was entered: give this watch a fresh one right away
     // (it keeps its secret, so there is no gap on the watch face).
     const code = await withNewCode(async (c, expires) =>
       await admin.from('watch_devices').update({ pair_code: c, code_expires_at: expires }).eq('id', dev.id),
     );
-    return { paired: false, code };
+    return { reply: { paired: false, code } };
   }
   await admin.from('watch_devices').update({ last_seen_at: new Date().toISOString() }).eq('id', dev.id);
+  return { userId: dev.user_id };
+}
 
+async function feed(admin: SupabaseClient, secret: string, date: string) {
+  const dev = await device(admin, secret);
+  if ('reply' in dev) return dev.reply;
   const start = mondayOf(date);
   const end = addDays(start, 6);
   const until = addDays(date, 1) > end ? addDays(date, 1) : end;
   const [{ data: plan }, { data: profile }, { data: runs }] = await Promise.all([
-    admin.from('training_plans').select('id, race_date, fitness').eq('user_id', dev.user_id).eq('status', 'active').maybeSingle(),
-    admin.from('profiles').select('units').eq('id', dev.user_id).maybeSingle(),
-    admin.from('activities').select('distance_m').eq('user_id', dev.user_id).eq('sport', 'run').gte('local_date', start).lte('local_date', end),
+    admin.from('training_plans').select('id, race_date, fitness').eq('user_id', dev.userId).eq('status', 'active').maybeSingle(),
+    admin.from('profiles').select('units').eq('id', dev.userId).maybeSingle(),
+    admin.from('activities').select('distance_m').eq('user_id', dev.userId).eq('sport', 'run').gte('local_date', start).lte('local_date', end),
   ]);
   const { data: workouts } = plan
     ? await admin
@@ -107,6 +116,29 @@ async function feed(admin: SupabaseClient, secret: string, date: string) {
     workouts: (workouts ?? []) as CalWorkout[],
     weekDoneKm: (runs ?? []).reduce((s: number, r: { distance_m: number | null }) => s + (r.distance_m ?? 0) / 1000, 0),
     hasPlan: !!plan,
+  });
+}
+
+/** VDOT, paces and today's run as steps, for the MaraPlanna Run app. */
+async function run(admin: SupabaseClient, secret: string, date: string) {
+  const dev = await device(admin, secret);
+  if ('reply' in dev) return dev.reply;
+  const [{ data: plan }, { data: profile }] = await Promise.all([
+    admin.from('training_plans').select('id, fitness').eq('user_id', dev.userId).eq('status', 'active').maybeSingle(),
+    admin.from('profiles').select('units').eq('id', dev.userId).maybeSingle(),
+  ]);
+  const { data: workouts } = plan
+    ? await admin
+        .from('planned_workouts')
+        .select('id, date, kind, title, steps, distance_km, duration_min, key_session, status, note')
+        .eq('plan_id', plan.id)
+        .eq('date', date)
+    : { data: [] };
+  return buildRunFeed({
+    vdot: plan?.fitness?.vdot ?? null,
+    paces: plan?.fitness?.paces ?? null,
+    units: (profile?.units === 'mi' ? 'mi' : 'km') as CalUnits,
+    workouts: (workouts ?? []) as CalWorkout[],
   });
 }
 
@@ -156,11 +188,11 @@ Deno.serve(async (req) => {
       const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
       return json(await pair(admin, typeof body.model === 'string' ? body.model : null));
     }
-    if (route === 'data') {
+    if (route === 'data' || route === 'run') {
       const secret = req.headers.get('x-watch-secret') ?? '';
       if (!/^[a-f0-9]{64}$/.test(secret)) return json({ revoked: true });
       const date = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('date') ?? '') ? url.searchParams.get('date')! : new Date().toISOString().slice(0, 10);
-      return json(await feed(admin, secret, date));
+      return json(route === 'run' ? await run(admin, secret, date) : await feed(admin, secret, date));
     }
 
     if (req.method !== 'POST') return json({ error: 'Not found' }, 404);

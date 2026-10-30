@@ -1,0 +1,25 @@
+<resources>
+    <!-- Paces zum Eintragen in der Garmin Connect App (nur bei Installation aus dem Connect IQ Store).
+         Ist die Uhr mit MaraPlanna gekoppelt, kommen die Paces von dort und haben Vorrang. -->
+    <properties>
+        <property id="vdot" type="string"></property>
+        <property id="easy" type="string"></property>
+        <property id="long" type="string"></property>
+        <property id="recovery" type="string"></property>
+        <property id="marathon" type="string"></property>
+        <property id="threshold" type="string"></property>
+        <property id="interval" type="string"></property>
+        <property id="repetition" type="string"></property>
+    </properties>
+
+    <settings>
+        <setting propertyKey="@Properties.vdot" title="@Strings.SetVdot"><settingConfig type="alphaNumeric" /></setting>
+        <setting propertyKey="@Properties.easy" title="@Strings.SetEasy"><settingConfig type="alphaNumeric" /></setting>
+        <setting propertyKey="@Properties.long" title="@Strings.SetLong"><settingConfig type="alphaNumeric" /></setting>
+        <setting propertyKey="@Properties.recovery" title="@Strings.SetRecovery"><settingConfig type="alphaNumeric" /></setting>
+        <setting propertyKey="@Properties.marathon" title="@Strings.SetMarathon"><settingConfig type="alphaNumeric" /></setting>
+        <setting propertyKey="@Properties.threshold" title="@Strings.SetThreshold"><settingConfig type="alphaNumeric" /></setting>
+        <setting propertyKey="@Properties.interval" title="@Strings.SetInterval"><settingConfig type="alphaNumeric" /></setting>
+        <setting propertyKey="@Properties.repetition" title="@Strings.SetRepetition"><settingConfig type="alphaNumeric" /></setting>
+    </settings>
+</resources>

@@ -7,8 +7,9 @@ dist
 supabase/.temp
 supabase/.branches
 
-# Garmin watch face build output and signing key
+# Garmin build output and signing key
 garmin-watchface/bin/
+garmin-runapp/bin/
 *.prg
 *.iq
 *.der

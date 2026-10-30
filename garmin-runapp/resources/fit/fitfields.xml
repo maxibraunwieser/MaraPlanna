@@ -1,0 +1,16 @@
+<resources>
+    <!-- Beschriftung der eigenen FIT-Felder (FitFields.mc) in Garmin Connect -->
+    <fitContributions>
+        <fitField id="0" displayInChart="true" sortOrder="0" precision="0"
+                  chartTitle="@Strings.FitTargetMinChart" dataLabel="@Strings.FitTargetMin"
+                  unitLabel="@Strings.FitPaceUnit" fillColor="#F97316" />
+        <fitField id="1" displayInChart="true" sortOrder="1" precision="0"
+                  chartTitle="@Strings.FitTargetMaxChart" dataLabel="@Strings.FitTargetMax"
+                  unitLabel="@Strings.FitPaceUnit" fillColor="#6B8FD6" />
+        <fitField id="2" displayInChart="true" sortOrder="2" precision="0"
+                  chartTitle="@Strings.FitZoneChart" dataLabel="@Strings.FitZone"
+                  unitLabel="@Strings.FitNoUnit" fillColor="#A3E635" />
+        <fitField id="3" displayInActivitySummary="true" sortOrder="3" precision="1"
+                  dataLabel="@Strings.FitVdot" unitLabel="@Strings.FitNoUnit" />
+    </fitContributions>
+</resources>

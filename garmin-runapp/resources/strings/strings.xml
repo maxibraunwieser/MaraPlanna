@@ -1,0 +1,41 @@
+<strings>
+    <string id="AppName">MaraPlanna Lauf</string>
+
+    <!-- Lauftypen (Reihenfolge = pace_zone in der FIT-Datei) -->
+    <string id="ZoneFree">Freier Lauf</string>
+    <string id="ZoneEasy">Easy</string>
+    <string id="ZoneLong">Long</string>
+    <string id="ZoneRecovery">Recovery</string>
+    <string id="ZoneMarathon">Marathon</string>
+    <string id="ZoneThreshold">Threshold</string>
+    <string id="ZoneInterval">Interval</string>
+    <string id="ZoneRepetition">Repetition</string>
+
+    <!-- Pausenmenü -->
+    <string id="MenuTitle">Pause</string>
+    <string id="Resume">Fortsetzen</string>
+    <string id="Save">Speichern</string>
+    <string id="Discard">Verwerfen</string>
+    <string id="DiscardConfirm">Aktivität verwerfen?</string>
+
+    <!-- Einstellungen (Garmin Connect App) -->
+    <string id="SetVdot">VDOT</string>
+    <string id="SetEasy">Easy-Pace (m:ss-m:ss)</string>
+    <string id="SetLong">Long-Pace (m:ss-m:ss)</string>
+    <string id="SetRecovery">Recovery-Pace (m:ss-m:ss)</string>
+    <string id="SetMarathon">Marathon-Pace (m:ss)</string>
+    <string id="SetThreshold">Threshold-Pace (m:ss)</string>
+    <string id="SetInterval">Interval-Pace (m:ss)</string>
+    <string id="SetRepetition">Repetition-Pace (m:ss)</string>
+
+    <!-- FIT-Felder -->
+    <string id="FitTargetMin">Zielpace schnell</string>
+    <string id="FitTargetMinChart">Zielpace (schnelles Ende)</string>
+    <string id="FitTargetMax">Zielpace langsam</string>
+    <string id="FitTargetMaxChart">Zielpace (langsames Ende)</string>
+    <string id="FitZone">Pace-Zone</string>
+    <string id="FitZoneChart">Pace-Zone (0 = Freier Lauf)</string>
+    <string id="FitVdot">VDOT</string>
+    <string id="FitPaceUnit">s/km</string>
+    <string id="FitNoUnit"> </string>
+</strings>
