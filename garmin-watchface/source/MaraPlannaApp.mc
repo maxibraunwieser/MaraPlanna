@@ -14,9 +14,11 @@ class MaraPlannaApp extends Application.AppBase {
         AppBase.initialize();
     }
 
-    (:foreground)
+    (:typecheck(disableBackgroundCheck))
     function getInitialView() as [WatchUi.Views] or [WatchUi.Views, WatchUi.InputDelegates] {
-        schedule(Application.Storage.getValue("feed") == null);
+        if (!Demo.active()) {
+            schedule(Application.Storage.getValue("feed") == null);
+        }
         return [new MaraPlannaView()];
     }
 
@@ -25,11 +27,11 @@ class MaraPlannaApp extends Application.AppBase {
     }
 
     // In the foreground: whatever the background service passed to Background.exit().
-    (:foreground)
+    (:typecheck(disableBackgroundCheck))
     function onBackgroundData(data as Application.PersistableType) as Void {
         var restart = Feed.secret() != null;
         if (data instanceof Dictionary) {
-            Feed.store(data);
+            Feed.store(data as Dictionary<Application.PropertyKeyType, Application.PropertyValueType>);
         }
         // Lost the link (unlinked or code expired): get a new code right away.
         schedule(restart && Feed.secret() == null);
@@ -38,7 +40,7 @@ class MaraPlannaApp extends Application.AppBase {
 
     // Every 5 minutes while waiting for the code to be entered, then every 30.
     // `now` runs once immediately (allowed if the last run was ≥ 5 min ago).
-    (:foreground)
+    (:typecheck(disableBackgroundCheck))
     function schedule(now as Boolean) as Void {
         if (now) {
             var last = Background.getLastTemporalEventTime();

@@ -1,0 +1,6 @@
+# Demo build for screenshots: sample data instead of pairing, own app id.
+# node tools/demo-manifest.cjs creates bin/demo-manifest.xml first.
+project.manifest = bin/demo-manifest.xml
+base.sourcePath = source
+base.resourcePath = resources
+base.excludeAnnotations = live

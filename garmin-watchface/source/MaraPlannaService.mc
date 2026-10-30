@@ -43,7 +43,7 @@ class MaraPlannaService extends System.ServiceDelegate {
 
     function onPair(responseCode as Number, data as Dictionary or String or Null) as Void {
         if (responseCode == 200 && data instanceof Dictionary && data.hasKey("secret")) {
-            Background.exit({ "pair" => data });
+            Background.exit({ "pair" => data as Dictionary<Application.PropertyKeyType, Application.PropertyValueType> });
         } else {
             Background.exit({ "error" => responseCode });
         }
@@ -51,7 +51,7 @@ class MaraPlannaService extends System.ServiceDelegate {
 
     function onData(responseCode as Number, data as Dictionary or String or Null) as Void {
         if (responseCode == 200 && data instanceof Dictionary) {
-            Background.exit({ "feed" => data });
+            Background.exit({ "feed" => data as Dictionary<Application.PropertyKeyType, Application.PropertyValueType> });
         } else {
             Background.exit({ "error" => responseCode });
         }

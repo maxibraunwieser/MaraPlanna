@@ -26,37 +26,36 @@ module Feed {
         return Application.Storage.getValue("secret") as String?;
     }
 
-    (:foreground)
+    (:typecheck(disableBackgroundCheck))
     function isPaired() as Boolean {
         return Application.Storage.getValue("feed") != null;
     }
 
     // Handle what the background service passed to Background.exit().
-    (:foreground)
-    function store(data as Dictionary) as Void {
-        var storage = Application.Storage;
-        if (data.hasKey("pair")) {
-            var pair = data["pair"] as Dictionary;
-            storage.setValue("secret", pair["secret"] as String);
-            storage.setValue("code", pair["code"] as String);
-            storage.deleteValue("feed");
+    (:typecheck(disableBackgroundCheck))
+    function store(data as Dictionary<Application.PropertyKeyType, Application.PropertyValueType>) as Void {
+        var pair = data["pair"];
+        if (pair instanceof Dictionary) {
+            Application.Storage.setValue("secret", pair["secret"] as String);
+            Application.Storage.setValue("code", pair["code"] as String);
+            Application.Storage.deleteValue("feed");
             return;
         }
-        if (!data.hasKey("feed")) {
+        var feed = data["feed"];
+        if (!(feed instanceof Dictionary)) {
             return; // network error: keep what we have
         }
-        var feed = data["feed"] as Dictionary;
         if (feed.hasKey("revoked") || feed.hasKey("expired")) {
             // Unlinked on the website, or the code ran out: start over with a new code.
-            storage.deleteValue("secret");
-            storage.deleteValue("code");
-            storage.deleteValue("feed");
+            Application.Storage.deleteValue("secret");
+            Application.Storage.deleteValue("code");
+            Application.Storage.deleteValue("feed");
         } else if (feed.hasKey("code")) {
-            storage.setValue("code", feed["code"] as String);
+            Application.Storage.setValue("code", feed["code"] as String);
         } else if (feed.hasKey("today")) {
-            storage.setValue("feed", feed);
-            storage.setValue("at", Time.now().value());
-            storage.deleteValue("code");
+            Application.Storage.setValue("feed", feed as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>);
+            Application.Storage.setValue("at", Time.now().value());
+            Application.Storage.deleteValue("code");
         }
     }
 }

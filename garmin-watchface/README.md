@@ -33,6 +33,17 @@ monkeyc -f monkey.jungle -e -r -o bin/MaraPlanna.iq -y <path>/developer_key.der 
 
 The developer key signs the app. Store updates must use the same key, so keep it safe and never commit it.
 
+Add `-l 3` for Garmin's strictest type checking; the watch face passes it on every supported watch.
+
+## Demo build (screenshots)
+
+`demo.jungle` builds a variant that shows sample data instead of pairing. It has its own app id, so it never touches the real app's storage:
+
+```bash
+node tools/demo-manifest.cjs
+monkeyc -f demo.jungle -d fr265 -o bin/demo.prg -y <path>/developer_key.der
+```
+
 ## Run in the simulator
 
 Start `simulator.exe` from the SDK's `bin` folder, then:

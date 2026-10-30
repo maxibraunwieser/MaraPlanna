@@ -11,6 +11,7 @@ import Toybox.Time;
 import Toybox.Time.Gregorian;
 import Toybox.WatchUi;
 
+(:typecheck(disableBackgroundCheck))
 class MaraPlannaView extends WatchUi.WatchFace {
     private const ORANGE = 0xF97316;
     private const GREEN = 0x22C55E;
@@ -64,7 +65,7 @@ class MaraPlannaView extends WatchUi.WatchFace {
 
         var feed = Application.Storage.getValue("feed");
         if (feed instanceof Dictionary) {
-            drawFeed(dc, feed);
+            drawFeed(dc, feed as Dictionary);
         } else {
             drawPairing(dc);
         }
@@ -83,32 +84,38 @@ class MaraPlannaView extends WatchUi.WatchFace {
         }
         if (day != null) {
             var done = day["done"] == true;
-            var label = asText(day["label"]);
+            var label = textOf(day, "label");
             if (label.find("TOMORROW") == 0) {
                 label = "TODAY" + label.substring(8, label.length());
             }
-            line(dc, h * 0.455, Graphics.FONT_XTINY, done ? GREEN : ORANGE, done ? label + " · DONE" : label);
-            line(dc, h * 0.54, Graphics.FONT_SMALL, done ? GREEN : Graphics.COLOR_WHITE, asText(day["title"]));
-            line(dc, h * 0.62, Graphics.FONT_XTINY, GRAY, asText(day["line"]));
+            // "TODAY · INTERVALS + CORE" → "TODAY · INTERVALS" if the extras don't fit.
+            var plus = label.find(" + ");
+            var short = plus == null ? label : label.substring(0, plus) as String;
+            lineFit(dc, h * 0.455, Graphics.FONT_XTINY, done ? GREEN : ORANGE, done ? [label + " · DONE", short + " · DONE", "DONE"] : [label, short]);
+            line(dc, h * 0.54, Graphics.FONT_SMALL, done ? GREEN : Graphics.COLOR_WHITE, textOf(day, "title"));
+            line(dc, h * 0.62, Graphics.FONT_XTINY, GRAY, textOf(day, "line"));
         }
 
         var week = feed["week"] as Dictionary?;
         if (week != null) {
-            var planned = asFloat(week["planned"]);
+            var planned = floatOf(week, "planned");
             if (planned > 0) {
-                bar(dc, h * 0.705, asFloat(week["done"]) / planned);
-                line(dc, h * 0.765, Graphics.FONT_XTINY, GRAY, "WEEK " + asText(week["text"]));
+                bar(dc, h * 0.705, floatOf(week, "done") / planned);
+                line(dc, h * 0.765, Graphics.FONT_XTINY, GRAY, "WEEK " + textOf(week, "text"));
             }
         }
 
         var race = feed["race"] as Dictionary?;
         var proj = feed["proj"];
         if (race != null) {
-            var s = asText(race["text"]);
-            if (proj instanceof String) {
-                s = s + " · " + proj;
+            var s = textOf(race, "text");
+            var days = race.get("days");
+            if (proj instanceof String && days instanceof Number && days > 0) {
+                // Small round screens are narrow down here: fall back to shorter wordings.
+                lineFit(dc, h * 0.845, Graphics.FONT_XTINY, Graphics.COLOR_WHITE, [s + " · " + proj, days + " days · " + proj, days + "d · " + proj, days + "d"]);
+            } else {
+                line(dc, h * 0.845, Graphics.FONT_XTINY, Graphics.COLOR_WHITE, s);
             }
-            line(dc, h * 0.845, Graphics.FONT_XTINY, Graphics.COLOR_WHITE, s);
         }
     }
 
@@ -136,6 +143,19 @@ class MaraPlannaView extends WatchUi.WatchFace {
         var max = widthAt(dc, y, dc.getFontHeight(font)) - 16;
         dc.setColor(color, Graphics.COLOR_TRANSPARENT);
         dc.drawText(dc.getWidth() / 2, y, font, fit(dc, s, font, max), CENTER);
+    }
+
+    // The first wording that fits; the last one is shortened if none does.
+    private function lineFit(dc as Graphics.Dc, y as Numeric, font as Graphics.FontDefinition, color as Number, texts as Array<String>) as Void {
+        var max = widthAt(dc, y, dc.getFontHeight(font)) - 16;
+        var pick = texts[texts.size() - 1];
+        for (var i = 0; i < texts.size(); i++) {
+            if (dc.getTextWidthInPixels(texts[i], font) <= max) {
+                pick = texts[i];
+                break;
+            }
+        }
+        line(dc, y, font, color, pick);
     }
 
     // Progress bar for the week's distance.
@@ -206,9 +226,9 @@ class MaraPlannaView extends WatchUi.WatchFace {
             return null;
         }
         var d = date as String;
-        var y = d.substring(0, 4).toNumber();
-        var m = d.substring(5, 7).toNumber();
-        var dd = d.substring(8, 10).toNumber();
+        var y = (d.substring(0, 4) as String).toNumber();
+        var m = (d.substring(5, 7) as String).toNumber();
+        var dd = (d.substring(8, 10) as String).toNumber();
         if (y == null || m == null || dd == null) {
             return null;
         }
@@ -217,11 +237,22 @@ class MaraPlannaView extends WatchUi.WatchFace {
         return Lang.format("$1$-$2$-$3$", [t.year, (t.month as Number).format("%02d"), t.day.format("%02d")]);
     }
 
-    private function asText(v) as String {
-        return v instanceof String ? v : v == null ? "" : v.toString();
+    private function textOf(d as Dictionary, key as String) as String {
+        var v = d.get(key);
+        if (v instanceof String) {
+            return v;
+        }
+        if (v instanceof Lang.Object) {
+            return v.toString();
+        }
+        return "";
     }
 
-    private function asFloat(v) as Float {
-        return v instanceof Number || v instanceof Float || v instanceof Long || v instanceof Double ? v.toFloat() : 0.0;
+    private function floatOf(d as Dictionary, key as String) as Float {
+        var v = d.get(key);
+        if (v instanceof Lang.Number || v instanceof Lang.Float || v instanceof Lang.Long || v instanceof Lang.Double) {
+            return (v as Lang.Numeric).toFloat();
+        }
+        return 0.0;
     }
 }
