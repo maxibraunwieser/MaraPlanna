@@ -264,6 +264,8 @@ export const calendarFeedUrl = (token: string) => `${String(import.meta.env.VITE
 
 export interface SyncResult {
   activities: number;
+  /** Activities that were deleted in Garmin Connect and therefore removed here (older function versions omit it). */
+  removed?: number;
   days: number;
   warnings: string[];
 }

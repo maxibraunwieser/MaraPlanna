@@ -14,6 +14,7 @@
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { Decoder, Stream } from 'npm:@garmin/fitsdk@21.218.0';
 import { unzipSync } from 'npm:fflate@0.8.3';
+import { goneActivities } from '../_shared/garminSync.ts';
 
 const GARMIN_BASE = Deno.env.get('GARMIN_PERSONAL_API_BASE_URL') ?? 'https://personal.connectapi.garmin.com';
 const TOKEN_PATH = '/personalapitoken-service/personal-api/personal-api-key/token';
@@ -392,6 +393,7 @@ async function syncUser(admin: SupabaseClient, userId: string, opts: { full?: bo
   if (!conn) throw new HttpError(404, 'Garmin is not connected.');
   const g = await clientFor(admin, userId);
   const warnings: string[] = [];
+  let removed = 0;
   const now = Date.now();
   const endDate = isoDay(now + DAY_MS);
   const sinceMs =
@@ -411,6 +413,35 @@ async function syncUser(admin: SupabaseClient, userId: string, opts: { full?: bo
   for (let i = 0; i < rows.length; i += 200) {
     const { error } = await admin.from('activities').upsert(rows.slice(i, i + 200), { onConflict: 'user_id,source,external_id' });
     if (error) throw new HttpError(500, `Saving activities failed: ${error.message}`);
+  }
+
+  // Activities deleted in Garmin Connect disappear here too. Only inside the window we just
+  // fetched (the list there is complete), and not on its first day, where time zones could differ.
+  try {
+    const { data: stored, error } = await admin
+      .from('activities')
+      .select('id, external_id')
+      .eq('user_id', userId)
+      .eq('source', 'garmin')
+      .gt('local_date', startDate)
+      .lte('local_date', endDate);
+    if (error) throw new Error(error.message);
+    const gone = goneActivities(stored ?? [], new Set(rows.map((r) => r.external_id)), activities.length >= 2000);
+    if (gone.warning) warnings.push(gone.warning);
+    if (gone.ids.length) {
+      // The planned sessions that were checked off with them go back to "planned" (and are matched
+      // again, e.g. to a remaining duplicate, or counted as missed).
+      await admin
+        .from('planned_workouts')
+        .update({ status: 'planned', status_source: 'auto', actual_distance_km: null, activity_id: null })
+        .eq('user_id', userId)
+        .in('activity_id', gone.ids);
+      const { error: delError } = await admin.from('activities').delete().eq('user_id', userId).in('id', gone.ids);
+      if (delError) throw new Error(delError.message);
+      removed = gone.ids.length;
+    }
+  } catch (e) {
+    warnings.push(`deleted activities: ${(e as Error).message}`);
   }
 
   // Laps + stream for the most recent runs (used by the workout analysis).
@@ -522,7 +553,7 @@ async function syncUser(admin: SupabaseClient, userId: string, opts: { full?: bo
     })
     .eq('user_id', userId);
 
-  return { activities: rows.length, days: days.size, warnings };
+  return { activities: rows.length, removed, days: days.size, warnings };
 }
 
 // ---------------------------------------------------------------------------

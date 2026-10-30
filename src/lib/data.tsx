@@ -10,6 +10,9 @@ import { useToast } from '../components/ui';
 
 const AUTO_SYNC_MINUTES = 20;
 
+/** Message after the sync removed activities that were deleted in Garmin Connect. */
+const removedText = (n: number) => `${n} ${n === 1 ? 'activity' : 'activities'} deleted in Garmin Connect removed here too.`;
+
 export interface DataState {
   loading: boolean;
   error: string | null;
@@ -94,6 +97,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       try {
         const res = await api.invokeGarmin({ action: 'sync', full });
         toast(`Garmin synced: ${res.activities} activities, ${res.days} days of wellness data.`, 'success');
+        if (res.removed) toast(removedText(res.removed), 'info');
       } catch (e) {
         toast((e as Error).message, 'error');
       } finally {
@@ -118,7 +122,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
           autoSynced.current = true;
           setSyncing(true);
           try {
-            await api.invokeGarmin({ action: 'sync' });
+            const res = await api.invokeGarmin({ action: 'sync' });
+            if (res.removed) toast(removedText(res.removed), 'info');
           } catch (e) {
             toast(`Garmin sync: ${(e as Error).message}`, 'error');
           } finally {

@@ -6,7 +6,7 @@ An adaptive marathon training planner powered by your Garmin data.
 2. **Answer the marathon questionnaire.** It covers your race, goal, experience, current volume and health. It also covers:
    - **Extra training (multi-select, each with its own frequency):** upper body, lower body, full body, core, plyometrics & drills, mobility/yoga, cycling, swimming, and your own workouts (for example climbing, marked easy or hard on the legs).
    - **Your week:** either *the planner decides* (you give run days and a long-run day), or *I set my days* (for example Mon legs, Tue easy, Thu intervals/tempo, Sat upper body, Sun long). In that case MaraPlanna fills in distances, paces and exercises.
-3. **Connect Garmin.** Use a Garmin Connect *Personal API* key. MaraPlanna imports 6 months of runs, strength sessions, resting HR, HRV, sleep and Body Battery, plus laps and the GPS/HR stream of recent runs.
+3. **Connect Garmin.** Use a Garmin Connect *Personal API* key. MaraPlanna imports 6 months of runs, strength sessions, resting HR, HRV, sleep and Body Battery, plus laps and the GPS/HR stream of recent runs. Activities you delete in Garmin Connect are removed here at the next sync (checked for the last week and longer); the planned session that was checked off with one goes back to "planned".
 4. **Get your plan.** It is evidence-based (see *How the coach works*): periodised, with long runs building to **30–35 km** depending on level, ~80 % easy running, a 3-week taper and VDOT paces.
 5. **Analyse every workout.** Each run gets:
    - **Goal and evidence:** what the session is for and why it matters for the marathon.
