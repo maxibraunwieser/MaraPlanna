@@ -71,6 +71,10 @@ monkeyc -f monkey.jungle -e -r -l 3 -o bin/MaraPlanna.iq -y <path>/developer_key
 
 `-l 3` is Garmin's strictest type checking; the app builds with it, without warnings, for every supported watch.
 
+## Memory on the 128 KB watches
+
+Forerunner 55, Forerunner 245, Venu Sq, fēnix 6, fēnix 6S and Enduro give an app only 128 KB. The release build (`-r`) is about 88 KB of that, because the memory is mostly the loaded code; the arrays for the charts, the track and the kilometre splits are allocated once with a fixed size. Measured in the simulator on the Forerunner 55 with a release demo build, which carries about 4 KB of demo code that the store build does not have: 97 KB on the home screen, 99 to 108 KB in the menus (the page list with ten switches is the highest), 103 KB while running and 106 KB on the end screens, against a limit of 124 KB. The store build is about 4 KB lower. Keep an eye on this when adding features: the Forerunner 55 is the tightest case. Compiling with `-O 3z` (optimise for size) saves almost nothing.
+
 ## Tests
 
 The pure logic (pace parsing and formatting, smoothing, target comparison, session steps, MaraPlanna feed) has unit tests in `source/Tests.mc`:

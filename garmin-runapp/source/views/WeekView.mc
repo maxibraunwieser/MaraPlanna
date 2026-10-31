@@ -139,7 +139,8 @@ class WeekView extends WatchUi.View {
         if (planned != null) {
             text += " / " + Pace.distance1(planned * 1000.0, miles);
         }
-        Draw.lineFit(dc, h * 0.13, [Graphics.FONT_MEDIUM, Graphics.FONT_SMALL, Graphics.FONT_TINY] as Array<Graphics.FontDefinition>, Graphics.COLOR_WHITE, text + (miles ? " mi" : " km"));
+        // Große Schrift mit Einheit, bei Platzmangel ohne Einheit, dann kleinere Schrift
+        Draw.lineAny(dc, h * 0.135, [Graphics.FONT_MEDIUM, Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY] as Array<Graphics.FontDefinition>, Graphics.COLOR_WHITE, [text + (miles ? " mi" : " km"), text] as Array<String>);
         if (planned != null && planned > 0 && done != null) {
             Draw.bar(dc, h * 0.215, done / planned, done >= planned ? Draw.GREEN : Draw.ORANGE);
         }
