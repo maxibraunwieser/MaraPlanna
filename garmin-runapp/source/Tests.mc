@@ -1,8 +1,10 @@
 // Unit-Tests der reinen Logik (nur in Test-Builds: monkeyc -t, monkeydo ... /t).
 
+import Toybox.Application;
 import Toybox.Lang;
 import Toybox.Math;
 import Toybox.Test;
+import Toybox.Weather;
 import Toybox.WatchUi;
 
 (:test)
@@ -265,12 +267,12 @@ function testWorkoutStats(logger as Logger) as Boolean {
 function testPages(logger as Logger) as Boolean {
     var saved = Pages.mask();
     Pages.save(Pages.DEFAULT_MASK);
-    // ohne Einheit fallen Intervall-Seiten weg; "Runden" ist standardmäßig aus
+    // ohne Einheit fallen Intervall-Seiten weg; alle anderen Seiten sind standardmäßig an
     var ids = Pages.active(null);
     Test.assert(ids.indexOf(Pages.OVERVIEW) >= 0 && ids.indexOf(Pages.MAP) >= 0 && ids.indexOf(Pages.FORECAST) >= 0);
     Test.assertEqual(ids.indexOf(Pages.INTERVAL), -1);
     Test.assertEqual(ids.indexOf(Pages.REPS), -1);
-    Test.assertEqual(ids.indexOf(Pages.LAPS), -1);
+    Test.assert(ids.indexOf(Pages.PACES) >= 0);
     // mit Einheit kommt Intervall dazu, Reps erst ab zwei aktiven Schritten
     var one = new Workout("A", 1, [{ "n" => "Locker", "t" => "a", "d" => 8000, "z" => 1 }] as Array<Dictionary>);
     Test.assert(Pages.active(one).indexOf(Pages.INTERVAL) >= 0);
@@ -307,5 +309,427 @@ function testStartScreenNumbers(logger as Logger) as Boolean {
     ] as Array<Dictionary>;
     var w = new Workout("Test", 1, steps);
     Test.assert((w.plannedMeters() - (2000.0 + 120.0 / 360.0 * 1000.0)).abs() < 1.0);
+    return true;
+}
+
+// 3 m/s, 1 Hz: der erste Kilometer fällt zwischen 999 m (333 s) und 1002 m (334 s) → 333,33 s.
+(:test)
+function testSplitsInterpolateTheMark(logger as Logger) as Boolean {
+    var s = new Splits();
+    var done = false;
+    for (var k = 1; k <= 334; k++) {
+        done = s.update(k * 1000, 3.0 * k, 150, 1000.0);
+        Test.assert(done == (k == 334));
+    }
+    Test.assertEqual(s.count, 1);
+    Test.assert((s.duration(0) - 333333).abs() < 5);
+    Test.assertEqual(s.hr(0), 150);
+    return true;
+}
+
+(:test)
+function testSplitsAveragePulsePerKilometer(logger as Logger) as Boolean {
+    var s = new Splits();
+    // erster Kilometer bei 4 m/s (250 s) mit Puls 150, zweiter bei 5 m/s (200 s) mit Puls 170, ohne Puls im dritten
+    for (var k = 1; k <= 250; k++) {
+        s.update(k * 1000, 4.0 * k, 150, 1000.0);
+    }
+    for (var k = 1; k <= 200; k++) {
+        s.update((250 + k) * 1000, 1000.0 + 5.0 * k, 170, 1000.0);
+    }
+    for (var k = 1; k <= 200; k++) {
+        s.update((450 + k) * 1000, 2000.0 + 5.0 * k, null, 1000.0);
+    }
+    Test.assertEqual(s.count, 3);
+    Test.assertEqual(s.hr(0), 150);
+    Test.assertEqual(s.hr(1), 170);
+    Test.assertEqual(s.hr(2), 0);
+    Test.assert((s.duration(0) - 250000).abs() < 5);
+    Test.assert((s.duration(1) - 200000).abs() < 5);
+    return true;
+}
+
+// Ohne GPS-Fix springt die Strecke auf 0 und danach zurück: das darf keinen Kilometer erzeugen.
+(:test)
+function testSplitsIgnoreInvalidDistance(logger as Logger) as Boolean {
+    var s = new Splits();
+    s.update(1000, 400.0, 140, 1000.0);
+    s.update(2000, 0.0, 140, 1000.0);
+    s.update(3000, 0.0, 140, 1000.0);
+    Test.assertEqual(s.count, 0);
+    s.update(4000, 800.0, 140, 1000.0);
+    Test.assertEqual(s.count, 0);
+    Test.assert(s.update(5000, 1200.0, 140, 1000.0));
+    Test.assertEqual(s.count, 1);
+    return true;
+}
+
+(:test)
+function testSplitsShowAndHide(logger as Logger) as Boolean {
+    var s = new Splits();
+    Test.assert(!s.showing(0));
+    s.update(100000, 999.0, 150, 1000.0);
+    Test.assert(!s.showing(100000));
+    s.update(101000, 1003.0, 150, 1000.0);
+    Test.assert(s.showing(101000));
+    Test.assert(s.showing(105000));
+    Test.assert(!s.showing(110000));
+    Test.assert(s.showing(102000));
+    s.hide();
+    Test.assert(!s.showing(102000));
+    return true;
+}
+
+// Meilen: die Marke liegt bei 1609,344 m.
+(:test)
+function testSplitsMiles(logger as Logger) as Boolean {
+    var s = new Splits();
+    for (var k = 1; k <= 400; k++) {
+        s.update(k * 1000, 4.0 * k, 150, Pace.M_PER_MI);
+    }
+    Test.assertEqual(s.count, 0);
+    for (var k = 401; k <= 403; k++) {
+        s.update(k * 1000, 4.0 * k, 150, Pace.M_PER_MI);
+    }
+    Test.assertEqual(s.count, 1);
+    Test.assert((s.duration(0) - 402336).abs() < 5);
+    return true;
+}
+
+// Ø-Puls je Schritt: zählt nur im laufenden Schritt, ignoriert fehlende Werte, nach dem Ende nichts mehr.
+(:test)
+function testWorkoutHeartRatePerStep(logger as Logger) as Boolean {
+    var steps = [
+        { "n" => "Einlaufen", "t" => "w", "d" => 1000, "z" => 1 },
+        { "n" => "Interval 1/1", "t" => "a", "d" => 1000, "lo" => 245, "hi" => 255, "z" => 6 }
+    ] as Array<Dictionary>;
+    var w = new Workout("Test", 6, steps);
+    w.addHeartRate(120);
+    w.addHeartRate(null);
+    w.addHeartRate(0);
+    w.addHeartRate(140);
+    Test.assertEqual(w.stepHeartRate(0), 130);
+    Test.assertEqual(w.stepHeartRate(1), 0);
+    Test.assert(w.update(300000, 1000.0));
+    w.addHeartRate(170);
+    w.addHeartRate(180);
+    Test.assertEqual(w.stepHeartRate(1), 175);
+    Test.assertEqual(w.stepHeartRate(0), 130);
+    w.advance(560000, 2000.0);
+    Test.assert(w.finished);
+    w.addHeartRate(100);
+    Test.assertEqual(w.stepHeartRate(1), 175);
+    return true;
+}
+
+(:test)
+function testPaceOffRange(logger as Logger) as Boolean {
+    var range = [245, 255] as Array<Number>;
+    Test.assert(Pace.offRange(250.0, range) == 0.0);
+    Test.assert(Pace.offRange(245.0, range) == 0.0);
+    Test.assert(Pace.offRange(255.0, range) == 0.0);
+    Test.assert((Pace.offRange(240.0, range) + 5.0).abs() < 0.001);
+    Test.assert((Pace.offRange(262.5, range) - 7.5).abs() < 0.001);
+    return true;
+}
+
+// Pulszonen: Grenzen gehören zur höheren Zone, fehlende Werte zählen nicht.
+(:test)
+function testHeartZones(logger as Logger) as Boolean {
+    var z = [95, 114, 133, 152, 171, 190] as Array<Number>;
+    Test.assertEqual(HeartZones.zoneOf(60, z), 1);
+    Test.assertEqual(HeartZones.zoneOf(113, z), 1);
+    Test.assertEqual(HeartZones.zoneOf(114, z), 2);
+    Test.assertEqual(HeartZones.zoneOf(151, z), 3);
+    Test.assertEqual(HeartZones.zoneOf(152, z), 4);
+    Test.assertEqual(HeartZones.zoneOf(171, z), 5);
+    Test.assertEqual(HeartZones.zoneOf(210, z), 5);
+
+    var t = new ZoneTime();
+    for (var i = 0; i < 30; i++) {
+        t.add(120, z);
+    }
+    for (var i = 0; i < 10; i++) {
+        t.add(175, z);
+    }
+    t.add(null, z);
+    t.add(0, z);
+    Test.assertEqual(t.seconds[1], 30);
+    Test.assertEqual(t.seconds[4], 10);
+    Test.assertEqual(t.seconds[0], 0);
+    Test.assertEqual(t.total(), 40);
+    return true;
+}
+
+// Pace des letzten Kilometers bzw. der letzten Meile aus der Zwischenzeit.
+(:test)
+function testSplitsLastPace(logger as Logger) as Boolean {
+    var s = new Splits();
+    Test.assert(s.lastPace(1000.0) == null);
+    // 4 m/s → 250 s für den ersten Kilometer
+    for (var k = 1; k <= 250; k++) {
+        s.update(k * 1000, 4.0 * k, 150, 1000.0);
+    }
+    Test.assert((s.lastPace(1000.0) as Float - 250.0).abs() < 0.1);
+    // dieselbe Zeit für eine Meile wären 250 / 1,609 s je km
+    Test.assert((s.lastPace(Pace.M_PER_MI) as Float - 250.0 * 1000.0 / Pace.M_PER_MI).abs() < 0.1);
+    return true;
+}
+
+// Das letzte fertige Intervall (nicht Einlaufen, nicht Pause).
+(:test)
+function testWorkoutLastActiveDone(logger as Logger) as Boolean {
+    var steps = [
+        { "n" => "Einlaufen", "t" => "w", "d" => 1000, "z" => 1 },
+        { "n" => "Interval 1/2", "t" => "a", "d" => 1000, "lo" => 245, "hi" => 255, "z" => 6 },
+        { "n" => "Trabpause", "t" => "r", "s" => 120, "z" => 3 },
+        { "n" => "Interval 2/2", "t" => "a", "d" => 1000, "lo" => 245, "hi" => 255, "z" => 6 }
+    ] as Array<Dictionary>;
+    var w = new Workout("Test", 6, steps);
+    Test.assertEqual(w.lastActiveDone(), -1);
+    Test.assert(w.update(300000, 1000.0));
+    Test.assertEqual(w.lastActiveDone(), -1);
+    Test.assert(w.update(550000, 2000.0));
+    Test.assertEqual(w.lastActiveDone(), 1);
+    w.advance(680000, 2400.0);
+    Test.assertEqual(w.lastActiveDone(), 1);
+    w.advance(900000, 3400.0);
+    Test.assert(w.finished);
+    Test.assertEqual(w.lastActiveDone(), 3);
+    return true;
+}
+
+// Trainingseffekt: Stufen nach Garmins Einteilung.
+(:test)
+function testTrainingEffectLevels(logger as Logger) as Boolean {
+    Test.assertEqual(TrainingEffect.level(0.0), 0);
+    Test.assertEqual(TrainingEffect.level(0.9), 0);
+    Test.assertEqual(TrainingEffect.level(1.0), 1);
+    Test.assertEqual(TrainingEffect.level(2.9), 2);
+    Test.assertEqual(TrainingEffect.level(3.4), 3);
+    Test.assertEqual(TrainingEffect.level(4.9), 4);
+    Test.assertEqual(TrainingEffect.level(5.0), 5);
+    Test.assertEqual(TrainingEffect.level(7.0), 5);
+    Test.assertEqual(TrainingEffect.level(-1.0), 0);
+    Test.assertEqual(TrainingEffect.label(3.4), "Verbessernd");
+    Test.assertEqual(TrainingEffect.label(0.5), "Kein Effekt");
+    return true;
+}
+
+// Anaerobe Schätzung: Gewicht je Pace, Summe und Skala 0 bis 5.
+(:test)
+function testAnaerobicLoad(logger as Logger) as Boolean {
+    // Schwelle 4:30 (270), Intervall 4:10 (250), Wiederholung 3:55 (235)
+    var a = new AnaerobicLoad(270.0, 250.0, 235.0);
+    Test.assert(a.known());
+    Test.assert(a.weight(300.0) == 0.0);
+    Test.assert(a.weight(270.0) == 0.0);
+    Test.assert((a.weight(260.0) - 0.5).abs() < 0.001);
+    Test.assert((a.weight(250.0) - 1.0).abs() < 0.001);
+    Test.assert((a.weight(242.5) - 1.5).abs() < 0.001);
+    Test.assert((a.weight(235.0) - 2.0).abs() < 0.001);
+    Test.assert((a.weight(223.25) - 2.5).abs() < 0.001);
+    Test.assert((a.weight(200.0) - 3.0).abs() < 0.001);
+    // GPS-Ausreißer zählen nicht
+    Test.assert(a.weight(100.0) == 0.0);
+
+    // ruhiger Lauf: 0; ohne bekannte Paces: keine Schätzung
+    for (var s = 0; s < 3600; s++) {
+        a.add(330.0);
+    }
+    Test.assert((a.score() as Float).abs() < 0.001);
+    a.add(null);
+    Test.assert(!(new AnaerobicLoad(null, 250.0, 235.0)).known());
+    Test.assert((new AnaerobicLoad(null, 250.0, 235.0)).score() == null);
+    Test.assert(!(new AnaerobicLoad(250.0, 270.0, 235.0)).known());
+
+    // 3 x 1000 m an der Intervallpace: 3 x 250 s mit Gewicht 1 = 750 → etwa 2,3
+    var b = new AnaerobicLoad(270.0, 250.0, 235.0);
+    for (var s = 0; s < 750; s++) {
+        b.add(250.0);
+    }
+    Test.assert((b.score() as Float - 2.32).abs() < 0.05);
+    // mehr Belastung gibt einen höheren Wert, der nie über 5 steigt
+    for (var s = 0; s < 20000; s++) {
+        b.add(235.0);
+    }
+    Test.assert(b.score() as Float > 4.9 && b.score() as Float <= 5.0);
+    return true;
+}
+
+
+// Wochenplan: Tage, Einheiten, Summen und Rennen aus dem MaraPlanna-Feed
+function weekFeed() as Dictionary {
+    return {
+        "week" => { "start" => "2026-10-26", "done" => 12.3, "planned" => 40.0 },
+        "days" => [
+            { "i" => 0, "t" => "Easy", "k" => 8.0, "s" => "c" },
+            { "i" => 1, "t" => "Intervalle", "k" => 7.5, "s" => "p" },
+            { "i" => 1, "t" => "Core", "s" => "c" },
+            { "i" => 3, "t" => "Easy", "k" => 6.0, "s" => "x" },
+            { "i" => 9, "t" => "Long", "k" => 18.0, "s" => "p" }
+        ],
+        "race" => { "date" => "2026-11-05", "name" => "Wien" }
+    } as Dictionary;
+}
+
+(:test)
+function testWeekPlanDays(logger as Logger) as Boolean {
+    // 2026-10-26 war ein Montag
+    var mon = WeekPlan.parse("2026-10-26") as Number;
+    Test.assertEqual(WeekPlan.weekday(mon), 0);
+    Test.assertEqual(WeekPlan.weekday(mon + 6), 6);
+    Test.assertEqual(WeekPlan.monday(mon + 3), mon);
+    Test.assertEqual(WeekPlan.iso(mon), "2026-10-26");
+    Test.assertEqual(WeekPlan.iso(mon + 6), "2026-11-01");
+    Test.assertEqual(WeekPlan.parse("2026-11-05") as Number, mon + 10);
+    Test.assert(WeekPlan.parse("2026-13-01") == null);
+    Test.assert(WeekPlan.parse("abc") == null);
+    Test.assert(WeekPlan.parse(null) == null);
+    return true;
+}
+
+(:test)
+function testWeekPlanSessions(logger as Logger) as Boolean {
+    var mon = WeekPlan.parse("2026-10-26") as Number;
+    var feed = weekFeed();
+    Test.assertEqual(WeekPlan.sessions(feed, mon).size(), 1);
+    Test.assertEqual(WeekPlan.sessions(feed, mon + 1).size(), 2);
+    Test.assertEqual(WeekPlan.sessions(feed, mon + 2).size(), 0);
+    Test.assertEqual(WeekPlan.sessions(feed, mon + 9).size(), 1);
+    Test.assertEqual(WeekPlan.sessions(null, mon).size(), 0);
+    // Der Feed gilt für zwei Wochen ab seinem Montag
+    Test.assert(WeekPlan.covers(feed, mon + 13));
+    Test.assert(!WeekPlan.covers(feed, mon + 14));
+    Test.assert(!WeekPlan.covers(feed, mon - 1));
+    Test.assert(!WeekPlan.covers(null, mon));
+    // erledigt = alle nicht ausgefallenen Einheiten erledigt
+    Test.assert(WeekPlan.allDone(WeekPlan.sessions(feed, mon)));
+    Test.assert(!WeekPlan.allDone(WeekPlan.sessions(feed, mon + 1)));
+    Test.assert(!WeekPlan.allDone(WeekPlan.sessions(feed, mon + 2)));
+    Test.assert(!WeekPlan.allDone(WeekPlan.sessions(feed, mon + 3)));
+    Test.assert(SessionRow.skippedAll(WeekPlan.sessions(feed, mon + 3)));
+    // Tageszeile: Titel mit "+n", Kilometer ohne ausgefallene Einheiten
+    Test.assertEqual(SessionRow.title(WeekPlan.sessions(feed, mon + 1)), "Intervalle +1");
+    Test.assert((SessionRow.km(WeekPlan.sessions(feed, mon + 1)) - 7.5).abs() < 0.01);
+    Test.assert(SessionRow.km(WeekPlan.sessions(feed, mon + 3)) == 0.0);
+    return true;
+}
+
+(:test)
+function testWeekPlanTotalsAndRace(logger as Logger) as Boolean {
+    var mon = WeekPlan.parse("2026-10-26") as Number;
+    var feed = weekFeed();
+    var t = WeekPlan.totals(feed, mon + 3) as Array<Float>;
+    Test.assert((t[0] - 12.3).abs() < 0.01 && (t[1] - 40.0).abs() < 0.01);
+    // Summen gelten nur für die Woche des Feeds, nicht für die nächste
+    Test.assert(WeekPlan.totals(feed, mon + 8) == null);
+    Test.assert(WeekPlan.plannedKm(feed, mon + 8) == null);
+    Test.assertEqual(WeekPlan.raceDays(feed, mon + 3) as Number, 7);
+    Test.assertEqual(WeekPlan.raceDays(feed, mon + 10) as Number, 0);
+    Test.assert(WeekPlan.raceDays(feed, mon + 11) == null);
+    Test.assert(WeekPlan.raceDays(null, mon) == null);
+    Test.assertEqual(WeekPlan.raceName(feed) as String, "Wien");
+    return true;
+}
+
+(:test)
+function testWeeklyKilometres(logger as Logger) as Boolean {
+    var mon = WeekPlan.parse("2026-10-26") as Number;
+    var feed = weekFeed();
+    var saved = Application.Storage.getValue("weekLog");
+    Application.Storage.deleteValue("weekLog");
+    // ohne Daten: null (die Anzeige zeigt "--"), nur Server: dessen Wert
+    Test.assert(WeekPlan.doneKm(null, mon) == null);
+    Test.assert((WeekPlan.doneKm(feed, mon + 2) as Float - 12.3).abs() < 0.01);
+    // eigener Lauf kleiner als der Wert von MaraPlanna: MaraPlanna gilt (kein Doppelzählen)
+    WeekPlan.logRun(5000.0, mon + 2);
+    Test.assert((WeekPlan.doneKm(feed, mon + 2) as Float - 12.3).abs() < 0.01);
+    // eigene Läufe noch nicht bei MaraPlanna angekommen: zusammen mehr, also zählen sie
+    WeekPlan.logRun(9000.0, mon + 3);
+    Test.assert((WeekPlan.doneKm(feed, mon + 3) as Float - 14.0).abs() < 0.01);
+    Test.assert((WeekPlan.doneKm(null, mon + 3) as Float - 14.0).abs() < 0.01);
+    // eine neue Woche beginnt wieder bei null
+    Test.assert(WeekPlan.doneKm(null, mon + 8) == null);
+    WeekPlan.logRun(3000.0, mon + 8);
+    Test.assert((WeekPlan.doneKm(null, mon + 8) as Float - 3.0).abs() < 0.01);
+    // negative Werte (kein GPS) zählen nicht
+    WeekPlan.logRun(-50.0, mon + 8);
+    Test.assert((WeekPlan.doneKm(null, mon + 8) as Float - 3.0).abs() < 0.01);
+    if (saved == null) {
+        Application.Storage.deleteValue("weekLog");
+    } else {
+        Application.Storage.setValue("weekLog", saved);
+    }
+    return true;
+}
+
+(:test)
+function testPrefs(logger as Logger) as Boolean {
+    var saved = Application.Storage.getValue("prefs");
+    Application.Storage.deleteValue("prefs");
+    // Standard: alles an, Einheiten automatisch
+    Test.assert(Prefs.kmSummary() && Prefs.paceAlert() && Prefs.sound() && Prefs.weather());
+    Test.assertEqual(Prefs.units(), Prefs.UNITS_AUTO);
+    Test.assert(Prefs.miles(true));
+    Test.assert(!Prefs.miles(false));
+    // feste Wahl hat Vorrang
+    Prefs.set("units", Prefs.UNITS_KM);
+    Test.assert(!Prefs.miles(true));
+    Prefs.set("units", Prefs.UNITS_MI);
+    Test.assert(Prefs.miles(false));
+    Prefs.set("units", 99);
+    Test.assertEqual(Prefs.units(), Prefs.UNITS_AUTO);
+    // Schalter bleiben einzeln gespeichert
+    Prefs.set("km", false);
+    Test.assert(!Prefs.kmSummary() && Prefs.paceAlert());
+    if (saved == null) {
+        Application.Storage.deleteValue("prefs");
+    } else {
+        Application.Storage.setValue("prefs", saved);
+    }
+    return true;
+}
+
+(:test)
+function testChoices(logger as Logger) as Boolean {
+    Test.assertEqual(Choices.list(null, null).size(), 1);
+    Test.assertEqual(Choices.list(null, null)[0], Choices.FREE);
+    var zones = new PaceZones();
+    zones.loadFeed({ "units" => "km", "paces" => { "easy" => [326.0, 359.0], "marathon" => 297.0 } } as Dictionary);
+    var list = Choices.list(zones, null);
+    Test.assertEqual(list.size(), 3);
+    Test.assertEqual(list[0], 1);
+    Test.assertEqual(list[1], 4);
+    Test.assertEqual(list[2], Choices.FREE);
+    // mit Einheit für heute steht sie vorne
+    var wk = new Workout("A", 1, [{ "n" => "Locker", "t" => "a", "d" => 8000, "z" => 1 }] as Array<Dictionary>);
+    Test.assertEqual(Choices.list(zones, wk)[0], Choices.TODAY);
+    Test.assertEqual(Choices.list(zones, wk).size(), 4);
+    return true;
+}
+
+(:test)
+function testWeatherKinds(logger as Logger) as Boolean {
+    Test.assertEqual(Vitals.kindOf(Weather.CONDITION_CLEAR), Vitals.CLEAR);
+    Test.assertEqual(Vitals.kindOf(Weather.CONDITION_PARTLY_CLOUDY), Vitals.PARTLY);
+    Test.assertEqual(Vitals.kindOf(Weather.CONDITION_CLOUDY), Vitals.CLOUDY);
+    Test.assertEqual(Vitals.kindOf(Weather.CONDITION_LIGHT_RAIN), Vitals.RAIN);
+    Test.assertEqual(Vitals.kindOf(Weather.CONDITION_SNOW), Vitals.SNOW);
+    Test.assertEqual(Vitals.kindOf(Weather.CONDITION_THUNDERSTORMS), Vitals.STORM);
+    Test.assertEqual(Vitals.kindOf(Weather.CONDITION_FOG), Vitals.FOG);
+    Test.assertEqual(Vitals.kindOf(Weather.CONDITION_WINDY), Vitals.WIND);
+    // unbekannt: bewölkt (neutral)
+    Test.assertEqual(Vitals.kindOf(Weather.CONDITION_UNKNOWN), Vitals.CLOUDY);
+    return true;
+}
+
+(:test)
+function testClockAndDate(logger as Logger) as Boolean {
+    var parts = Vitals.clock();
+    Test.assertEqual(parts.size(), 2);
+    Test.assertEqual(parts[0].length(), 2);
+    Test.assertEqual(parts[1].length(), 2);
+    Test.assert(Vitals.dateText().length() > 4);
     return true;
 }

@@ -35,14 +35,25 @@ module PageViews {
         return m < 1000.0 ? m.toNumber().format("%d") + " m" : Pace.distance(m, false) + " km";
     }
 
-    // Länge eines Schritts als Text: "400 m", "1,00 km", "2:00 min"
-    function lengthText(step as Dictionary, miles as Boolean) as String {
+    // Länge eines Schritts als Text, lang vor kurz: "1,00 km" / "1 km", "400 m", "2:00 min" / "2:00"
+    function lengthTexts(step as Dictionary, miles as Boolean) as Array<String> {
         var d = Pace.toNum(step.get("d") as Object?);
         if (d != null) {
-            return shortDist(d.toFloat(), miles);
+            var full = shortDist(d.toFloat(), miles);
+            if (!miles && d < 1000) {
+                return [full] as Array<String>;
+            }
+            var one = Pace.distance1(d.toFloat(), miles);
+            if (one.length() > 2 && (one.substring(one.length() - 2, one.length()) as String).equals(",0")) {
+                one = one.substring(0, one.length() - 2) as String;
+            }
+            return [full, one + (miles ? " mi" : " km")] as Array<String>;
         }
-        var s = Pace.toNum(step.get("s") as Object?);
-        return s == null ? "" : Pace.time(s * 1000) + " min";
+        var sec = Pace.toNum(step.get("s") as Object?);
+        if (sec == null) {
+            return [] as Array<String>;
+        }
+        return [Pace.time(sec * 1000) + " min", Pace.time(sec * 1000)] as Array<String>;
     }
 
     // Abweichung vom Zielbereich als Text, lang vor kurz
@@ -51,7 +62,7 @@ module PageViews {
             return ["--"] as Array<String>;
         }
         var p = pace as Float;
-        var off = p < range[0] ? p - range[0] : (p > range[1] ? p - range[1] : 0.0);
+        var off = Pace.offRange(p, range);
         var s = (miles ? off * Pace.KM_PER_MI : off).toNumber();
         if (s == 0) {
             return ["im Bereich", "OK"] as Array<String>;
@@ -66,19 +77,108 @@ module PageViews {
         var miles = c.zones.miles;
         var hr = info != null ? info.currentHeartRate : null;
         var white = Graphics.COLOR_WHITE;
-        Draw.grid(dc, top, bottom,
+        // Unten die Pulsleiste mit den fünf Zonen, darüber die vier Werte.
+        var bh = Draw.barHeight(dc);
+        var strip = bh * 2;
+        Draw.grid(dc, top, bottom - strip - gapOf(top, bottom) * 2,
             ["ZEIT", miles ? "MEILEN" : "KM", "PACE", "PULS"] as Array<String>,
             [Pace.time(ms), Pace.distance(c.distance(info), miles), Pace.format(c.pace, miles), hr == null ? "--" : hr.format("%d")] as Array<String>,
             [white, white, paceColor(c.hint), white] as Array<Number>);
+        zoneBar(dc, bottom - strip / 2.0, bh, hr, true);
     }
 
-    function laps(dc as Graphics.Dc, c as RecordingController, top as Float, bottom as Float, info as Activity.Info?, ms as Number) as Void {
+    // --- Pace-Vergleich: jetzt, letzter Kilometer bzw. letztes Intervall, Ø über den ganzen Lauf --------
+    // Oben die aktuelle Pace groß, darunter zwei Felder. Links der letzte Kilometer (Meile); in einer Einheit
+    // das zuletzt gelaufene Intervall, gefärbt nach dem Ergebnis (grün im Zielbereich, orange zu schnell,
+    // blau zu langsam), bis das erste fertig ist wieder der letzte Kilometer. Rechts die Ø-Pace seit dem Start.
+
+    function paces(dc as Graphics.Dc, c as RecordingController, top as Float, bottom as Float, info as Activity.Info?, ms as Number) as Void {
         var miles = c.zones.miles;
+        var wk = c.workout;
         var white = Graphics.COLOR_WHITE;
-        Draw.grid(dc, top, bottom,
-            ["Ø PACE", "RUNDE " + c.laps, "RD-DIST", "RD-ZEIT"] as Array<String>,
-            [Pace.format(c.averagePace(), miles), Pace.format(c.lapPace(), miles), Pace.distance(c.lapDistance(), miles), Pace.time(c.lapMs())] as Array<String>,
-            [white, white, white, white] as Array<Number>);
+        var lastLabels = (miles ? ["LETZTE MEILE", "LETZTE MI"] : ["LETZTER KM"]) as Array<String>;
+        var lastPace = c.splits.lastPace(miles ? Pace.M_PER_MI : 1000.0);
+        var lastColor = white;
+        var li = wk != null ? (wk as Workout).lastActiveDone() : -1;
+        if (wk != null && li >= 0) {
+            var w2 = wk as Workout;
+            lastLabels = ["LETZTES INTERVALL", "LETZTES INT.", "LETZTE REP"] as Array<String>;
+            lastPace = w2.stepPace(li, ms, c.distance(info));
+            var tgt = w2.stepTarget(li);
+            if (lastPace != null && tgt != null) {
+                var off = Math.round(Pace.offRange(lastPace as Float, tgt)).toNumber();
+                lastColor = off < 0 ? Draw.ORANGE : (off > 0 ? Draw.BLUE : Draw.GREEN);
+            }
+        }
+
+        var fhX = dc.getFontHeight(Graphics.FONT_XTINY);
+        var heroBottom = top + (bottom - top) * 0.52;
+        var r = Draw.rows(top, heroBottom - 2, [fhX, 0] as Array<Number>, gapOf(top, bottom));
+        Draw.line(dc, r[0], Graphics.FONT_XTINY, Draw.GRAY, miles ? "JETZT /mi" : "JETZT /km");
+        Draw.fitLine(dc, r[1], r[2].toNumber(), BIG, paceColor(c.hint), Pace.format(c.pace, miles));
+
+        // Trennlinien wie auf der Übersicht
+        var midX = dc.getWidth() / 2.0;
+        var lineW = Draw.widthAt(dc, heroBottom, 0) * 0.9;
+        dc.setColor(Draw.GRID, Graphics.COLOR_TRANSPARENT);
+        dc.setPenWidth(1);
+        dc.drawLine(midX - lineW / 2, heroBottom, midX + lineW / 2, heroBottom);
+        dc.drawLine(midX, heroBottom + 4, midX, bottom - 4);
+
+        var cellH = bottom - heroBottom;
+        var wb = Draw.widthAt(dc, bottom - cellH * 0.25, 0);
+        var cw = wb / 2.0 - Draw.margin(dc);
+        paceCell(dc, midX - wb / 4.0, heroBottom, cellH, cw, lastLabels, Pace.format(lastPace, miles), lastColor);
+        paceCell(dc, midX + wb / 4.0, heroBottom, cellH, cw, ["Ø GESAMT", "Ø PACE"] as Array<String>, Pace.format(c.averagePace(), miles), white);
+    }
+
+    // Ein Feld: kleine Beschriftung (die erste Variante, die in die Breite passt), darunter der Wert in der
+    // größten Schrift, die in Breite und Höhe passt.
+    function paceCell(dc as Graphics.Dc, cx as Float, yTop as Float, cellH as Float, cw as Float, labels as Array<String>, value as String, color as Number) as Void {
+        var fhX = dc.getFontHeight(Graphics.FONT_XTINY);
+        var label = labels[labels.size() - 1];
+        for (var i = 0; i < labels.size(); i++) {
+            if (dc.getTextWidthInPixels(labels[i], Graphics.FONT_XTINY) <= cw) {
+                label = labels[i];
+                break;
+            }
+        }
+        dc.setColor(Draw.GRAY, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(cx, yTop + fhX * 0.9, Graphics.FONT_XTINY, label, Draw.CENTER);
+        var fonts = [Graphics.FONT_NUMBER_MEDIUM, Graphics.FONT_NUMBER_MILD, Graphics.FONT_LARGE, Graphics.FONT_MEDIUM] as Array<Graphics.FontDefinition>;
+        var room = cellH - fhX * 1.7;
+        var font = fonts[fonts.size() - 1];
+        for (var i = 0; i < fonts.size(); i++) {
+            var t = Draw.isNumberFont(fonts[i]) ? Draw.digits(value) : value;
+            if (dc.getFontHeight(fonts[i]) <= room * 1.15 && dc.getTextWidthInPixels(t, fonts[i]) <= cw) {
+                font = fonts[i];
+                break;
+            }
+        }
+        dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(cx, yTop + fhX * 1.7 + room / 2.0, font, Draw.isNumberFont(font) ? Draw.digits(value) : value, Draw.CENTER);
+    }
+
+    // --- Zusammenfassung des gerade beendeten Kilometers -----------------------------------
+    // Zeit (bei genau einem Kilometer zugleich die Pace), Ø-Puls dieses Kilometers, Ø-Pace des ganzen
+    // Laufs und der Unterschied zum Kilometer davor (grün = schneller, orange = langsamer).
+
+    function kmSummary(dc as Graphics.Dc, c as RecordingController, top as Float, bottom as Float, info as Activity.Info?, ms as Number) as Void {
+        var s = c.splits;
+        var n = s.count - 1;
+        var white = Graphics.COLOR_WHITE;
+        var hr = s.hr(n);
+        var labels = ["ZEIT", "Ø PULS", "Ø PACE", "VORHER"] as Array<String>;
+        var values = [Pace.time(s.duration(n)), hr > 0 ? hr.format("%d") : "--", Pace.format(c.averagePace(), c.zones.miles), "--"] as Array<String>;
+        var colors = [white, white, white, white] as Array<Number>;
+        if (n > 0) {
+            var d = Math.round((s.duration(n) - s.duration(n - 1)) / 1000.0).toNumber();
+            // Das Vorzeichen steht in der Beschriftung: Zahlenschriften haben oft kein "+".
+            labels[3] = d < 0 ? "VORHER -" : (d > 0 ? "VORHER +" : "VORHER");
+            values[3] = Pace.time(d.abs() * 1000);
+            colors[3] = d < 0 ? Draw.GREEN : (d > 0 ? Draw.ORANGE : white);
+        }
+        Draw.grid(dc, top, bottom, labels, values, colors);
     }
 
     // --- Pace: aktuelle Pace groß, Skala mit Zielbereich ----------------------------
@@ -117,20 +217,38 @@ module PageViews {
     // --- Puls: Wert, Zone, Ø und Maximum ----------------------------------------------
 
     function hrZones() as Array<Number> {
-        var z = UserProfile.getHeartRateZones(UserProfile.HR_ZONE_SPORT_RUNNING);
-        return z.size() >= 6 ? z : [95, 114, 133, 152, 171, 190] as Array<Number>;
+        return HeartZones.read();
     }
 
     // Pulszone 1..5
     function hrZone(hr as Number) as Number {
-        var z = hrZones();
-        var n = 1;
-        for (var k = 1; k <= 4; k++) {
-            if (hr >= z[k]) {
-                n = k + 1;
-            }
+        return HeartZones.zoneOf(hr, hrZones());
+    }
+
+    // Pulszonen als fünf Segmente: die aktuelle Zone leuchtet in ihrer Farbe und ist höher. Mit detail
+    // sind die übrigen Zonen in abgedunkelter Zonenfarbe zu sehen (sonst grau), und ein weißer Punkt zeigt,
+    // wo im Segment der Puls genau liegt. y = Mitte der Leiste, bh = Höhe eines nicht aktiven Segments.
+    function zoneBar(dc as Graphics.Dc, y as Numeric, bh as Number, hr as Number?, detail as Boolean) as Void {
+        var zone = hr == null ? 0 : hrZone(hr as Number);
+        var w = (Draw.widthAt(dc, y, 0) * 0.78).toNumber();
+        var gap = (dc.getWidth() * 0.012).toNumber();
+        var segW = (w - gap * 4) / 5;
+        var x0 = (dc.getWidth() - w) / 2;
+        for (var i = 0; i < 5; i++) {
+            var lit = i + 1 == zone;
+            dc.setColor(lit ? ZONE_COLORS[i] : (detail ? Draw.blend(ZONE_COLORS[i], Graphics.COLOR_BLACK, 0.65) : Draw.TRACK), Graphics.COLOR_TRANSPARENT);
+            var grow = lit ? bh : 0;
+            dc.fillRoundedRectangle(x0 + i * (segW + gap), y - bh / 2 - grow / 2, segW, bh + grow, bh / 2);
         }
-        return n;
+        if (detail && hr != null && zone > 0) {
+            var z = hrZones();
+            var lo = z[zone - 1];
+            var hi = z[zone];
+            var f = hi > lo ? ((hr as Number) - lo) / (hi - lo).toFloat() : 0.0;
+            f = f < 0.0 ? 0.0 : (f > 1.0 ? 1.0 : f);
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+            dc.fillCircle(x0 + (zone - 1) * (segW + gap) + f * segW, y, bh * 0.55);
+        }
     }
 
     function heart(dc as Graphics.Dc, c as RecordingController, top as Float, bottom as Float, info as Activity.Info?, ms as Number) as Void {
@@ -144,16 +262,7 @@ module PageViews {
         Draw.valueUnit(dc, r[1], hr == null ? "--" : hr.format("%d"), "bpm", BIG, r[5].toNumber(), color);
 
         // Zonenbalken: fünf Segmente, die aktuelle Zone leuchtet
-        var y = r[2];
-        var w = (Draw.widthAt(dc, y, 0) * 0.78).toNumber();
-        var gap = (dc.getWidth() * 0.012).toNumber();
-        var segW = (w - gap * 4) / 5;
-        var x0 = (dc.getWidth() - w) / 2;
-        for (var i = 0; i < 5; i++) {
-            dc.setColor(i + 1 == zone ? ZONE_COLORS[i] : Draw.TRACK, Graphics.COLOR_TRANSPARENT);
-            var grow = i + 1 == zone ? bh : 0;
-            dc.fillRoundedRectangle(x0 + i * (segW + gap), y - bh / 2 - grow / 2, segW, bh + grow, bh / 2);
-        }
+        zoneBar(dc, r[2], bh, hr, false);
         Draw.line(dc, r[3], Graphics.FONT_XTINY, color, zone == 0 ? "" : "ZONE " + zone);
         var avg = info != null && info.averageHeartRate != null ? (info.averageHeartRate as Number).format("%d") : "--";
         var max = info != null && info.maxHeartRate != null ? (info.maxHeartRate as Number).format("%d") : "--";
@@ -172,7 +281,26 @@ module PageViews {
 
     function graph(dc as Graphics.Dc, c as RecordingController, top as Float, bottom as Float, info as Activity.Info?, isHr as Boolean) as Void {
         var miles = c.zones.miles;
-        var hist = c.history;
+        // Kopfzeile: aktueller Wert, Ø (und Maximum)
+        var head = [] as Array<String>;
+        if (isHr) {
+            var cur = info != null && info.currentHeartRate != null ? (info.currentHeartRate as Number).format("%d") : "--";
+            var avg = info != null && info.averageHeartRate != null ? (info.averageHeartRate as Number).format("%d") : "--";
+            var max = info != null && info.maxHeartRate != null ? (info.maxHeartRate as Number).format("%d") : "--";
+            head = [cur + "  Ø " + avg + "  MAX " + max, cur + "  Ø " + avg, cur] as Array<String>;
+        } else {
+            var cur = Pace.format(c.pace, miles);
+            var avg = Pace.format(c.averagePace(), miles);
+            head = [cur + "  Ø " + avg, cur] as Array<String>;
+        }
+        var fhS = dc.getFontHeight(Graphics.FONT_SMALL);
+        Draw.lineAlt(dc, top + fhS * 0.5, Graphics.FONT_SMALL, Graphics.COLOR_WHITE, head);
+        series(dc, c.history, isHr, top + fhS + 8, bottom - 2, isHr || c.workout != null ? null : c.target(), null, miles);
+    }
+
+    // Verlaufslinie (Puls bzw. Pace) der ganzen Aufzeichnung im Bereich cTop..cBottom, mit Achsenwerten.
+    // range = Zielbereich als Band, avg = gestrichelte Linie beim Durchschnitt. false, wenn es keine Daten gibt.
+    function series(dc as Graphics.Dc, hist as History, isHr as Boolean, cTop as Float, cBottom as Float, range as Array<Number>?, avg as Float?, miles as Boolean) as Boolean {
         var n = hist.count;
         var vals = new [n < 2 ? 2 : n] as Array<Float>;
         vals[0] = 0.0;
@@ -193,30 +321,16 @@ module PageViews {
             }
         }
 
-        // Kopfzeile: aktueller Wert, Ø (und Maximum)
-        var head = [] as Array<String>;
-        if (isHr) {
-            var cur = info != null && info.currentHeartRate != null ? (info.currentHeartRate as Number).format("%d") : "--";
-            var avg = info != null && info.averageHeartRate != null ? (info.averageHeartRate as Number).format("%d") : "--";
-            var max = info != null && info.maxHeartRate != null ? (info.maxHeartRate as Number).format("%d") : "--";
-            head = [cur + "  Ø " + avg + "  MAX " + max, cur + "  Ø " + avg, cur] as Array<String>;
-        } else {
-            var cur = Pace.format(c.pace, miles);
-            var avg = Pace.format(c.averagePace(), miles);
-            head = [cur + "  Ø " + avg, cur] as Array<String>;
-        }
-        var fhS = dc.getFontHeight(Graphics.FONT_SMALL);
-        Draw.lineAlt(dc, top + fhS * 0.5, Graphics.FONT_SMALL, Graphics.COLOR_WHITE, head);
-
-        var cTop = top + fhS + 8;
-        var cBottom = bottom - 2;
         if (hi <= 0 || n < 2) {
             Draw.lineAlt(dc, (cTop + cBottom) / 2, Graphics.FONT_XTINY, Draw.GRAY, ["Noch keine Daten", "Keine Daten"] as Array<String>);
-            return;
+            return false;
         }
         // Skala mit etwas Luft, mindestens 40 s/km bzw. 30 bpm hoch
         var span = isHr ? 30.0 : 40.0;
-        var range = isHr || c.workout != null ? null : c.target();
+        if (avg != null) {
+            lo = avg < lo ? avg as Float : lo;
+            hi = avg > hi ? avg as Float : hi;
+        }
         if (range != null) {
             lo = range[0] < lo ? range[0].toFloat() : lo;
             hi = range[1] > hi ? range[1].toFloat() : hi;
@@ -246,12 +360,23 @@ module PageViews {
             dc.fillRectangle(x, yHi, w, yLo - yHi);
         }
         Draw.chart(dc, [x, cTop, w, ch] as Array<Numeric>, vals, n, lo, hi, isHr ? Draw.RED : Draw.ORANGE, !isHr);
+        if (avg != null) {
+            // Ø als gestrichelte Linie (Pace: schnell = oben)
+            var t = ((avg as Float) - lo) / (hi - lo);
+            var yAvg = isHr ? cTop + ch * (1.0 - t) : cTop + ch * t;
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+            dc.setPenWidth(1);
+            for (var dx = 0; dx < w - 5; dx += 10) {
+                dc.drawLine(x + dx, yAvg, x + dx + 5, yAvg);
+            }
+        }
 
         // Achsenwerte links neben dem Diagramm (oben = Maximum bzw. schnellste Pace)
         var fh = dc.getFontHeight(Graphics.FONT_XTINY);
         dc.setColor(Draw.DIM, Graphics.COLOR_TRANSPARENT);
         dc.drawText(x0, cTop - fh * 0.1, Graphics.FONT_XTINY, topLabel, Graphics.TEXT_JUSTIFY_LEFT);
         dc.drawText(x0, cBottom - fh * 0.9, Graphics.FONT_XTINY, botLabel, Graphics.TEXT_JUSTIFY_LEFT);
+        return true;
     }
 
     // --- Intervall: aktueller Schritt, Rest, Fortschritt -------------------------------
@@ -273,7 +398,7 @@ module PageViews {
         var fhS = dc.getFontHeight(Graphics.FONT_SMALL);
         var fhX = dc.getFontHeight(Graphics.FONT_XTINY);
         var bh = Draw.barHeight(dc);
-        // Schrittname, Rest (groß), Fortschritt, Pace gegen Ziel, nächster Schritt
+        // Schrittname, Rest (groß), Fortschritt, aktuelle Pace, darunter zentriert das Ziel
         var r = Draw.rows(top, bottom, [fhM, 0, bh * 2, fhS, fhX] as Array<Number>, gapOf(top, bottom));
         Draw.fitLine(dc, r[0], fhM, TITLE, Graphics.COLOR_WHITE, wk.name(step));
 
@@ -301,21 +426,22 @@ module PageViews {
         Draw.valueUnit(dc, r[1], value, unit, BIG, r[5].toNumber(), Graphics.COLOR_WHITE);
         Draw.bar(dc, r[2], wk.fraction(ms, dist), color);
 
-        // aktuelle Pace und Ziel des Schritts
+        // aktuelle Pace, darunter zentriert das Ziel des Schritts
         var range = wk.target();
-        var cur = Pace.format(c.pace, miles);
+        Draw.lineAlt(dc, r[3], Graphics.FONT_SMALL, range == null ? Graphics.COLOR_WHITE : paceColor(c.hint), [Pace.format(c.pace, miles)] as Array<String>);
         if (range == null) {
-            Draw.lineAlt(dc, r[3], Graphics.FONT_SMALL, Draw.GRAY, ["nach Gefühl"] as Array<String>);
+            Draw.lineAlt(dc, r[4], Graphics.FONT_XTINY, Draw.GRAY, ["nach Gefühl"] as Array<String>);
         } else {
             var rg = Pace.formatRange(range, miles);
-            Draw.lineAlt(dc, r[3], Graphics.FONT_SMALL, paceColor(c.hint), [cur + "  Ziel " + rg, cur + "  " + rg, cur] as Array<String>);
+            Draw.lineAlt(dc, r[4], Graphics.FONT_XTINY, Draw.GRAY, ["ZIEL " + rg, rg] as Array<String>);
         }
-        var next = wk.next();
-        var nextText = next == null ? "Ende" : wk.name(next) + " " + lengthText(next, miles);
-        Draw.lineAlt(dc, r[4], Graphics.FONT_XTINY, Draw.GRAY, ["danach: " + nextText, nextText, next == null ? "Ende" : wk.name(next)] as Array<String>);
     }
 
-    // --- Intervall-Reps: Pace jedes Intervalls gegen das Ziel -----------------------------
+    // --- Intervall-Reps: eine Zeile je Belastung -----------------------------------------------
+    // Für jedes Intervall (ohne Ein-/Auslaufen und Pausen): Ø-Pace, Abweichung vom Zielbereich ("OK" oder
+    // Sekunden zu schnell/langsam) und Ø-Puls. Fertige Intervalle sind nach dem Ergebnis gefärbt (grün im
+    // Bereich, orange zu schnell, blau zu langsam), das laufende ist hervorgehoben und zeigt seinen
+    // Fortschritt, die kommenden zeigen ihre Länge und ihr Ziel.
 
     function reps(dc as Graphics.Dc, c as RecordingController, top as Float, bottom as Float, info as Activity.Info?, ms as Number) as Void {
         var wk = c.workout as Workout;
@@ -324,55 +450,148 @@ module PageViews {
         var idx = [] as Array<Number>;
         var doneN = 0;
         for (var i = 0; i < wk.size(); i++) {
-            if (wk.isActive(i)) {
-                idx.add(i);
-                doneN += wk.isDone(i) ? 1 : 0;
+            if (!wk.isActive(i)) {
+                continue;
             }
+            idx.add(i);
+            doneN += wk.isDone(i) ? 1 : 0;
         }
         var n = idx.size();
         var fhX = dc.getFontHeight(Graphics.FONT_XTINY);
-        Draw.lineAlt(dc, top + fhX * 0.5, Graphics.FONT_XTINY, Draw.GRAY, [doneN + " von " + n + " geschafft", doneN + "/" + n] as Array<String>);
+        var labelY = top + fhX * 0.5;
+        var rowTop = top + fhX * 1.25;
+        var avail = (bottom - fhX * 0.4) - rowTop;
 
-        var rowFont = Graphics.FONT_SMALL;
-        var rh = dc.getFontHeight(rowFont) * 1.1;
-        var rowTop = top + fhX * 1.2;
-        var rows = ((bottom - rowTop) / rh).toNumber();
-        rows = rows > n ? n : (rows < 1 ? 1 : rows);
-        // Fenster um das aktuelle Intervall
+        // Größte Schrift, bei der alle Intervalle untereinander UND Nummer, Pace, Abweichung und Puls
+        // nebeneinander passen (gemessen, nicht geschätzt); sonst die kleinste mit einem Fenster um das
+        // aktuelle Intervall.
+        var m = Draw.margin(dc);
+        var gap = m;
+        var showHr = dc.getWidth() >= 240;
+        var sizes = [Graphics.FONT_MEDIUM, Graphics.FONT_SMALL, Graphics.FONT_TINY] as Array<Graphics.FontDefinition>;
+        var rowFont = Graphics.FONT_TINY as Graphics.FontDefinition;
+        var subFont = Graphics.FONT_XTINY as Graphics.FontDefinition;
+        var rows = 1;
+        var rh = 0.0;
+        var blockTop = rowTop;
+        var w = 0;
+        for (var k = 0; k < sizes.size(); k++) {
+            var f = sizes[k];
+            var sub = f == Graphics.FONT_MEDIUM ? Graphics.FONT_SMALL : Graphics.FONT_XTINY;
+            var fh = dc.getFontHeight(f);
+            var last = k == sizes.size() - 1;
+            var fit = (avail / (fh * 1.1)).toNumber();
+            fit = fit > n ? n : (fit < 1 ? 1 : fit);
+            if (!last && fit < n) {
+                continue;
+            }
+            var rhK = avail / fit;
+            rhK = rhK > fh * 1.7 ? fh * 1.7 : rhK;
+            var topK = rowTop + (avail - rhK * fit) / 2.0;
+            // Breite: die engste der beteiligten Zeilen (runde Displays sind oben und unten schmal)
+            var wK = Draw.widthAt(dc, labelY, fhX);
+            var w1 = Draw.widthAt(dc, topK + rhK * 0.5, rhK);
+            var wN = Draw.widthAt(dc, topK + rhK * (fit - 0.5), rhK);
+            wK = w1 < wK ? w1 : wK;
+            wK = wN < wK ? wN : wK;
+            wK -= m * 2;
+            var need = dc.getTextWidthInPixels(n.format("%d"), f) + dc.getTextWidthInPixels("00:00", f)
+                + dc.getTextWidthInPixels("+99 s", sub) + (showHr ? dc.getTextWidthInPixels("000", sub) + gap : 0) + gap * 2;
+            rowFont = f;
+            subFont = sub;
+            rows = fit;
+            rh = rhK;
+            blockTop = topK;
+            w = wK;
+            if (need <= wK) {
+                break;
+            }
+        }
         var first = doneN - rows / 2;
         first = first > n - rows ? n - rows : first;
         first = first < 0 ? 0 : first;
-        var cx = dc.getWidth() / 2;
-        // Spalten für alle Zeilen gleich: Breite der engsten (obersten bzw. untersten) Zeile
-        var wTop = Draw.widthAt(dc, rowTop + rh * 0.5, rh);
-        var wBottom = Draw.widthAt(dc, rowTop + rh * (rows - 0.5), rh);
-        var w = (wTop < wBottom ? wTop : wBottom) - Draw.margin(dc) * 2;
+
+        // Spalten von rechts nach links aus den echten Textbreiten: Puls, Abweichung, dazwischen die Pace
+        var x0 = (dc.getWidth() - w) / 2.0;
+        var nW = dc.getTextWidthInPixels(n.format("%d"), rowFont);
+        var hW = showHr ? dc.getTextWidthInPixels("000", subFont) : 0;
+        var oW = dc.getTextWidthInPixels("+99 s", subFont);
+        var xHr = x0 + w;
+        var offRight = xHr - (showHr ? hW + gap : 0);
+        var xOff = offRight - oW / 2.0;
+        var xPace = (x0 + nW + gap + offRight - oW - gap) / 2.0;
+        var right = Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER;
+
+        dc.setColor(Draw.GRAY, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(xPace, labelY, Graphics.FONT_XTINY, "PACE", Draw.CENTER);
+        dc.drawText(xOff, labelY, Graphics.FONT_XTINY, "ZIEL", Draw.CENTER);
+        if (showHr) {
+            var hs = fhX * 0.32;
+            Draw.heart(dc, xHr - hs, labelY - hs * 0.2, hs, Draw.DIM);
+        }
+
         for (var r = 0; r < rows; r++) {
             var k = first + r;
             var i = idx[k];
-            var y = rowTop + rh * (r + 0.5);
+            var y = blockTop + rh * (r + 0.5);
             var p = wk.stepPace(i, ms, dist);
             var tgt = wk.stepTarget(i);
             var done = wk.isDone(i);
-            var started = done || i == wk.index;
-            var color = !started ? Draw.DIM : Graphics.COLOR_WHITE;
-            var delta = "";
-            if (started && p != null && tgt != null) {
-                var pv = p as Float;
-                var mid = (tgt[0] + tgt[1]) / 2.0;
-                var d = ((miles ? (pv - mid) * Pace.KM_PER_MI : pv - mid)).toNumber();
-                delta = (d > 0 ? "+" : "") + d + " s";
-                if (done) {
-                    color = pv < tgt[0] ? Draw.ORANGE : (pv > tgt[1] ? Draw.BLUE : Draw.GREEN);
+            var current = i == wk.index && !done;
+            if (current) {
+                dc.setColor(Draw.TRACK, Graphics.COLOR_TRANSPARENT);
+                dc.fillRoundedRectangle(x0 - m / 2, y - rh / 2 + 1, w + m, rh - 2, rh / 4);
+                var fw = (w * wk.fraction(ms, dist)).toNumber();
+                if (fw > 0) {
+                    dc.setColor(Draw.ORANGE, Graphics.COLOR_TRANSPARENT);
+                    dc.fillRectangle(x0, y + rh / 2 - 5, fw, 2);
                 }
             }
+            var started = done || current;
+            var color = started ? Graphics.COLOR_WHITE : Draw.DIM;
+            var off = "";
+            var offColor = Draw.GRAY;
+            if (started && p != null && tgt != null) {
+                var d = Pace.offRange(p as Float, tgt);
+                var s = Math.round(miles ? d * Pace.KM_PER_MI : d).toNumber();
+                off = s == 0 ? "OK" : (s > 0 ? "+" : "") + s + " s";
+                offColor = s < 0 ? Draw.ORANGE : (s > 0 ? Draw.BLUE : Draw.GREEN);
+                color = done ? offColor : color;
+            }
             dc.setColor(Draw.GRAY, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(cx - w / 2, y, rowFont, (k + 1).format("%d"), Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
-            dc.setColor(color, Graphics.COLOR_TRANSPARENT);
-            // noch nicht gelaufene Intervalle zeigen ihre Zielpace
-            var shown = started ? Pace.format(p, miles) : (tgt != null ? Pace.formatRange(tgt, miles) : "--:--");
-            dc.drawText(cx, y, started ? rowFont : Graphics.FONT_XTINY, shown, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-            dc.drawText(cx + w / 2, y, Graphics.FONT_XTINY, delta, Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.drawText(x0, y, rowFont, (k + 1).format("%d"), Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+            if (started) {
+                dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+                dc.drawText(xPace, y, rowFont, Pace.format(p, miles), Draw.CENTER);
+            }
+            if (off.length() > 0) {
+                dc.setColor(offColor, Graphics.COLOR_TRANSPARENT);
+                dc.drawText(xOff, y, subFont, off, Draw.CENTER);
+            } else if (!started) {
+                // Noch nicht gelaufene Intervalle: das Ziel in der Zielspalte, und links davon die Länge des
+                // Intervalls (nur wenn sie noch Platz hat); das laufende zeigt seinen Rest auf der Intervall-Seite.
+                var range = tgt != null ? Pace.formatRange(tgt, miles) : "";
+                var tw = range.length() > 0 ? dc.getTextWidthInPixels(range, Graphics.FONT_XTINY) : 0;
+                var rx = xOff + tw / 2.0 > x0 + w ? x0 + w - tw / 2.0 : xOff;
+                dc.setColor(Draw.DIM, Graphics.COLOR_TRANSPARENT);
+                if (tw > 0) {
+                    dc.drawText(rx, y, Graphics.FONT_XTINY, range, Draw.CENTER);
+                }
+                var lens = lengthTexts(wk.step(i), miles);
+                var spaceL = x0 + nW + gap;
+                var spaceR = (tw > 0 ? rx - tw / 2.0 : x0 + w) - gap;
+                for (var q = 0; q < lens.size(); q++) {
+                    if (dc.getTextWidthInPixels(lens[q], Graphics.FONT_XTINY) <= spaceR - spaceL) {
+                        dc.drawText((spaceL + spaceR) / 2.0, y, Graphics.FONT_XTINY, lens[q], Draw.CENTER);
+                        break;
+                    }
+                }
+            }
+            var hr = started ? wk.stepHeartRate(i) : 0;
+            if (showHr && hr > 0) {
+                dc.setColor(Draw.GRAY, Graphics.COLOR_TRANSPARENT);
+                dc.drawText(xHr, y, subFont, hr.format("%d"), right);
+            }
         }
     }
 

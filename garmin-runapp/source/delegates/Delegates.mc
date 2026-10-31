@@ -1,5 +1,6 @@
 // Tasten und Touch.
-//   Start:  AUF/AB (Wischen) wählt den Lauftyp, START (Tippen) startet, BACK beendet die App.
+//   Home:   START, Tippen oder Menütaste öffnen das Menü, BACK beendet die App.
+//   Bereit: AUF/AB (Wischen) wählt den Lauftyp, START (Tippen) startet, BACK geht zurück ins Menü.
 //   Lauf:   START pausiert (+ Menü) bzw. setzt fort, BACK = Runde (beendet nie),
 //           AUF/AB, Wischen oder Tippen blättern die Seiten.
 //   Pause:  Menü Fortsetzen / Speichern / Verwerfen (mit Rückfrage).
@@ -8,6 +9,24 @@ import Toybox.Activity;
 import Toybox.Lang;
 import Toybox.System;
 import Toybox.WatchUi;
+
+class HomeDelegate extends WatchUi.BehaviorDelegate {
+    function initialize() {
+        BehaviorDelegate.initialize();
+    }
+
+    // START und Tippen
+    function onSelect() as Boolean {
+        MainMenu.show();
+        return true;
+    }
+
+    // Menütaste (lang AUF)
+    function onMenu() as Boolean {
+        MainMenu.show();
+        return true;
+    }
+}
 
 class StartDelegate extends WatchUi.BehaviorDelegate {
     private var _view as StartView;
@@ -27,14 +46,15 @@ class StartDelegate extends WatchUi.BehaviorDelegate {
         return true;
     }
 
+    function onBack() as Boolean {
+        WatchUi.popView(WatchUi.SLIDE_RIGHT);
+        return true;
+    }
+
     function onSelect() as Boolean {
         var app = getApp();
         var c = app.controller as RecordingController;
         var opt = _view.choice();
-        if (opt == -2) {
-            PagesMenu.show();
-            return true;
-        }
         c.start(opt < 0 ? (_view.workout as Workout).zone : opt, opt < 0 ? _view.workout : null);
         if (app.sync != null) {
             (app.sync as Sync).stop();
@@ -136,10 +156,15 @@ class PauseMenuDelegate extends WatchUi.Menu2InputDelegate {
         } else if (id == :save) {
             // Werte vor dem Speichern festhalten – danach ist die Sitzung beendet.
             var info = Activity.getActivityInfo();
-            var hr = info != null ? info.averageHeartRate : null;
-            var summary = new SummaryView(c.timerMs(info), c.distance(info), hr, c.zones.miles);
+            // Trainingseffekt (aerob) der Uhr, falls das Gerät ihn liefert
+            var effect = null as Float?;
+            if (info != null && (info has :trainingEffect)) {
+                effect = (info as Activity.Info).trainingEffect;
+            }
+            effect = effect == null ? Demo.fakeEffect() : effect;
+            var summary = new SummaryView(c, c.timerMs(info), c.distance(info), info != null ? info.averageHeartRate : null, info != null ? info.maxHeartRate : null, effect);
             c.save();
-            WatchUi.pushView(summary, new SummaryDelegate(), WatchUi.SLIDE_UP);
+            WatchUi.pushView(summary, new SummaryDelegate(summary), WatchUi.SLIDE_UP);
         } else if (id == :discard) {
             var dialog = new WatchUi.Confirmation(WatchUi.loadResource(Rez.Strings.DiscardConfirm) as String);
             WatchUi.pushView(dialog, new DiscardDelegate(), WatchUi.SLIDE_IMMEDIATE);
@@ -167,8 +192,32 @@ class DiscardDelegate extends WatchUi.ConfirmationDelegate {
 }
 
 class SummaryDelegate extends WatchUi.BehaviorDelegate {
-    function initialize() {
+    private var _view as SummaryView;
+
+    function initialize(view as SummaryView) {
         BehaviorDelegate.initialize();
+        _view = view;
+    }
+
+    function onNextPage() as Boolean {
+        _view.flip(1);
+        return true;
+    }
+
+    function onPreviousPage() as Boolean {
+        _view.flip(-1);
+        return true;
+    }
+
+    // Wischen blättert (nach rechts wischen soll nicht beenden), Tippen auch.
+    function onSwipe(evt as WatchUi.SwipeEvent) as Boolean {
+        _view.flip(Swipe.step(evt.getDirection()));
+        return true;
+    }
+
+    function onTap(evt as WatchUi.ClickEvent) as Boolean {
+        _view.flip(1);
+        return true;
     }
 
     function onBack() as Boolean {

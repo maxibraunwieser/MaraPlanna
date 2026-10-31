@@ -9,7 +9,7 @@ module Pages {
     const OVERVIEW = 0;
     const PACE = 1;
     const HEART = 2;
-    const LAPS = 3;
+    const PACES = 3;
     const PACE_GRAPH = 4;
     const HR_GRAPH = 5;
     const INTERVAL = 6;
@@ -18,13 +18,13 @@ module Pages {
     const FORECAST = 9;
     const COUNT = 10;
 
-    const NAMES = ["Übersicht", "Pace", "Puls", "Runden", "Pace-Verlauf", "Puls-Verlauf", "Intervall", "Intervall-Reps", "Karte", "Prognose"] as Array<String>;
+    const NAMES = ["Übersicht", "Pace", "Puls", "Pace-Vergleich", "Pace-Verlauf", "Puls-Verlauf", "Intervall", "Intervall-Reps", "Karte", "Prognose"] as Array<String>;
     // Kurzformen für schmale Displays
-    const SHORT = ["Übersicht", "Pace", "Puls", "Runden", "Pace-Graph", "Puls-Graph", "Intervall", "Reps", "Karte", "Prognose"] as Array<String>;
+    const SHORT = ["Übersicht", "Pace", "Puls", "Paces", "Pace-Graph", "Puls-Graph", "Intervall", "Reps", "Karte", "Prognose"] as Array<String>;
     // Was die Seite zeigt (Untertitel im Auswahlmenü)
-    const INFO = ["Zeit, Distanz, Pace, Puls", "Pace mit Zielbereich", "Puls mit Zone", "Ø-, Runden-Pace, Rundenzeit", "Pace über den ganzen Lauf", "Puls über den ganzen Lauf", "Schritt, Rest, Fortschritt", "Pace je Intervall", "Strecke und Weg zum Start", "Zielzeit-Prognose"] as Array<String>;
-    // Alle Seiten außer "Runden"
-    const DEFAULT_MASK = 0x3F7;
+    const INFO = ["Zeit, Distanz, Pace, Puls", "Pace mit Zielbereich", "Puls mit Zone", "Jetzt, letzter km bzw. Intervall, Ø", "Pace über den ganzen Lauf", "Puls über den ganzen Lauf", "Schritt, Rest, Fortschritt", "Pace je Intervall", "Strecke und Weg zum Start", "Zielzeit-Prognose"] as Array<String>;
+    // Alle Seiten
+    const DEFAULT_MASK = 0x3FF;
 
     function mask() as Number {
         var m = Application.Storage.getValue("pages");

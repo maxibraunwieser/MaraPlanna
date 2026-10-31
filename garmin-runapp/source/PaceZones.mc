@@ -5,6 +5,7 @@
 
 import Toybox.Application;
 import Toybox.Lang;
+import Toybox.System;
 
 class PaceZones {
     var source as String = "";
@@ -24,12 +25,16 @@ class PaceZones {
         vdot = null;
         goalS = null;
         source = "";
+        // Ohne MaraPlanna gelten die Einheiten der Uhr; mit MaraPlanna die dort gewählten.
+        miles = System.getDeviceSettings().distanceUnits == System.UNIT_STATUTE;
         var feed = Application.Storage.getValue("run");
         if (feed instanceof Dictionary && feed.get("paces") instanceof Dictionary) {
             loadFeed(feed as Dictionary);
         } else {
             loadSettings();
         }
+        // Die Einstellung "Einheiten" der App hat Vorrang vor beidem.
+        miles = Prefs.miles(miles);
     }
 
     // Aus den MaraPlanna-Daten (auch von den Tests genutzt).

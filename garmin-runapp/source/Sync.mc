@@ -12,6 +12,8 @@ import Toybox.WatchUi;
 
 class Sync {
     private const BASE = "https://rynujdcggyafilncmcbr.supabase.co/functions/v1/watch";
+    // Nach dieser Zeit gelten die geladenen Daten als veraltet (Startbildschirm lädt dann neu).
+    private const STALE_S = 900;
     private var _timer as Timer.Timer?;
     private var _busy as Boolean = false;
     private var _onChange as Method() as Void;
@@ -27,6 +29,18 @@ class Sync {
 
     function paired() as Boolean {
         return Application.Storage.getValue("secret") != null && code() == null;
+    }
+
+    function busy() as Boolean {
+        return _busy;
+    }
+
+    // Daten nachladen, wenn der letzte Abgleich länger als STALE_S her ist (oder noch nie war).
+    function refreshIfStale() as Void {
+        var age = WeekPlan.syncedMinutes();
+        if (age == null || age * 60 >= STALE_S) {
+            refresh();
+        }
     }
 
     // Einmal laden; solange nicht gekoppelt, alle 20 s nachsehen, ob der Code eingegeben wurde.
@@ -104,10 +118,12 @@ class Sync {
             Application.Storage.deleteValue("secret");
             Application.Storage.deleteValue("code");
             Application.Storage.deleteValue("run");
+            Application.Storage.deleteValue("synced");
         } else if (data.hasKey("code")) {
             Application.Storage.setValue("code", data.get("code") as String);
         } else if (data.hasKey("paces")) {
             Application.Storage.setValue("run", data as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>);
+            Application.Storage.setValue("synced", Time.now().value());
             Application.Storage.deleteValue("code");
         }
         _onChange.invoke();

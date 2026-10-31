@@ -21,6 +21,33 @@
     <string id="Discard">Verwerfen</string>
     <string id="DiscardConfirm">Aktivität verwerfen?</string>
 
+    <!-- Startbildschirm und Menüs -->
+    <string id="MenuTrain">Training</string>
+    <string id="MenuWeek">Diese Woche</string>
+    <string id="MenuPlan">Trainingsplan</string>
+    <string id="MenuSettings">Einstellungen</string>
+    <string id="TrainFree">Lauftypen, Freier Lauf</string>
+    <string id="TrainToday">Heute</string>
+    <string id="TrainDone">Erledigt</string>
+    <string id="NoData">Keine Daten</string>
+    <string id="Linked">Gekoppelt</string>
+    <string id="NotLinked">Nicht gekoppelt</string>
+    <string id="RaceToday">Heute ist Renntag</string>
+    <string id="RaceLeft"> bis zum Rennen</string>
+    <string id="On">An</string>
+    <string id="Off">Aus</string>
+    <string id="PagesInfo">Welche Seiten im Lauf</string>
+    <string id="SetUnits">Einheiten</string>
+    <string id="UnitsAuto">Automatisch</string>
+    <string id="UnitsKm">Kilometer</string>
+    <string id="UnitsMi">Meilen</string>
+    <string id="SetKm">km-Rückblick</string>
+    <string id="SetPaceAlert">Pace-Alarm</string>
+    <string id="SetSound">Töne &amp; Vibration</string>
+    <string id="SetWeather">Wetter anzeigen</string>
+    <string id="SetUnlink">MaraPlanna trennen</string>
+    <string id="UnlinkConfirm">Von MaraPlanna trennen?</string>
+
     <!-- Einstellungen (Garmin Connect App) -->
     <string id="SetVdot">VDOT</string>
     <string id="SetEasy">Easy-Pace (m:ss-m:ss)</string>

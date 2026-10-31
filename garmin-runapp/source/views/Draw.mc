@@ -11,6 +11,7 @@ module Draw {
     const GREEN = 0x22C55E;
     const RED = 0xEF4444;
     const BLUE = 0x60A5FA;
+    const LIME = 0xA3E635;
     const GRAY = 0xAAAAAA;
     // Hell genug, dass es auch auf 8-Farben-Displays (z. B. FR 55) nicht schwarz wird.
     const DIM = 0x888888;
@@ -163,6 +164,20 @@ module Draw {
     }
 
     // Play-Dreieck, optisch mittig.
+    // Kleines Herz mit Puls, als Ganzes um y zentriert; ohne Messwert nur ein graues Herz.
+    function pulse(dc as Graphics.Dc, y as Numeric, hr as Number?) as Void {
+        var s = dc.getHeight() * 0.022;
+        var text = hr == null ? "" : hr.format("%d");
+        var tw = text.length() > 0 ? dc.getTextWidthInPixels(text, Graphics.FONT_XTINY) : 0;
+        var gap = s * 0.9;
+        var x0 = (dc.getWidth() - (s * 2 + (tw > 0 ? gap + tw : 0))) / 2.0;
+        heart(dc, x0 + s, y, s, hr == null ? DIM : RED);
+        if (tw > 0) {
+            dc.setColor(GRAY, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(x0 + s * 2 + gap, y, Graphics.FONT_XTINY, text, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        }
+    }
+
     function play(dc as Graphics.Dc, cx as Numeric, cy as Numeric, s as Numeric, color as Number) as Void {
         dc.setColor(color, Graphics.COLOR_TRANSPARENT);
         dc.fillPolygon([[cx - s * 0.5, cy - s * 0.75], [cx - s * 0.5, cy + s * 0.75], [cx + s * 0.8, cy]] as Array<[Numeric, Numeric]>);
@@ -409,5 +424,135 @@ module Draw {
         }
         dc.setColor(color, Graphics.COLOR_TRANSPARENT);
         dc.fillPolygon(pts);
+    }
+
+    // Kantenglättung, wo das Gerät sie kann (Kreise und schräge Linien sehen sonst treppig aus).
+    function smooth(dc as Graphics.Dc) as Void {
+        if (dc has :setAntiAlias) {
+            dc.setAntiAlias(true);
+        }
+    }
+
+    function penWidth(s as Numeric, factor as Float) as Number {
+        var p = (s * factor).toNumber();
+        return p < 2 ? 2 : p;
+    }
+
+    // Linienzug mit runden Ecken und Enden; punkte als [x0, y0, x1, y1, ...] in einer Box der Kantenlänge 64.
+    function stroke(dc as Graphics.Dc, cx as Numeric, cy as Numeric, u as Numeric, pts as Array<Numeric>, pen as Number) as Void {
+        dc.setPenWidth(pen);
+        for (var i = 0; i + 3 < pts.size(); i += 2) {
+            dc.drawLine(cx + (pts[i] - 32) * u, cy + (pts[i + 1] - 32) * u, cx + (pts[i + 2] - 32) * u, cy + (pts[i + 3] - 32) * u);
+        }
+        for (var i = 0; i + 1 < pts.size(); i += 2) {
+            dc.fillCircle(cx + (pts[i] - 32) * u, cy + (pts[i + 1] - 32) * u, pen / 2.0);
+        }
+        dc.setPenWidth(1);
+    }
+
+    // MaraPlanna-Zeichen wie auf der Website: orangefarbener Berglauf mit grünem Punkt auf dem Gipfel.
+    // s = Kantenlänge der (gedachten) Fläche, in der das Zeichen sitzt.
+    function logo(dc as Graphics.Dc, cx as Numeric, cy as Numeric, s as Numeric) as Void {
+        smooth(dc);
+        var u = s / 64.0;
+        dc.setColor(ORANGE, Graphics.COLOR_TRANSPARENT);
+        stroke(dc, cx, cy, u, [12, 44, 24, 22, 32, 36, 40, 18, 52, 44] as Array<Numeric>, penWidth(u, 7.0));
+        dc.setColor(LIME, Graphics.COLOR_TRANSPARENT);
+        dc.fillCircle(cx + 8 * u, cy - 14 * u, u * 5.5);
+    }
+
+    // Wettersymbol (Wetterarten wie Vitals.CLEAR … Vitals.WIND) mit Radius r um cx, cy.
+    function weather(dc as Graphics.Dc, cx as Numeric, cy as Numeric, r as Numeric, kind as Number) as Void {
+        smooth(dc);
+        if (kind == Vitals.CLEAR) {
+            sun(dc, cx, cy, r);
+        } else if (kind == Vitals.PARTLY) {
+            sun(dc, cx + r * 0.3, cy - r * 0.3, r * 0.72);
+            cloud(dc, cx - r * 0.05, cy + r * 0.22, r * 0.85, 0xD4D4D8);
+        } else if (kind == Vitals.FOG) {
+            dc.setColor(DIM, Graphics.COLOR_TRANSPARENT);
+            for (var i = -1; i <= 1; i++) {
+                dc.fillRoundedRectangle(cx - r * (i == 0 ? 0.6 : 0.9), cy + i * r * 0.5 - r * 0.1, r * (i == 0 ? 1.2 : 1.8), r * 0.2, r * 0.1);
+            }
+        } else if (kind == Vitals.WIND) {
+            dc.setColor(0xD4D4D8, Graphics.COLOR_TRANSPARENT);
+            for (var i = -1; i <= 1; i++) {
+                var len = i == 0 ? 1.0 : 0.7;
+                dc.fillRoundedRectangle(cx - r * 0.9, cy + i * r * 0.5 - r * 0.09, r * 1.8 * len, r * 0.18, r * 0.09);
+            }
+        } else {
+            cloud(dc, cx, cy - (kind == Vitals.CLOUDY ? 0.0 : r * 0.22), r * (kind == Vitals.CLOUDY ? 1.0 : 0.9), kind == Vitals.STORM ? 0x9CA3AF : 0xD4D4D8);
+            if (kind == Vitals.RAIN) {
+                dc.setColor(BLUE, Graphics.COLOR_TRANSPARENT);
+                dc.setPenWidth(penWidth(r, 0.14));
+                for (var i = -1; i <= 1; i++) {
+                    dc.drawLine(cx + i * r * 0.5 + r * 0.12, cy + r * 0.35, cx + i * r * 0.5 - r * 0.1, cy + r * 0.8);
+                }
+                dc.setPenWidth(1);
+            } else if (kind == Vitals.SNOW) {
+                dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+                for (var i = -1; i <= 1; i++) {
+                    dc.fillCircle(cx + i * r * 0.5, cy + r * 0.6 + (i == 0 ? r * 0.12 : 0), r * 0.13);
+                }
+            } else if (kind == Vitals.STORM) {
+                dc.setColor(0xFACC15, Graphics.COLOR_TRANSPARENT);
+                dc.fillPolygon([[cx + r * 0.15, cy + r * 0.2], [cx - r * 0.25, cy + r * 0.62], [cx, cy + r * 0.62], [cx - r * 0.12, cy + r * 1.0], [cx + r * 0.32, cy + r * 0.5], [cx + r * 0.08, cy + r * 0.5]] as Array<[Numeric, Numeric]>);
+            }
+        }
+    }
+
+    function sun(dc as Graphics.Dc, cx as Numeric, cy as Numeric, r as Numeric) as Void {
+        dc.setColor(0xFACC15, Graphics.COLOR_TRANSPARENT);
+        dc.fillCircle(cx, cy, r * 0.48);
+        dc.setPenWidth(penWidth(r, 0.13));
+        for (var k = 0; k < 8; k++) {
+            var a = k * Math.PI / 4.0;
+            dc.drawLine(cx + Math.cos(a) * r * 0.72, cy + Math.sin(a) * r * 0.72, cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+        }
+        dc.setPenWidth(1);
+    }
+
+    function cloud(dc as Graphics.Dc, cx as Numeric, cy as Numeric, r as Numeric, color as Number) as Void {
+        dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+        dc.fillCircle(cx - r * 0.5, cy + r * 0.12, r * 0.36);
+        dc.fillCircle(cx - r * 0.02, cy - r * 0.18, r * 0.5);
+        dc.fillCircle(cx + r * 0.52, cy + r * 0.14, r * 0.34);
+        dc.fillRoundedRectangle(cx - r * 0.86, cy + r * 0.1, r * 1.72, r * 0.4, r * 0.2);
+    }
+
+    // Läufer (Strichfigur) in einer Box der Höhe 2*s um cx, cy.
+    function runner(dc as Graphics.Dc, cx as Numeric, cy as Numeric, s as Numeric, color as Number) as Void {
+        smooth(dc);
+        var u = s / 32.0;
+        dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+        dc.fillCircle(cx + 1.5 * u, cy - 21.5 * u, u * 5.0);
+        var pen = penWidth(u, 4.5);
+        // Rumpf, vorderer und hinterer Arm, vorderes und hinteres Bein
+        stroke(dc, cx, cy, u, [28, 18, 20, 36, 14, 46] as Array<Numeric>, pen);
+        stroke(dc, cx, cy, u, [22, 26, 34, 32, 42, 28] as Array<Numeric>, pen);
+        stroke(dc, cx, cy, u, [22, 26, 12, 30, 6, 40] as Array<Numeric>, pen);
+        stroke(dc, cx, cy, u, [14, 46, 24, 52, 22, 62] as Array<Numeric>, pen);
+        stroke(dc, cx, cy, u, [14, 46, 6, 54, 0, 52] as Array<Numeric>, pen);
+    }
+
+    // Rundes Messgerät (VO2max): Ring mit Zeiger.
+    function gauge2(dc as Graphics.Dc, cx as Numeric, cy as Numeric, r as Numeric, color as Number) as Void {
+        smooth(dc);
+        dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+        dc.setPenWidth(penWidth(r, 0.22));
+        dc.drawCircle(cx, cy, r * 0.9);
+        dc.drawLine(cx, cy, cx + r * 0.5, cy - r * 0.45);
+        dc.setPenWidth(1);
+        dc.fillCircle(cx, cy, r * 0.2);
+    }
+
+    // Häkchen mit Mitte cx, cy.
+    function check(dc as Graphics.Dc, cx as Numeric, cy as Numeric, r as Numeric, color as Number) as Void {
+        smooth(dc);
+        dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+        dc.setPenWidth(penWidth(r, 0.3));
+        dc.drawLine(cx - r * 0.5, cy, cx - r * 0.1, cy + r * 0.4);
+        dc.drawLine(cx - r * 0.1, cy + r * 0.4, cx + r * 0.55, cy - r * 0.4);
+        dc.setPenWidth(1);
     }
 }

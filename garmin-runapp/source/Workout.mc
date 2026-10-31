@@ -19,6 +19,9 @@ class Workout {
     // Dauer und Strecke der abgeschlossenen Schritte (für die Intervall-Seiten)
     private var _doneMs as Array<Number>;
     private var _doneM as Array<Float>;
+    // Summe und Anzahl der Pulswerte je Schritt (Ø-Puls pro Intervall)
+    private var _hrSum as Array<Number>;
+    private var _hrCount as Array<Number>;
 
     function initialize(title as String, zone as Number, steps as Array<Dictionary>) {
         self.title = title;
@@ -26,9 +29,13 @@ class Workout {
         _steps = steps;
         _doneMs = new [steps.size()] as Array<Number>;
         _doneM = new [steps.size()] as Array<Float>;
+        _hrSum = new [steps.size()] as Array<Number>;
+        _hrCount = new [steps.size()] as Array<Number>;
         for (var i = 0; i < steps.size(); i++) {
             _doneMs[i] = 0;
             _doneM[i] = 0.0;
+            _hrSum[i] = 0;
+            _hrCount[i] = 0;
         }
     }
 
@@ -174,6 +181,30 @@ class Workout {
             return Pace.fromDelta(timerMs - _startMs, dist - _startDist);
         }
         return null;
+    }
+
+    // Einmal pro Sekunde: Puls (null/0 = kein Wert) zum laufenden Schritt zählen.
+    function addHeartRate(hr as Number?) as Void {
+        if (finished || hr == null || hr <= 0) {
+            return;
+        }
+        _hrSum[index] += hr;
+        _hrCount[index] += 1;
+    }
+
+    // Ø-Puls des Schritts i (0 = kein Wert)
+    function stepHeartRate(i as Number) as Number {
+        return _hrCount[i] > 0 ? _hrSum[i] / _hrCount[i] : 0;
+    }
+
+    // Das zuletzt abgeschlossene Intervall (aktiver Schritt); -1, wenn noch keins fertig ist.
+    function lastActiveDone() as Number {
+        for (var i = _steps.size() - 1; i >= 0; i--) {
+            if (isActive(i) && isDone(i)) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     function isDone(i as Number) as Boolean {

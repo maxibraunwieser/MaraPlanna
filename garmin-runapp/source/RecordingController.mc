@@ -35,9 +35,16 @@ class RecordingController {
     // Verlauf (Diagramme) und gelaufene Strecke (Karte)
     var history as History = new History();
     var track as Track = new Track();
+    // Zwischenzeiten je km (bzw. Meile) mit Ø-Puls
+    var splits as Splits = new Splits();
+    // Zeit in den fünf Pulszonen (Zonen einmal beim Start aus dem Garmin-Profil gelesen)
+    var zoneTime as ZoneTime = new ZoneTime();
+    // Eigene Schätzung der anaeroben Belastung (aus Schwellen-, Intervall- und Wiederholungspace)
+    var anaerobic as AnaerobicLoad = new AnaerobicLoad(null, null, null);
     // Laufrichtung in Radiant (0 = Norden), von App.onPosition
     var heading as Float? = null;
 
+    private var _hrZones as Array<Number> = HeartZones.read();
     private var _session as ActivityRecording.Session?;
     private var _fit as FitFields?;
     private var _timer as Timer.Timer?;
@@ -65,6 +72,12 @@ class RecordingController {
         return zones.range(zone);
     }
 
+    // Mittlere Pace des Lauftyps (z. B. 5 = Schwelle) in s/km; null, wenn unbekannt.
+    private function zonePace(zone as Number) as Float? {
+        var r = zones.range(zone);
+        return r == null ? null : (r[0] + r[1]) / 2.0;
+    }
+
     function currentZone() as Number {
         return workout != null ? (workout as Workout).stepZone() : zone;
     }
@@ -85,6 +98,7 @@ class RecordingController {
             :sport => Activity.SPORT_RUNNING,
             :subSport => Activity.SUB_SPORT_GENERIC
         });
+        anaerobic = new AnaerobicLoad(zonePace(5), zonePace(6), zonePace(7));
         _fit = new FitFields(session, zones.vdot);
         session.start();
         _session = session;
@@ -131,12 +145,19 @@ class RecordingController {
         WatchUi.requestUpdate();
     }
 
+    // Kilometer-Zusammenfassung gerade sichtbar? (in den Einstellungen abschaltbar)
+    function summaryShowing(ms as Number) as Boolean {
+        return Prefs.kmSummary() && splits.showing(ms);
+    }
+
     function save() as Void {
         if (_session != null && recording()) {
             var session = _session as ActivityRecording.Session;
             if (session.isRecording()) {
                 session.stop();
             }
+            // Der Lauf zählt sofort zu den Wochenkilometern, auch bevor MaraPlanna ihn über Garmin Connect kennt.
+            WeekPlan.logRun(distance(Activity.getActivityInfo()), WeekPlan.today());
             session.save();
             finish();
             Alert.saved();
@@ -189,7 +210,18 @@ class RecordingController {
             track.add(deg[0].toFloat(), deg[1].toFloat());
         }
 
-        // Workout: Schritt erledigt → nächster Schritt mit Runde und Hinweis.
+        zoneTime.add(info != null ? info.currentHeartRate : null, _hrZones);
+        anaerobic.add(pace);
+
+        // Jeder volle Kilometer (bzw. jede Meile): Zusammenfassung zeigen, kurzer Hinweiston.
+        if (splits.update(ms, dist, info != null ? info.currentHeartRate : null, zones.miles ? Pace.M_PER_MI : 1000.0)) {
+            Alert.lap();
+        }
+
+        // Workout: Puls dem laufenden Schritt zuordnen; Schritt erledigt → nächster Schritt mit Runde und Hinweis.
+        if (workout != null) {
+            (workout as Workout).addHeartRate(info != null ? info.currentHeartRate : null);
+        }
         if (workout != null && (workout as Workout).update(ms, dist)) {
             stepChangedAt = ms;
             newLap(ms, dist);
@@ -200,7 +232,7 @@ class RecordingController {
         var range = target();
         hint = Pace.compare(pace, range);
         var settled = workout != null ? (workout as Workout).stepSeconds(ms) >= SETTLE_S : (ms - _zoneStartMs) / 1000 >= SETTLE_S;
-        if (hint != 0 && settled && ms - _lastAlarm >= ALARM_GAP_MS) {
+        if (hint != 0 && settled && ms - _lastAlarm >= ALARM_GAP_MS && Prefs.paceAlert()) {
             _lastAlarm = ms;
             Alert.pace(hint < 0);
         }

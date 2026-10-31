@@ -10,6 +10,7 @@ module Pace {
     // Einzelne Zielpaces bekommen ± so viele Sekunden pro km.
     const TOLERANCE = 5;
     const KM_PER_MI = 1.609344;
+    const M_PER_MI = 1609.344;
 
     // "5:26" → 326 s/km, Fehleingaben → null.
     function seconds(text as String) as Number? {
@@ -72,6 +73,11 @@ module Pace {
         }
         var pace = (ms / 1000.0) / (metres / 1000.0);
         return pace > 1800 ? null : pace;
+    }
+
+    // Abstand der Pace zum Zielbereich in s/km: 0 im Bereich, negativ = schneller, positiv = langsamer.
+    function offRange(pace as Float, range as Array<Number>) as Float {
+        return pace < range[0] ? pace - range[0] : (pace > range[1] ? pace - range[1] : 0.0);
     }
 
     // -1 = zu schnell (langsamer laufen), 1 = zu langsam (schneller laufen), 0 = im Bereich / kein Ziel.

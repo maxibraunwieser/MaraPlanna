@@ -10,6 +10,8 @@ class RunApp extends Application.AppBase {
     var zones as PaceZones?;
     var controller as RecordingController?;
     var sync as Sync?;
+    var homeView as HomeView?;
+    // Der Bereit-Bildschirm, solange er offen ist (bekommt neue Daten mit)
     var startView as StartView?;
     var gps as Number = Position.QUALITY_NOT_AVAILABLE;
 
@@ -40,15 +42,15 @@ class RunApp extends Application.AppBase {
         var z = new PaceZones();
         zones = z;
         controller = new RecordingController(z);
-        var view = new StartView();
-        startView = view;
-        var s = new Sync(view.method(:onSync));
+        var view = new HomeView();
+        homeView = view;
+        var s = new Sync(method(:onFeedChanged));
         sync = s;
         if (!Demo.active()) {
             s.start();
         }
         Demo.autopilot();
-        return [view, new StartDelegate(view)];
+        return [view, new HomeDelegate()];
     }
 
     function onPosition(info as Position.Info) as Void {
@@ -59,14 +61,19 @@ class RunApp extends Application.AppBase {
         WatchUi.requestUpdate();
     }
 
-    // Paces in der Garmin Connect App geändert.
-    function onSettingsChanged() as Void {
+    // Neue Daten von MaraPlanna (oder neuer Kopplungscode): Paces neu laden, Anzeigen auffrischen.
+    function onFeedChanged() as Void {
         if (startView != null) {
             (startView as StartView).onSync();
         } else if (zones != null) {
             (zones as PaceZones).load();
         }
         WatchUi.requestUpdate();
+    }
+
+    // Paces in der Garmin Connect App geändert.
+    function onSettingsChanged() as Void {
+        onFeedChanged();
     }
 
     function gpsReady() as Boolean {

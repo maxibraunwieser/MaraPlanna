@@ -5,6 +5,7 @@ import Toybox.Activity;
 import Toybox.Application;
 import Toybox.Lang;
 import Toybox.System;
+import Toybox.Time;
 import Toybox.Timer;
 import Toybox.WatchUi;
 
@@ -13,9 +14,9 @@ module Demo {
     // (Start, Seiten, Runde, Pause-Menü, Verwerfen-Rückfrage, Speichern) und schreibt
     // jeden Schritt in die Konsole, damit Screenshots dazu passen.
     (:demo)
-    // Start, alle neun Seiten durchblättern, Runde, Pause + Menü, Seiten-Menü ("Runden" einschalten),
-    // zurück, Verwerfen-Rückfrage mit "Nein", Speichern.
-    const STEPS = ["select", "next", "next", "next", "next", "next", "next", "next", "next", "back", "select", "pages", "toggle", "back", "discard", "keep", "save"] as Array<String>;
+    // Home -> Bereit-Bildschirm -> Start, alle neun Seiten durchblättern, Runde, Pause + Menü,
+    // Seiten-Menü ("Pace-Vergleich" einschalten), zurück, Verwerfen-Rückfrage mit "Nein", Speichern.
+    const STEPS = ["select", "select", "next", "next", "next", "next", "next", "next", "next", "next", "back", "select", "pages", "toggle", "back", "discard", "keep", "save"] as Array<String>;
     (:demo)
     var stepIndex as Number = 0;
     (:demo)
@@ -55,7 +56,9 @@ module Demo {
         if (info != null) {
             System.println("  dist=" + info.elapsedDistance + " timer=" + info.timerTime + " speed=" + info.currentSpeed + " hr=" + info.currentHeartRate + " view=" + WatchUi.getCurrentView()[0]);
         }
-        if (d instanceof PauseMenuDelegate) {
+        if (d instanceof HomeDelegate) {
+            openStart();
+        } else if (d instanceof PauseMenuDelegate) {
             var ids = { "discard" => :discard, "save" => :save, "select" => :resume, "pages" => :pages };
             if (action.equals("back")) {
                 d.onBack();
@@ -65,7 +68,7 @@ module Demo {
         } else if (d instanceof PagesMenuDelegate) {
             if (action.equals("toggle")) {
                 // wie das Menü: Schalter ist schon umgelegt, dann onSelect (hier: "Runden" an)
-                d.onSelect(new WatchUi.ToggleMenuItem("Runden", null, Pages.LAPS, true, null));
+                d.onSelect(new WatchUi.ToggleMenuItem("Pace-Vergleich", null, Pages.PACES, true, null));
             } else {
                 d.onBack();
             }
@@ -85,6 +88,35 @@ module Demo {
         autopilot();
     }
 
+    // Wie "Training" im Menü: den Bereit-Bildschirm der heutigen Einheit öffnen.
+    (:demo)
+    function openStart() as Void {
+        var view = new StartView(Choices.TODAY);
+        WatchUi.pushView(view, new StartDelegate(view), WatchUi.SLIDE_LEFT);
+    }
+
+    // Der Simulator liefert nicht immer Wetter und VO2max; der Demo-Build zeigt dann Beispielwerte,
+    // damit der Startbildschirm vollständig zu sehen ist. Der normale Build kennt diese Werte nicht.
+    (:live)
+    function weather() as Conditions? {
+        return null;
+    }
+
+    (:demo)
+    function weather() as Conditions? {
+        return new Conditions(17, Vitals.PARTLY);
+    }
+
+    (:live)
+    function vo2() as Number? {
+        return null;
+    }
+
+    (:demo)
+    function vo2() as Number? {
+        return 52;
+    }
+
     // True im Demo-Build: Beispiel-Paces und -Einheit, keine Kopplung.
     (:live)
     function active() as Boolean {
@@ -96,6 +128,17 @@ module Demo {
         return true;
     }
 
+    // Der Simulator liefert keinen Trainingseffekt; im Demo-Build zeigt die End-Seite einen Beispielwert.
+    (:live)
+    function fakeEffect() as Float? {
+        return null;
+    }
+
+    (:demo)
+    function fakeEffect() as Float? {
+        return 3.4;
+    }
+
     (:live)
     function seed() as Void {
     }
@@ -105,12 +148,15 @@ module Demo {
     function seed() as Void {
         Application.Storage.deleteValue("secret");
         Application.Storage.deleteValue("pages");
+        Application.Storage.deleteValue("prefs");
         Application.Storage.deleteValue("code");
-        Application.Storage.setValue("run", {
+        Application.Storage.deleteValue("weekLog");
+        var feed = {
             "v" => 1,
             "paired" => true,
             "vdot" => 46.3,
             "units" => "km",
+            "goal" => { "m" => 42195, "s" => 13500 },
             "paces" => {
                 "easy" => [326.46, 359.59],
                 "long" => [329.73, 359.59],
@@ -133,6 +179,48 @@ module Demo {
                     { "n" => "Auslaufen", "t" => "c", "d" => 1500, "lo" => 326, "hi" => 360, "z" => 1 }
                 ]
             }
-        } as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>);
+        } as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>;
+        seedWeek(feed);
+        Application.Storage.setValue("run", feed);
+        Application.Storage.setValue("synced", Time.now().value() - 300);
+    }
+
+    // Beispielwoche wie vom Server: Montag der aktuellen Woche, zwei Wochen Einheiten (was vor heute
+    // liegt, ist erledigt, ein Tag ausgefallen), Rennen in 90 Tagen. Heute ist die Einheit aus "workout".
+    (:demo)
+    function seedWeek(feed as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>) as Void {
+        var today = WeekPlan.today();
+        var monday = WeekPlan.monday(today);
+        var now = today - monday;
+        var titles = ["Easy Run", "Tempolauf", "Kraft & Core", "Easy Run", "", "Long Run", "Recovery"] as Array<String>;
+        var km = [8.0, 9.0, 0.0, 6.0, 0.0, 18.0, 5.0] as Array<Float>;
+        var days = [] as Array<Application.Storage.ValueType>;
+        var done = 0.0;
+        var planned = 0.0;
+        for (var i = 0; i < 14; i++) {
+            var d = i % 7;
+            var title = titles[d];
+            var k = km[d];
+            if (i == now) {
+                title = "Intervalle 3x1000";
+                k = 7.1;
+            }
+            if (title.length() == 0) {
+                continue;
+            }
+            var status = i < now ? (i == 2 ? "x" : "c") : "p";
+            var entry = { "i" => i, "t" => title, "s" => status } as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>;
+            if (k > 0) {
+                entry.put("k", k);
+            }
+            days.add(entry);
+            if (i < 7 && k > 0 && !status.equals("x")) {
+                planned += k;
+                done += status.equals("c") ? k : 0.0;
+            }
+        }
+        feed.put("week", { "start" => WeekPlan.iso(monday), "done" => done, "planned" => planned } as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>);
+        feed.put("days", days);
+        feed.put("race", { "date" => WeekPlan.iso(today + 90), "name" => "Wien Marathon" } as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>);
     }
 }

@@ -1,10 +1,10 @@
-// Startbildschirm, bewusst minimal:
-//   oben    Kopplungscode (solange nicht gekoppelt), sonst der Puls
+// "Bereit"-Bildschirm vor dem Lauf, geöffnet aus dem Trainingsmenü, bewusst minimal:
+//   oben    der Puls
 //   Mitte   die gewählte Einheit: "HEUTE GEPLANT", Titel von MaraPlanna, Strecke und Dauer
 //           (oder Lauftyp mit Pace-Bereich)
 //   unten   Start-Knopf mit GPS-Anzeige: orange Radar-Ringe, solange GPS gesucht wird,
 //           grüner Ring, sobald es bereit ist (gestartet werden kann auch ohne GPS)
-//   ganz unten  Punkte für die Auswahl (AUF/AB oder Wischen); START beginnt.
+//   ganz unten  Punkte für die Auswahl (AUF/AB oder Wischen); START beginnt, BACK geht zurück.
 
 import Toybox.Activity;
 import Toybox.Application;
@@ -15,38 +15,32 @@ import Toybox.Timer;
 import Toybox.WatchUi;
 
 class StartView extends WatchUi.View {
-    // -1 = heutige Einheit, 0 = freier Lauf, 1..7 = Lauftyp wie Pace.ZONES,
-    // -2 = Menü "Datenseiten" (kein Lauf)
+    // Auswahl wie Choices.list: -1 = heutige Einheit, 0 = freier Lauf, 1..7 = Lauftyp wie Pace.ZONES
     var options as Array<Number> = [] as Array<Number>;
     var selected as Number = 0;
     var workout as Workout?;
 
-    function initialize() {
+    // initial: die Einheit, die im Trainingsmenü gewählt wurde.
+    private var _initial as Number;
+
+    function initialize(initial as Number) {
         View.initialize();
+        _initial = initial;
+        getApp().startView = self;
         rebuild();
     }
 
     // Auswahl neu aufbauen (nach dem Laden der Daten oder neuen Einstellungen).
     function rebuild() as Void {
-        // Beim ersten Aufbau steht die heutige Einheit (bzw. der erste Lauftyp) vorne.
-        var keep = options.size() > 0 ? options[selected] : null;
+        // Beim ersten Aufbau steht die gewählte Einheit vorne, danach bleibt die Auswahl erhalten.
+        var keep = options.size() > 0 ? options[selected] : _initial;
         var feed = Application.Storage.getValue("run");
         workout = Workout.fromFeed(feed instanceof Dictionary ? feed : null);
         var zones = getApp().zones;
         if (workout != null && zones != null) {
             (workout as Workout).bindZones(zones as PaceZones);
         }
-        options = [] as Array<Number>;
-        if (workout != null) {
-            options.add(-1);
-        }
-        for (var i = 1; i < Pace.ZONES.size(); i++) {
-            if (zones != null && (zones as PaceZones).range(i) != null) {
-                options.add(i);
-            }
-        }
-        options.add(0);
-        options.add(-2);
+        options = Choices.list(zones, workout);
         selected = 0;
         for (var i = 0; i < options.size(); i++) {
             if (options[i] == keep) {
@@ -124,10 +118,7 @@ class StartView extends WatchUi.View {
         var label = "";
         var title = "";
         var detail = [] as Array<String>;
-        if (opt == -2) {
-            title = "Datenseiten";
-            detail = [Pages.enabledCount() + " von " + Pages.COUNT] as Array<String>;
-        } else if (opt == -1) {
+        if (opt == -1) {
             var wk = workout as Workout;
             label = "HEUTE GEPLANT";
             title = wk.title;
@@ -151,38 +142,21 @@ class StartView extends WatchUi.View {
         }
 
         // unten: Start-Knopf mit GPS-Anzeige, ganz unten die Auswahlpunkte
-        startButton(dc, w / 2, h * 0.735, h * 0.085, opt != -2, app.gpsReady());
+        startButton(dc, w / 2, h * 0.735, h * 0.085, app.gpsReady());
         Draw.dots(dc, h * 0.94, options.size(), selected);
     }
 
     // Herz mit Puls; ohne Messwert nur ein graues Herz.
     private function heartRow(dc as Graphics.Dc, y as Numeric) as Void {
         var info = Activity.getActivityInfo();
-        var hr = info != null ? info.currentHeartRate : null;
-        var s = dc.getHeight() * 0.022;
-        var text = hr == null ? "" : hr.format("%d");
-        var tw = text.length() > 0 ? dc.getTextWidthInPixels(text, Graphics.FONT_XTINY) : 0;
-        var gap = s * 0.9;
-        var x0 = (dc.getWidth() - (s * 2 + (tw > 0 ? gap + tw : 0))) / 2.0;
-        Draw.heart(dc, x0 + s, y, s, hr == null ? Draw.DIM : Draw.RED);
-        if (tw > 0) {
-            dc.setColor(Draw.GRAY, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(x0 + s * 2 + gap, y, Graphics.FONT_XTINY, text, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
-        }
+        Draw.pulse(dc, y, info != null ? info.currentHeartRate : null);
     }
 
     // Start-Knopf: Ring mit Play-Dreieck. GPS wird gesucht = orange Ringe laufen nach außen und
-    // verblassen; GPS bereit = ruhiger grüner Ring. Für den Menü-Eintrag ein Menü-Symbol.
-    private function startButton(dc as Graphics.Dc, cx as Numeric, cy as Numeric, r as Numeric, run as Boolean, ready as Boolean) as Void {
+    // verblassen; GPS bereit = ruhiger grüner Ring.
+    private function startButton(dc as Graphics.Dc, cx as Numeric, cy as Numeric, r as Numeric, ready as Boolean) as Void {
         var pen = (r * 0.13).toNumber();
         dc.setPenWidth(pen < 2 ? 2 : pen);
-        if (!run) {
-            dc.setColor(Draw.DIM, Graphics.COLOR_TRANSPARENT);
-            dc.drawCircle(cx, cy, r);
-            Draw.menuIcon(dc, cx, cy, r * 0.5, Graphics.COLOR_WHITE);
-            dc.setPenWidth(1);
-            return;
-        }
         if (ready) {
             dc.setColor(Draw.GREEN, Graphics.COLOR_TRANSPARENT);
             dc.drawCircle(cx, cy, r);
