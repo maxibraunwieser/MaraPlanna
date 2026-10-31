@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Datenschutz / Privacy – MaraPlanna Lauf und Zifferblatt</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>
+  :root { --bg: #f8fafc; --fg: #0f172a; --muted: #475569; --accent: #f97316; --card: #ffffff; --line: #e2e8f0; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0b1220; --fg: #e2e8f0; --muted: #94a3b8; --card: #111a2e; --line: #1e293b; }
+  }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 42rem; margin: 0 auto; padding: 2rem 1rem 4rem; }
+  h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
+  h1 span { color: var(--accent); }
+  h2 { font-size: 1.25rem; margin: 2.2rem 0 .5rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+  h3 { font-size: 1rem; margin: 1.4rem 0 .25rem; }
+  p, li { color: var(--fg); }
+  .muted { color: var(--muted); }
+  ul { padding-left: 1.2rem; }
+  a { color: var(--accent); }
+  nav a { margin-right: 1rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Mara<span>Planna</span> – Datenschutz / Privacy</h1>
+  <p class="muted">Gilt für die Garmin-Apps „MaraPlanna Lauf“ und „MaraPlanna Zifferblatt“. · Applies to the Garmin apps "MaraPlanna Run" and "MaraPlanna Watch Face".</p>
+  <nav><a href="#de">Deutsch</a><a href="#en">English</a></nav>
+
+  <section id="de" lang="de">
+    <h2>Deutsch</h2>
+
+    <h3>Was die App auf der Uhr tut</h3>
+    <p>MaraPlanna Lauf zeichnet deinen Lauf mit GPS und Pulssensor der Uhr auf und speichert ihn als normale Garmin-Aktivität. Die Aktivität verwaltet und synchronisiert Garmin (Garmin Connect). Die App sendet weder Standort noch Puls noch Aktivitäten an MaraPlanna oder andere Server.</p>
+
+    <h3>Optionale Kopplung mit MaraPlanna</h3>
+    <p>Wenn du die Uhr mit der MaraPlanna-Web-App koppelst, sendet die App über dein Handy (Garmin Connect) an den MaraPlanna-Server:</p>
+    <ul>
+      <li>einen zufälligen Geräteschlüssel, den die Uhr beim ersten Start erzeugen lässt (der Server speichert nur einen Hash davon),</li>
+      <li>bei der Lauf-App den Gerätenamen „MaraPlanna Lauf“ (das Zifferblatt sendet keinen Namen) und</li>
+      <li>das lokale Datum, um die Einheit des Tages abzurufen.</li>
+    </ul>
+    <p>Der Server antwortet mit deinen Paces, VDOT, der Einheit des Tages, der Woche und dem Rennen aus deinem MaraPlanna-Plan. Diese Daten speichert die Uhr, damit sie auch ohne Handy funktionieren. Der Server läuft bei Supabase in der Region EU (Irland).</p>
+
+    <h3>Trennen</h3>
+    <p>In der App unter Einstellungen → „MaraPlanna trennen“, oder in der Web-App unter Settings → Garmin watch. Dann ist der Geräteschlüssel ungültig und die Uhr löscht die geladenen Daten.</p>
+
+    <h3>Was nicht passiert</h3>
+    <p>Keine Werbung, keine Analyse- oder Tracking-Dienste, keine Weitergabe an Dritte.</p>
+
+    <h3>Kontakt</h3>
+    <p>Fragen und Wünsche zu Daten: <a href="https://github.com/maxibraunwieser/MaraPlanna/issues">github.com/maxibraunwieser/MaraPlanna/issues</a></p>
+  </section>
+
+  <section id="en" lang="en">
+    <h2>English</h2>
+
+    <h3>What the app does on the watch</h3>
+    <p>MaraPlanna Run records your run with the watch's GPS and heart-rate sensor and saves it as a normal Garmin activity. Garmin (Garmin Connect) stores and syncs the activity. The app does not send location, heart rate or activities to MaraPlanna or any other server.</p>
+
+    <h3>Optional link to MaraPlanna</h3>
+    <p>If you link the watch to the MaraPlanna web app, the app sends the following to the MaraPlanna server through your phone (Garmin Connect):</p>
+    <ul>
+      <li>a random device key that the watch generates on first start (the server stores only a hash of it),</li>
+      <li>for the run app, the device name "MaraPlanna Lauf" (the watch face sends no name) and</li>
+      <li>the local date, to fetch today's session.</li>
+    </ul>
+    <p>The server answers with your paces, VDOT, today's session, the week and the race from your MaraPlanna plan. The watch stores this data so it also works without the phone. The server runs at Supabase in the EU region (Ireland).</p>
+
+    <h3>Unlinking</h3>
+    <p>In the app under Settings → "MaraPlanna trennen", or in the web app under Settings → Garmin watch. The device key then becomes invalid and the watch deletes the loaded data.</p>
+
+    <h3>What does not happen</h3>
+    <p>No ads, no analytics or tracking services, no sharing with third parties.</p>
+
+    <h3>Contact</h3>
+    <p>Questions about data: <a href="https://github.com/maxibraunwieser/MaraPlanna/issues">github.com/maxibraunwieser/MaraPlanna/issues</a></p>
+  </section>
+</main>
+</body>
+</html>
