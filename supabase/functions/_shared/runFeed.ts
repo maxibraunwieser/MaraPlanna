@@ -3,7 +3,7 @@
 // has to walk through them. Shared by the "watch" Edge Function and the tests.
 
 import type { CalPaces, CalStep, CalUnits, CalWorkout, CalZone } from './calendar.ts';
-import { glyphs } from './watchFeed.ts';
+import { addDays, daysBetween, glyphs, mondayOf } from './watchFeed.ts';
 
 /** Single target paces get ± this many seconds per km. */
 export const PACE_TOLERANCE_S = 5;
@@ -23,6 +23,18 @@ export interface RunStep {
   z: number;
 }
 
+/** One planned session of the current or next week, for the week and plan pages on the watch. */
+export interface RunDay {
+  /** Days after the Monday of `week.start` (0 to 13). */
+  i: number;
+  /** Title, cut to fit the watch. */
+  t: string;
+  /** Distance in km (runs only). */
+  k?: number;
+  /** c = completed, p = planned, x = skipped */
+  s: 'c' | 'p' | 'x';
+}
+
 export interface RunFeed {
   v: 1;
   paired: true;
@@ -33,6 +45,12 @@ export interface RunFeed {
   /** Marathon goal time for the finish forecast on the watch (seconds for 42,195 m). */
   goal: { m: number; s: number } | null;
   workout: { title: string; z: number; steps: RunStep[] } | null;
+  /** Running distance of the week (Monday `start` to Sunday) in km: done so far and planned. */
+  week: { start: string; done: number; planned: number } | null;
+  /** Sessions from Monday of this week to Sunday of next week. */
+  days: RunDay[];
+  /** The goal race, if the plan has one. */
+  race: { date: string; name?: string } | null;
 }
 
 const MARATHON_M = 42195;
@@ -77,10 +95,42 @@ export function runSteps(steps: CalStep[], paces: CalPaces): RunStep[] {
   return out;
 }
 
-export function buildRunFeed(input: { vdot: number | null; paces: CalPaces | null; units: CalUnits; workouts: CalWorkout[]; goalS?: number | null }): RunFeed {
+const TITLE_MAX = 26;
+const FEED_DAYS = 14;
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+export interface RunFeedInput {
+  vdot: number | null;
+  paces: CalPaces | null;
+  units: CalUnits;
+  /** Sessions of the days to send (see FEED_DAYS), starting with the Monday of `date`'s week. */
+  workouts: CalWorkout[];
+  goalS?: number | null;
+  /** Today, YYYY-MM-DD. Without it every workout counts as today's. */
+  date?: string;
+  /** Km run so far this week (Garmin activities synced to MaraPlanna). */
+  weekDoneKm?: number;
+  raceDate?: string | null;
+  raceName?: string | null;
+}
+
+/** Sessions of the two weeks as compact rows; skipped ones stay in (the watch shows them struck out). */
+export function runDays(workouts: CalWorkout[], start: string): RunDay[] {
+  return workouts
+    .map((w) => ({ w, i: daysBetween(start, w.date) }))
+    .filter(({ i }) => i >= 0 && i < FEED_DAYS)
+    .sort((a, b) => a.i - b.i || Number(b.w.key_session) - Number(a.w.key_session))
+    .map(({ w, i }): RunDay => {
+      const km = RUNS.has(w.kind) && w.distance_km ? round1(w.distance_km) : undefined;
+      return { i, t: glyphs(w.title).slice(0, TITLE_MAX), ...(km ? { k: km } : {}), s: w.status === 'skipped' ? 'x' : w.status === 'completed' || w.status === 'partial' ? 'c' : 'p' };
+    });
+}
+
+export function buildRunFeed(input: RunFeedInput): RunFeed {
   const { paces } = input;
   const goalS = input.goalS && input.goalS > 0 ? Math.round(input.goalS) : null;
-  const runs = input.workouts.filter((w) => RUNS.has(w.kind) && w.status !== 'skipped');
+  const todays = input.date ? input.workouts.filter((w) => w.date === input.date) : input.workouts;
+  const runs = todays.filter((w) => RUNS.has(w.kind) && w.status !== 'skipped');
   const main = runs.find((w) => w.key_session) ?? runs[0];
   let workout: RunFeed['workout'] = null;
   if (main && paces) {
@@ -94,5 +144,29 @@ export function buildRunFeed(input: { vdot: number | null; paces: CalPaces | nul
     }
     if (steps.length) workout = { title: glyphs(main.title), z: zoneIndex(hardest), steps };
   }
-  return { v: 1, paired: true, vdot: input.vdot === null ? null : Math.round(input.vdot * 10) / 10, units: input.units, paces, goal: goalS ? { m: MARATHON_M, s: goalS } : null, workout };
+  const start = input.date ? mondayOf(input.date) : null;
+  const week = start
+    ? {
+        start,
+        done: round1(input.weekDoneKm ?? 0),
+        planned: round1(
+          input.workouts
+            .filter((w) => w.date >= start && w.date <= addDays(start, 6) && RUNS.has(w.kind) && w.status !== 'skipped')
+            .reduce((sum, w) => sum + (w.distance_km ?? 0), 0),
+        ),
+      }
+    : null;
+  const raceName = input.raceName ? glyphs(input.raceName).slice(0, TITLE_MAX) : '';
+  return {
+    v: 1,
+    paired: true,
+    vdot: input.vdot === null ? null : Math.round(input.vdot * 10) / 10,
+    units: input.units,
+    paces,
+    goal: goalS ? { m: MARATHON_M, s: goalS } : null,
+    workout,
+    week,
+    days: start ? runDays(input.workouts, start) : [],
+    race: input.raceDate ? { date: input.raceDate, ...(raceName ? { name: raceName } : {}) } : null,
+  };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildRunFeed, paceRange, runSteps, stepName, ZONES } from '../../supabase/functions/_shared/runFeed.ts';
+import { buildRunFeed, paceRange, runDays, runSteps, stepName, ZONES } from '../../supabase/functions/_shared/runFeed.ts';
 import type { CalWorkout } from '../../supabase/functions/_shared/calendar.ts';
 import type { Step } from './types';
 import { assessFitness } from './planner/fitness';
@@ -101,5 +101,53 @@ describe('run app feed', () => {
     const pace = 13500 / 42.195;
     expect(feed.workout?.steps[0]).toMatchObject({ d: 42195, lo: Math.round(pace - 5), hi: Math.round(pace + 5) });
     expect(buildRunFeed({ vdot: 46, paces, units: 'km', workouts: [], goalS: null }).goal).toBeNull();
+  });
+  describe('week, days and race for the home screen', () => {
+    // 2026-10-26 is a Monday; the plan starts there.
+    const start = '2026-10-26';
+    const fortnight = workouts.filter((w) => w.date >= start && w.date <= '2026-11-08');
+
+    it('sends the sessions of this and next week as compact rows, Monday = 0', () => {
+      const feed = buildRunFeed({ vdot: 46, paces, units: 'km', workouts: fortnight, date: '2026-10-28', weekDoneKm: 12.34, raceDate: '2027-04-18', raceName: 'Vienna Marathon' });
+      expect(feed.week).toMatchObject({ start, done: 12.3 });
+      expect(feed.days.length).toBe(fortnight.length);
+      expect(feed.days.every((d) => d.i >= 0 && d.i <= 13 && d.t.length > 0 && d.t.length <= 26)).toBe(true);
+      expect(feed.days.map((d) => d.i)).toEqual([...feed.days.map((d) => d.i)].sort((a, b) => a - b));
+      expect(feed.race).toEqual({ date: '2027-04-18', name: 'Vienna Marathon' });
+    });
+
+    it("plans only this week's runs into the week total, in km", () => {
+      const feed = buildRunFeed({ vdot: 46, paces, units: 'mi', workouts: fortnight, date: '2026-10-28' });
+      const runKm = fortnight.filter((w) => w.date <= '2026-11-01' && w.distance_km && !['core', 'strength_upper', 'strength_lower', 'strength_full', 'mobility', 'plyo', 'bike', 'swim'].includes(w.kind)).reduce((s, w) => s + w.distance_km!, 0);
+      expect(feed.week!.planned).toBeCloseTo(runKm, 0);
+      expect(feed.units).toBe('mi'); // the unit only changes how paces are shown; distances stay in km
+    });
+
+    it("today's workout comes from today's date, not from the first day of the fortnight", () => {
+      const key = fortnight.find((w) => w.key_session && w.kind !== 'long' && w.date > start)!;
+      const feed = buildRunFeed({ vdot: 46, paces, units: 'km', workouts: fortnight, date: key.date });
+      expect(feed.workout?.title).toBe(key.title);
+    });
+
+    it('marks completed, partial and skipped sessions', () => {
+      const base = fortnight.filter((w) => w.date === start);
+      const rows = runDays([{ ...base[0], status: 'completed' }, { ...base[0], status: 'partial' }, { ...base[0], status: 'skipped' }, { ...base[0], status: 'planned' }], start);
+      expect(rows.map((r) => r.s)).toEqual(['c', 'c', 'x', 'p']);
+    });
+
+    it('drops days outside the two weeks and stays small for the watch', () => {
+      const all = buildRunFeed({ vdot: 46, paces, units: 'km', workouts: workouts.filter((w) => w.date >= start && w.date <= '2026-11-20'), date: '2026-10-28' });
+      expect(all.days.every((d) => d.i <= 13)).toBe(true);
+      const heavy = fortnight.filter((w) => w.distance_km).sort((a, b) => JSON.stringify(b.steps).length - JSON.stringify(a.steps).length)[0];
+      const size = JSON.stringify(buildRunFeed({ vdot: 46, paces, units: 'km', workouts: [...fortnight.filter((w) => w.id !== heavy.id), { ...heavy, date: '2026-10-28' }], date: '2026-10-28', weekDoneKm: 40, raceDate: '2027-04-18', raceName: 'Vienna Marathon' })).length;
+      expect(size).toBeLessThan(4000);
+    });
+
+    it('without a plan: no week, no days, no race', () => {
+      const feed = buildRunFeed({ vdot: null, paces: null, units: 'km', workouts: [], date: '2026-10-28' });
+      expect(feed.days).toEqual([]);
+      expect(feed.race).toBeNull();
+      expect(feed.workout).toBeNull();
+    });
   });
 });

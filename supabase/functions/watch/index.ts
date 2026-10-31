@@ -5,7 +5,7 @@
 //   GET  /functions/v1/watch/data?date=YYYY-MM-DD      header X-Watch-Secret
 //        → the watch face feed, { paired: false, code } while waiting, { revoked: true } if unlinked
 //   GET  /functions/v1/watch/run?date=YYYY-MM-DD       same, for the MaraPlanna Run app:
-//        VDOT, paces and today's run as steps
+//        VDOT, paces, today's run as steps, this and next week's sessions, race
 // The website (with the user's Supabase session):
 //   POST /functions/v1/watch  { action: "link", code } | { action: "list" } | { action: "unlink", id }
 //
@@ -119,20 +119,23 @@ async function feed(admin: SupabaseClient, secret: string, date: string) {
   });
 }
 
-/** VDOT, paces and today's run as steps, for the MaraPlanna Run app. */
+/** VDOT, paces, today's run as steps and the sessions of this and next week, for the MaraPlanna Run app. */
 async function run(admin: SupabaseClient, secret: string, date: string) {
   const dev = await device(admin, secret);
   if ('reply' in dev) return dev.reply;
-  const [{ data: plan }, { data: profile }] = await Promise.all([
-    admin.from('training_plans').select('id, fitness').eq('user_id', dev.userId).eq('status', 'active').maybeSingle(),
+  const start = mondayOf(date);
+  const [{ data: plan }, { data: profile }, { data: runs }] = await Promise.all([
+    admin.from('training_plans').select('id, fitness, race_date, race_name').eq('user_id', dev.userId).eq('status', 'active').maybeSingle(),
     admin.from('profiles').select('units').eq('id', dev.userId).maybeSingle(),
+    admin.from('activities').select('distance_m').eq('user_id', dev.userId).eq('sport', 'run').gte('local_date', start).lte('local_date', addDays(start, 6)),
   ]);
   const { data: workouts } = plan
     ? await admin
         .from('planned_workouts')
         .select('id, date, kind, title, steps, distance_km, duration_min, key_session, status, note')
         .eq('plan_id', plan.id)
-        .eq('date', date)
+        .gte('date', start)
+        .lte('date', addDays(start, 13))
     : { data: [] };
   return buildRunFeed({
     vdot: plan?.fitness?.vdot ?? null,
@@ -140,6 +143,10 @@ async function run(admin: SupabaseClient, secret: string, date: string) {
     units: (profile?.units === 'mi' ? 'mi' : 'km') as CalUnits,
     workouts: (workouts ?? []) as CalWorkout[],
     goalS: plan?.fitness?.targetMarathonS ?? null,
+    date,
+    weekDoneKm: (runs ?? []).reduce((s: number, r: { distance_m: number | null }) => s + (r.distance_m ?? 0) / 1000, 0),
+    raceDate: plan?.race_date ?? null,
+    raceName: plan?.race_name ?? null,
   });
 }
 
