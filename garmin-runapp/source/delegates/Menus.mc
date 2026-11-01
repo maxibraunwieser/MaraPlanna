@@ -141,6 +141,11 @@ module SettingsMenu {
         return MainMenu.text(Rez.Strings.UnitsAuto) + " (" + (zones != null && (zones as PaceZones).miles ? "mi" : "km") + ")";
     }
 
+    function smoothText() as String {
+        var s = Prefs.smooth();
+        return MainMenu.text(s == 0 ? Rez.Strings.SmoothFast : (s == 1 ? Rez.Strings.SmoothNormal : Rez.Strings.SmoothCalm));
+    }
+
     function linkText() as String {
         var sync = getApp().sync;
         return Demo.active() || (sync != null && (sync as Sync).paired()) ? MainMenu.text(Rez.Strings.Linked) : MainMenu.text(Rez.Strings.NotLinked);
@@ -151,6 +156,7 @@ module SettingsMenu {
         var onOff = { :enabled => MainMenu.text(Rez.Strings.On), :disabled => MainMenu.text(Rez.Strings.Off) };
         menu.addItem(new WatchUi.MenuItem(MainMenu.text(Rez.Strings.Pages), MainMenu.text(Rez.Strings.PagesInfo), :pages, null));
         menu.addItem(new WatchUi.MenuItem(MainMenu.text(Rez.Strings.SetUnits), unitsText(), :units, null));
+        menu.addItem(new WatchUi.MenuItem(MainMenu.text(Rez.Strings.SetSmooth), smoothText(), :smooth, null));
         menu.addItem(new WatchUi.ToggleMenuItem(MainMenu.text(Rez.Strings.SetKm), onOff, :km, Prefs.kmSummary(), null));
         menu.addItem(new WatchUi.ToggleMenuItem(MainMenu.text(Rez.Strings.SetPaceAlert), onOff, :pace, Prefs.paceAlert(), null));
         menu.addItem(new WatchUi.ToggleMenuItem(MainMenu.text(Rez.Strings.SetSound), onOff, :sound, Prefs.sound(), null));
@@ -177,6 +183,10 @@ class SettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
                 (zones as PaceZones).load();
             }
             item.setSubLabel(SettingsMenu.unitsText());
+            WatchUi.requestUpdate();
+        } else if (id == :smooth) {
+            Prefs.set("smooth", (Prefs.smooth() + 1) % Prefs.SMOOTH_COUNT);
+            item.setSubLabel(SettingsMenu.smoothText());
             WatchUi.requestUpdate();
         } else if (id == :unlink) {
             var sync = getApp().sync;

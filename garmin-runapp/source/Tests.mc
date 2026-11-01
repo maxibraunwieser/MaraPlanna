@@ -733,3 +733,63 @@ function testClockAndDate(logger as Logger) as Boolean {
     Test.assert(Vitals.dateText().length() > 4);
     return true;
 }
+
+
+(:test)
+function testPaceSmoother(logger as Logger) as Boolean {
+    var s = new PaceSmoother();
+    // zu wenig Daten
+    Test.assert(s.pace(20) == null);
+    s.add(1000, 3.0, 3.0);
+    s.add(2000, 6.0, 3.0);
+    Test.assert(s.pace(20) == null);
+    // Geschwindigkeit schwankt um 3,0 m/s (+-0,4): die Pace bleibt über 20 s ruhig bei 333 s/km
+    s.reset();
+    for (var t = 1; t <= 40; t++) {
+        s.add(t * 1000, t * 3.0, 3.0 + (t % 2 == 0 ? 0.4 : -0.4));
+    }
+    Test.assert((s.pace(20) as Float - 333.3).abs() < 4.0);
+    Test.assert((s.pace(30) as Float - 333.3).abs() < 4.0);
+    // Stehen bleiben: keine Pace
+    s.reset();
+    for (var t = 1; t <= 20; t++) {
+        s.add(t * 1000, 10.0, 0.0);
+    }
+    Test.assert(s.pace(10) == null);
+    // Ohne Geschwindigkeit gilt die Strecke über das Fenster
+    s.reset();
+    for (var t = 1; t <= 30; t++) {
+        s.add(t * 1000, t * 3.0, null);
+    }
+    Test.assert((s.pace(20) as Float - 333.3).abs() < 1.0);
+    // Tempowechsel: 20 s mit 3,0 m/s, dann 20 s mit 4,0 m/s. Kurzes Fenster folgt, langes mittelt.
+    s.reset();
+    for (var t = 1; t <= 20; t++) {
+        s.add(t * 1000, t * 3.0, 3.0);
+    }
+    for (var t = 21; t <= 40; t++) {
+        s.add(t * 1000, 60.0 + (t - 20) * 4.0, 4.0);
+    }
+    Test.assert((s.pace(10) as Float - 250.0).abs() < 1.0);
+    Test.assert((s.pace(30) as Float - 272.7).abs() < 2.0);
+    return true;
+}
+
+(:test)
+function testPaceSmoothingSetting(logger as Logger) as Boolean {
+    var saved = Application.Storage.getValue("prefs");
+    Application.Storage.deleteValue("prefs");
+    Test.assertEqual(Prefs.paceSeconds(), 20);
+    Prefs.set("smooth", 0);
+    Test.assertEqual(Prefs.paceSeconds(), 10);
+    Prefs.set("smooth", 2);
+    Test.assertEqual(Prefs.paceSeconds(), 30);
+    Prefs.set("smooth", 9);
+    Test.assertEqual(Prefs.paceSeconds(), 20);
+    if (saved == null) {
+        Application.Storage.deleteValue("prefs");
+    } else {
+        Application.Storage.setValue("prefs", saved);
+    }
+    return true;
+}

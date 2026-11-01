@@ -44,6 +44,20 @@ module Prefs {
         return u == UNITS_MI ? true : (u == UNITS_KM ? false : auto);
     }
 
+    // Glättung der aktuellen Pace: 0 = Schnell (10 s), 1 = Normal (20 s), 2 = Ruhig (30 s)
+    const SMOOTH_COUNT = 3;
+
+    function smooth() as Number {
+        var s = number("smooth", 1);
+        return s >= 0 && s < SMOOTH_COUNT ? s : 1;
+    }
+
+    // Fenster der aktuellen Pace in Sekunden
+    function paceSeconds() as Number {
+        var s = smooth();
+        return s == 0 ? 10 : (s == 1 ? 20 : 30);
+    }
+
     // Zusammenfassung nach jedem Kilometer (bzw. jeder Meile) einblenden
     function kmSummary() as Boolean {
         return flag("km", true);

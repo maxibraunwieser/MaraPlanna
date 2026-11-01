@@ -16,9 +16,10 @@ module Rec {
 }
 
 class RecordingController {
-    // Fenster für die geglättete Pace (~10 s) und Mindestabstand der Pace-Alarme.
-    private const WINDOW = 11;
+    // Mindestabstand der Pace-Alarme. Ein Alarm kommt erst, wenn die Pace so viele Sekunden am Stück
+    // außerhalb des Zielbereichs liegt (kurze Ausreißer lösen nichts aus).
     private const ALARM_GAP_MS = 30000;
+    private const OFF_SECONDS = 8;
     // In den ersten Sekunden eines Schritts beschleunigt man noch: kein Alarm.
     private const SETTLE_S = 20;
 
@@ -48,9 +49,10 @@ class RecordingController {
     private var _session as ActivityRecording.Session?;
     private var _fit as FitFields?;
     private var _timer as Timer.Timer?;
-    private var _ms as Array<Number> = new [WINDOW] as Array<Number>;
-    private var _dist as Array<Float> = new [WINDOW] as Array<Float>;
-    private var _count as Number = 0;
+    // Geglättete aktuelle Pace (Fenster aus den Einstellungen)
+    private var _smooth as PaceSmoother = new PaceSmoother();
+    private var _offTicks as Number = 0;
+    private var _offSign as Number = 0;
     private var _lastAlarm as Number = -ALARM_GAP_MS;
     private var _lapMs as Number = 0;
     private var _lapDist as Float = 0.0;
@@ -122,7 +124,8 @@ class RecordingController {
         if (state == Rec.PAUSED && _session != null) {
             (_session as ActivityRecording.Session).start();
             state = Rec.RECORDING;
-            _count = 0;
+            _smooth.reset();
+            _offTicks = 0;
             Alert.start();
             WatchUi.requestUpdate();
         }
@@ -194,13 +197,9 @@ class RecordingController {
         var ms = timerMs(info);
         var dist = distance(info);
 
-        // Geglättete Pace über die letzten ~10 s (Ringpuffer, keine neuen Objekte im Loop).
-        var i = _count % WINDOW;
-        _ms[i] = ms;
-        _dist[i] = dist;
-        _count += 1;
-        var oldest = _count >= WINDOW ? _count % WINDOW : 0;
-        pace = _count >= 3 ? Pace.fromDelta(ms - _ms[oldest], dist - _dist[oldest]) : null;
+        // Aktuelle Pace: Geschwindigkeit des GPS-Chips, gemittelt über das eingestellte Fenster (Ringpuffer).
+        _smooth.add(ms, dist, info != null ? info.currentSpeed : null);
+        pace = _smooth.pace(Prefs.paceSeconds());
 
         // Verlauf und Strecke für Diagramme und Karte
         history.add(info != null ? info.currentHeartRate : null, pace == null ? 0.0 : 1000.0 / (pace as Float));
@@ -231,8 +230,15 @@ class RecordingController {
         // Zielbereich prüfen; Alarm höchstens alle 30 s und nicht direkt nach einem Schrittwechsel.
         var range = target();
         hint = Pace.compare(pace, range);
+        // Wie lange liegt die Pace schon auf derselben Seite außerhalb des Bereichs?
+        if (hint != 0 && hint == _offSign) {
+            _offTicks += 1;
+        } else {
+            _offTicks = hint != 0 ? 1 : 0;
+            _offSign = hint;
+        }
         var settled = workout != null ? (workout as Workout).stepSeconds(ms) >= SETTLE_S : (ms - _zoneStartMs) / 1000 >= SETTLE_S;
-        if (hint != 0 && settled && ms - _lastAlarm >= ALARM_GAP_MS && Prefs.paceAlert()) {
+        if (hint != 0 && _offTicks >= OFF_SECONDS && settled && ms - _lastAlarm >= ALARM_GAP_MS && Prefs.paceAlert()) {
             _lastAlarm = ms;
             Alert.pace(hint < 0);
         }
