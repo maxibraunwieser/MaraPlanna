@@ -42,9 +42,9 @@
     <string id="UnitsKm">Kilometer</string>
     <string id="UnitsMi">Meilen</string>
     <string id="SetSmooth">Pace-Glättung</string>
-    <string id="SmoothFast">Schnell (10 s)</string>
-    <string id="SmoothNormal">Normal (20 s)</string>
-    <string id="SmoothCalm">Ruhig (30 s)</string>
+    <string id="SmoothFast">10 s (Standard)</string>
+    <string id="SmoothNormal">20 s (ruhiger)</string>
+    <string id="SmoothCalm">30 s (sehr ruhig)</string>
     <string id="SetKm">km-Rückblick</string>
     <string id="SetPaceAlert">Pace-Alarm</string>
     <string id="SetSound">Töne &amp; Vibration</string>

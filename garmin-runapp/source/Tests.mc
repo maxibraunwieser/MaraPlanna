@@ -779,13 +779,13 @@ function testPaceSmoother(logger as Logger) as Boolean {
 function testPaceSmoothingSetting(logger as Logger) as Boolean {
     var saved = Application.Storage.getValue("prefs");
     Application.Storage.deleteValue("prefs");
-    Test.assertEqual(Prefs.paceSeconds(), 20);
-    Prefs.set("smooth", 0);
     Test.assertEqual(Prefs.paceSeconds(), 10);
+    Prefs.set("smooth", 1);
+    Test.assertEqual(Prefs.paceSeconds(), 20);
     Prefs.set("smooth", 2);
     Test.assertEqual(Prefs.paceSeconds(), 30);
     Prefs.set("smooth", 9);
-    Test.assertEqual(Prefs.paceSeconds(), 20);
+    Test.assertEqual(Prefs.paceSeconds(), 10);
     if (saved == null) {
         Application.Storage.deleteValue("prefs");
     } else {
