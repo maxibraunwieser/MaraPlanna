@@ -77,6 +77,7 @@ class StartView extends WatchUi.View {
 
     // Solange der Startbildschirm sichtbar ist, läuft die Radar-Animation (alle 0,5 s neu zeichnen).
     function onShow() as Void {
+        getApp().startGps();
         if (_timer == null) {
             _timer = new Timer.Timer();
             (_timer as Timer.Timer).start(method(:tick), 500, true);
@@ -84,6 +85,11 @@ class StartView extends WatchUi.View {
     }
 
     function onHide() as Void {
+        // Beim Wechsel in den Lauf ist die Aufzeichnung schon gestartet (das GPS bleibt an); sonst wieder aus.
+        var c = getApp().controller;
+        if (c == null || !(c as RecordingController).recording()) {
+            getApp().stopGps();
+        }
         if (_timer != null) {
             (_timer as Timer.Timer).stop();
             _timer = null;
@@ -95,6 +101,7 @@ class StartView extends WatchUi.View {
     }
 
     function onUpdate(dc as Graphics.Dc) as Void {
+        Draw.plain(dc);
         var w = dc.getWidth();
         var h = dc.getHeight();
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
@@ -148,8 +155,7 @@ class StartView extends WatchUi.View {
 
     // Herz mit Puls; ohne Messwert nur ein graues Herz.
     private function heartRow(dc as Graphics.Dc, y as Numeric) as Void {
-        var info = Activity.getActivityInfo();
-        Draw.pulse(dc, y, info != null ? info.currentHeartRate : null);
+        Draw.pulse(dc, y, Vitals.heartRate());
     }
 
     // Start-Knopf: Ring mit Play-Dreieck. GPS wird gesucht = orange Ringe laufen nach außen und

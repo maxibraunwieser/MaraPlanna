@@ -1,5 +1,5 @@
 // Vibration und Töne – nur, wenn das Gerät sie unterstützt und der Nutzer sie erlaubt
-// (Einstellungen der Uhr und der Schalter "Töne & Vibration" in den App-Einstellungen).
+// (Einstellungen der Uhr und die Schalter "Töne" und "Vibration" in den App-Einstellungen).
 
 import Toybox.Attention;
 import Toybox.Lang;
@@ -7,13 +7,13 @@ import Toybox.System;
 
 module Alert {
     function vibrate(ms as Number) as Void {
-        if (Prefs.sound() && (Attention has :vibrate) && System.getDeviceSettings().vibrateOn) {
+        if (Prefs.vibration() && (Attention has :vibrate) && System.getDeviceSettings().vibrateOn) {
             Attention.vibrate([new Attention.VibeProfile(80, ms)]);
         }
     }
 
     function tone(t as Attention.Tone) as Void {
-        if (Prefs.sound() && (Attention has :playTone) && System.getDeviceSettings().tonesOn) {
+        if (Prefs.tones() && (Attention has :playTone) && System.getDeviceSettings().tonesOn) {
             Attention.playTone(t);
         }
     }

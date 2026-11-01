@@ -3,7 +3,6 @@
 import Toybox.Application;
 import Toybox.Lang;
 import Toybox.Position;
-import Toybox.Sensor;
 import Toybox.WatchUi;
 
 class RunApp extends Application.AppBase {
@@ -19,10 +18,29 @@ class RunApp extends Application.AppBase {
         AppBase.initialize();
     }
 
+    // Beim Start der App wird bewusst nichts eingeschaltet: weder GPS noch ein Sensor. Spielt auf der Uhr Musik
+    // (Bluetooth-Kopfhörer), stören zusätzliche Funk- und Rechenlast den Ton. Das GPS startet erst auf dem
+    // Bereit-Bildschirm (StartView), der Puls kommt von der Uhr selbst.
     function onStart(state as Dictionary?) as Void {
-        // GPS und Puls schon vor dem Start aktivieren, damit beim Loslaufen alles bereit ist.
-        Position.enableLocationEvents(Position.LOCATION_CONTINUOUS, method(:onPosition));
-        Sensor.setEnabledSensors([Sensor.SENSOR_HEARTRATE] as Array<Sensor.SensorType>);
+    }
+
+    private var _gpsOn as Boolean = false;
+
+    // GPS einschalten (idempotent): Bereit-Bildschirm und Start des Laufs.
+    function startGps() as Void {
+        if (!_gpsOn) {
+            _gpsOn = true;
+            Position.enableLocationEvents(Position.LOCATION_CONTINUOUS, method(:onPosition));
+        }
+    }
+
+    // GPS ausschalten, wenn man den Bereit-Bildschirm verlässt, ohne zu laufen.
+    function stopGps() as Void {
+        if (_gpsOn) {
+            _gpsOn = false;
+            Position.enableLocationEvents(Position.LOCATION_DISABLE, method(:onPosition));
+            gps = Position.QUALITY_NOT_AVAILABLE;
+        }
     }
 
     function onStop(state as Dictionary?) as Void {
@@ -34,7 +52,7 @@ class RunApp extends Application.AppBase {
         if (sync != null) {
             (sync as Sync).stop();
         }
-        Position.enableLocationEvents(Position.LOCATION_DISABLE, method(:onPosition));
+        stopGps();
     }
 
     function getInitialView() as [WatchUi.Views] or [WatchUi.Views, WatchUi.InputDelegates] {
@@ -58,7 +76,6 @@ class RunApp extends Application.AppBase {
         if (controller != null && info.heading != null) {
             (controller as RecordingController).heading = info.heading as Float;
         }
-        WatchUi.requestUpdate();
     }
 
     // Neue Daten von MaraPlanna (oder neuer Kopplungscode): Paces neu laden, Anzeigen auffrischen.

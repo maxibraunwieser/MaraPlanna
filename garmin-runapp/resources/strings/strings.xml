@@ -47,7 +47,8 @@
     <string id="SmoothCalm">30 s (sehr ruhig)</string>
     <string id="SetKm">km-Rückblick</string>
     <string id="SetPaceAlert">Pace-Alarm</string>
-    <string id="SetSound">Töne &amp; Vibration</string>
+    <string id="SetTones">Töne</string>
+    <string id="SetVibration">Vibration</string>
     <string id="SetWeather">Wetter anzeigen</string>
     <string id="SetUnlink">MaraPlanna trennen</string>
     <string id="UnlinkConfirm">Von MaraPlanna trennen?</string>

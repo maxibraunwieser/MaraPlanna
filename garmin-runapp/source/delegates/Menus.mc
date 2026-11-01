@@ -159,7 +159,8 @@ module SettingsMenu {
         menu.addItem(new WatchUi.MenuItem(MainMenu.text(Rez.Strings.SetSmooth), smoothText(), :smooth, null));
         menu.addItem(new WatchUi.ToggleMenuItem(MainMenu.text(Rez.Strings.SetKm), onOff, :km, Prefs.kmSummary(), null));
         menu.addItem(new WatchUi.ToggleMenuItem(MainMenu.text(Rez.Strings.SetPaceAlert), onOff, :pace, Prefs.paceAlert(), null));
-        menu.addItem(new WatchUi.ToggleMenuItem(MainMenu.text(Rez.Strings.SetSound), onOff, :sound, Prefs.sound(), null));
+        menu.addItem(new WatchUi.ToggleMenuItem(MainMenu.text(Rez.Strings.SetTones), onOff, :tones, Prefs.tones(), null));
+        menu.addItem(new WatchUi.ToggleMenuItem(MainMenu.text(Rez.Strings.SetVibration), onOff, :vibe, Prefs.vibration(), null));
         menu.addItem(new WatchUi.ToggleMenuItem(MainMenu.text(Rez.Strings.SetWeather), onOff, :weather, Prefs.weather(), null));
         menu.addItem(new WatchUi.MenuItem(MainMenu.text(Rez.Strings.SetUnlink), linkText(), :unlink, null));
         WatchUi.pushView(menu, new SettingsMenuDelegate(), WatchUi.SLIDE_LEFT);
@@ -195,7 +196,7 @@ class SettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
             }
         } else {
             var toggle = item as WatchUi.ToggleMenuItem;
-            var key = id == :km ? "km" : (id == :pace ? "pace" : (id == :sound ? "sound" : "weather"));
+            var key = id == :km ? "km" : (id == :pace ? "pace" : (id == :tones ? "tones" : (id == :vibe ? "vibe" : "weather")));
             Prefs.set(key, toggle.isEnabled());
         }
     }

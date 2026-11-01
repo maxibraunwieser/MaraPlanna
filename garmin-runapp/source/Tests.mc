@@ -669,7 +669,7 @@ function testPrefs(logger as Logger) as Boolean {
     var saved = Application.Storage.getValue("prefs");
     Application.Storage.deleteValue("prefs");
     // Standard: alles an, Einheiten automatisch
-    Test.assert(Prefs.kmSummary() && Prefs.paceAlert() && Prefs.sound() && Prefs.weather());
+    Test.assert(Prefs.kmSummary() && Prefs.paceAlert() && Prefs.tones() && Prefs.vibration() && Prefs.weather());
     Test.assertEqual(Prefs.units(), Prefs.UNITS_AUTO);
     Test.assert(Prefs.miles(true));
     Test.assert(!Prefs.miles(false));

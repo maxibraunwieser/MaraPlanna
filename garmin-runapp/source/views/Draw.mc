@@ -433,6 +433,13 @@ module Draw {
         }
     }
 
+    // Kantenglättung aus: nur die Startseite und einzelne Symbole brauchen sie, sie kostet Rechenzeit.
+    function plain(dc as Graphics.Dc) as Void {
+        if (dc has :setAntiAlias) {
+            dc.setAntiAlias(false);
+        }
+    }
+
     function penWidth(s as Numeric, factor as Float) as Number {
         var p = (s * factor).toNumber();
         return p < 2 ? 2 : p;

@@ -68,9 +68,14 @@ module Prefs {
         return flag("pace", true);
     }
 
-    // Töne und Vibration der App (zusätzlich zu den Einstellungen der Uhr)
-    function sound() as Boolean {
-        return flag("sound", true);
+    // Töne und Vibration der App, einzeln (zusätzlich zu den Einstellungen der Uhr). Ein Ton unterbricht
+    // Musik, die über Bluetooth läuft; Vibration stört sie nicht.
+    function tones() as Boolean {
+        return flag("tones", true);
+    }
+
+    function vibration() as Boolean {
+        return flag("vibe", true);
     }
 
     // Wetter auf dem Startbildschirm

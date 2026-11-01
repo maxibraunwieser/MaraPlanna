@@ -5,6 +5,7 @@
 import Toybox.Activity;
 import Toybox.ActivityRecording;
 import Toybox.Lang;
+import Toybox.Sensor;
 import Toybox.Timer;
 import Toybox.WatchUi;
 
@@ -20,6 +21,9 @@ class RecordingController {
     // außerhalb des Zielbereichs liegt (kurze Ausreißer lösen nichts aus).
     private const ALARM_GAP_MS = 30000;
     private const OFF_SECONDS = 8;
+    // Kommt so lange kein Puls aus der Aktivität, wird der Pulssensor ausdrücklich eingeschaltet (Sicherheitsnetz
+    // für Uhren, die ihn nicht von selbst starten). Normalerweise passiert das nie: ANT+ stört Bluetooth-Musik.
+    private const HR_WAIT_S = 20;
     // In den ersten Sekunden eines Schritts beschleunigt man noch: kein Alarm.
     private const SETTLE_S = 20;
 
@@ -51,6 +55,7 @@ class RecordingController {
     private var _timer as Timer.Timer?;
     // Geglättete aktuelle Pace (Fenster aus den Einstellungen)
     private var _smooth as PaceSmoother = new PaceSmoother();
+    private var _noHrTicks as Number = 0;
     private var _offTicks as Number = 0;
     private var _offSign as Number = 0;
     private var _lastAlarm as Number = -ALARM_GAP_MS;
@@ -91,6 +96,7 @@ class RecordingController {
         }
         self.zone = zone;
         self.workout = workout;
+        getApp().startGps();
         if (workout != null) {
             (workout as Workout).bindZones(zones);
         }
@@ -196,6 +202,16 @@ class RecordingController {
         var info = Activity.getActivityInfo();
         var ms = timerMs(info);
         var dist = distance(info);
+
+        // Kein Puls aus der Aktivität: nach HR_WAIT_S Sekunden den Sensor einmal ausdrücklich anfordern.
+        if (info != null && info.currentHeartRate == null) {
+            _noHrTicks += 1;
+            if (_noHrTicks == HR_WAIT_S) {
+                Sensor.setEnabledSensors([Sensor.SENSOR_HEARTRATE] as Array<Sensor.SensorType>);
+            }
+        } else {
+            _noHrTicks = 0;
+        }
 
         // Aktuelle Pace: Geschwindigkeit des GPS-Chips, gemittelt über das eingestellte Fenster (Ringpuffer).
         _smooth.add(ms, dist, info != null ? info.currentSpeed : null);

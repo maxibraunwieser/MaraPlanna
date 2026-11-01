@@ -63,6 +63,7 @@ class SummaryView extends WatchUi.View {
     }
 
     function onUpdate(dc as Graphics.Dc) as Void {
+        Draw.plain(dc);
         var h = dc.getHeight();
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
         dc.clear();
