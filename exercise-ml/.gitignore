@@ -1,0 +1,10 @@
+.venv/
+data/raw/*
+!data/raw/README.md
+!data/raw/LICENSE-RecoFit.txt
+data/own/*
+!data/own/README.md
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+export/*.tmp
