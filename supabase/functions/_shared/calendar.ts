@@ -8,7 +8,7 @@ export type CalUnits = 'km' | 'mi';
 
 export type CalStep =
   | { type: 'run'; label: string; zone: CalZone; distanceKm?: number; durationMin?: number; repeat?: number; recoveryKm?: number; recoveryMin?: number }
-  | { type: 'exercise'; name: string; sets: number; reps: string; note?: string };
+  | { type: 'exercise'; name: string; sets: number; reps: string; note?: string; /** library id (_shared/strength.ts) */ id?: string };
 
 export interface CalWorkout {
   id: string;

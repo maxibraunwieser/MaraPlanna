@@ -116,3 +116,16 @@ For moving data in the simulator, use **Simulation → Activity Data**: choose *
 Limits of a sideloaded app: the settings in the Garmin Connect app (pace entry) and the labels of the custom FIT fields in Garmin Connect only appear for apps installed from the Store. The recording itself (time, distance, pace, heart rate, laps) syncs to Garmin Connect as usual.
 
 **For everyone:** upload `MaraPlanna.iq` in the [Connect IQ developer dashboard](https://apps.garmin.com/developer/) as a new app (*Device App*). After Garmin's review, it is in the Connect IQ Store.
+
+
+## Krafttraining
+
+Menü **Training → Kraft** (heutige Einheit aus dem Plan) oder **Kraft frei**. Die Uhr fragt nichts Persönliches ab: Handgelenk, Gewichtseinheit, Übungsliste und die heutige Einheit kommen aus dem Feed (`strength`), eingerichtet auf der Website unter **Strength**. Ohne Einrichtung zeigt der Menüpunkt "Auf Website einrichten".
+
+- **Ablauf:** START beginnt. In der Pause steht die nächste geplante Übung mit Satz und Ziel. Beginnt eine Bewegung, zählt die Uhr die Wiederholungen mit (`RepCounter`). Nach dem Satz kommt eine Karte mit Übung, Wiederholungen und Gewicht. Sie schließt sich nach 5 s von selbst (nur wenn "Satz selbst abschließen" auf der Website an ist), AUF/AB oder Tippen ändern Gewicht, Wiederholungen und Übung, START bestätigt, BACK verwirft.
+- **Pause:** START öffnet das Menü (Fortsetzen, Speichern, Verwerfen). BACK in der Pause lässt die geplante Übung aus.
+- **Aufzeichnung:** Aktivität Krafttraining, eine Runde je Satz, FIT-Felder `set_reps`, `set_weight`, `set_exercise`. Nach dem Speichern gehen die Sätze an `POST /watch/strength` (bei fehlender Verbindung bleiben sie gespeichert und werden beim nächsten Abgleich gesendet).
+- **Sensoren:** nur während des Krafttrainings, Beschleunigung und (wo vorhanden) Gyroskop, einmal pro Sekunde geliefert. Keine Töne, nur Vibration, damit Musik über Bluetooth nicht stört.
+- **Noch nicht:** Erkennung der Übung aus der Bewegung. Die Zähl-Schwellen (`RepCounter`) sind Schätzwerte; die Zusammenfassung zeigt Abtastrate und Lücken, jede Zeile in `strength_sets.diag` die Messwerte zum Abstimmen.
+- **Kleine Uhren:** Auf den sechs Uhren mit 128 KB (`enduro`, `fenix6`, `fenix6s`, `fr245`, `fr55`, `venusq`) ist alles Kraft über die Annotationen `strength`/`nostrength` ausgeschlossen (`monkey.jungle`, `demo.jungle`). Gemessen im Simulator auf der FR55: 113,0 von 123,9 KB im Demo-Build.
+- **Demo-Build:** Beispiel-Feed (Einrichtung fertig, drei Übungen mit kurzer Pause) und eine künstliche Handgelenkbewegung: alle 36 s ein Satz mit 8 Wiederholungen. Nur im Demo-Build vorhanden.

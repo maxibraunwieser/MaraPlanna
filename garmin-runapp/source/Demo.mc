@@ -4,6 +4,7 @@
 import Toybox.Activity;
 import Toybox.Application;
 import Toybox.Lang;
+import Toybox.Math;
 import Toybox.System;
 import Toybox.Time;
 import Toybox.Timer;
@@ -181,8 +182,56 @@ module Demo {
             }
         } as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>;
         seedWeek(feed);
+        seedStrength(feed);
         Application.Storage.setValue("run", feed);
         Application.Storage.setValue("synced", Time.now().value() - 300);
+    }
+
+    // Kraft-Teil wie vom Server für jemanden, der alles auf der Website eingerichtet hat (kurze Pausen für die Vorführung).
+    (:demo)
+    function seedStrength(feed as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>) as Void {
+        feed.put("strength", {
+            "ready" => true, "w" => "l", "u" => "kg", "auto" => true, "share" => false,
+            "ex" => [
+                { "i" => "squat", "n" => "Kniebeuge", "f" => "squat" },
+                { "i" => "bench_press", "n" => "Bankdrücken", "f" => "push_h" },
+                { "i" => "row", "n" => "Rudern", "f" => "pull_h" },
+                { "i" => "bicep_curl", "n" => "Bizepscurl", "f" => "curl" }
+            ],
+            "today" => {
+                "id" => "", "t" => "Strength test",
+                "ex" => [
+                    { "i" => "bench_press", "n" => "Bankdrücken", "f" => "push_h", "s" => 3, "r" => 8, "k" => 60.0, "rest" => 20 },
+                    { "i" => "squat", "n" => "Kniebeuge", "f" => "squat", "s" => 3, "r" => 8, "k" => 80.0, "rest" => 20 },
+                    { "i" => "row", "n" => "Rudern", "f" => "pull_h", "s" => 2, "r" => 10, "rest" => 20 }
+                ]
+            }
+        } as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>);
+    }
+
+    // Beispielbewegung des Handgelenks für den Simulator (er liefert keine Bewegung): alle 36 Sekunden ein Satz
+    // mit 8 Wiederholungen (0,8 Hz, 10 s), dazwischen Ruhe mit etwas Rauschen. Eine Lieferung = 25 Messpunkte.
+    (:live)
+    function accelBatch(second as Number) as Array<Array<Number>>? {
+        return null;
+    }
+
+    (:demo)
+    function accelBatch(second as Number) as Array<Array<Number>>? {
+        var xs = [] as Array<Number>;
+        var ys = [] as Array<Number>;
+        var zs = [] as Array<Number>;
+        var cycle = second % 36;
+        for (var j = 0; j < 25; j++) {
+            var tt = cycle + j / 25.0;
+            var inSet = tt >= 6.0 && tt < 16.0;
+            var ph = 2.0 * Math.PI * 0.8 * (tt - 6.0);
+            var noise = Math.sin((second * 25 + j) * 12.9898) * 6.0;
+            xs.add(((inSet ? 350.0 * Math.sin(ph) : 0.0) + noise).toNumber());
+            ys.add(((inSet ? 120.0 * Math.cos(ph) : 0.0) + noise * 0.7).toNumber());
+            zs.add((1000.0 + noise * 0.5).toNumber());
+        }
+        return [xs, ys, zs] as Array<Array<Number>>;
     }
 
     // Beispielwoche wie vom Server: Montag der aktuellen Woche, zwei Wochen Einheiten (was vor heute

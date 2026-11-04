@@ -13,6 +13,7 @@ import { Dashboard } from './pages/Dashboard';
 import { PlanPage } from './pages/PlanPage';
 import { Activities } from './pages/Activities';
 import { Settings } from './pages/Settings';
+import { Strength } from './pages/Strength';
 import { Analysis } from './pages/Analysis';
 import { Progress } from './pages/Progress';
 
@@ -69,6 +70,7 @@ export default function App() {
                 <Route index element={<Dashboard />} />
                 <Route path="/plan" element={<PlanPage />} />
                 <Route path="/plan/new" element={<CreatePlan />} />
+                <Route path="/strength" element={<Strength />} />
                 <Route path="/progress" element={<Progress />} />
                 <Route path="/activities" element={<Activities />} />
                 <Route path="/connect" element={<ConnectGarmin />} />

@@ -13,6 +13,8 @@ class RunApp extends Application.AppBase {
     // Der Bereit-Bildschirm, solange er offen ist (bekommt neue Daten mit)
     var startView as StartView?;
     var gps as Number = Position.QUALITY_NOT_AVAILABLE;
+    // Wird beim Beenden der App aufgerufen (das Krafttraining speichert sich damit selbst)
+    var stopHook as Method? = null;
 
     function initialize() {
         AppBase.initialize();
@@ -48,6 +50,9 @@ class RunApp extends Application.AppBase {
         // (in onStop ist keine Rückfrage mehr möglich – so gehen keine Daten verloren).
         if (controller != null && (controller as RecordingController).recording()) {
             (controller as RecordingController).save();
+        }
+        if (stopHook != null) {
+            (stopHook as Method).invoke();
         }
         if (sync != null) {
             (sync as Sync).stop();

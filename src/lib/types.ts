@@ -1,5 +1,7 @@
 // Shared domain types. Dates are ISO calendar strings (YYYY-MM-DD) unless noted.
 
+import type { StrengthPrefs } from '../../supabase/functions/_shared/strength.ts';
+
 export type Units = 'km' | 'mi';
 export type Level = 'beginner' | 'intermediate' | 'advanced';
 export type Approach = 'conservative' | 'balanced' | 'ambitious';
@@ -176,7 +178,7 @@ export type Step =
       recoveryKm?: number;
       recoveryMin?: number;
     }
-  | { type: 'exercise'; name: string; sets: number; reps: string; note?: string };
+  | { type: 'exercise'; name: string; sets: number; reps: string; note?: string; /** library id (supabase/functions/_shared/strength.ts) */ id?: string };
 
 export type WorkoutKind =
   | 'easy'
@@ -285,10 +287,29 @@ export interface PlanAdjustment {
   created_at: string;
 }
 
+/** One set recorded by the watch (table strength_sets). */
+export interface StrengthSetRow {
+  id: string;
+  session_key: string;
+  idx: number;
+  workout_id: string | null;
+  local_date: string;
+  started_at: string;
+  duration_s: number | null;
+  exercise_id: string | null;
+  exercise_name: string | null;
+  reps: number;
+  weight_kg: number | null;
+  source: 'plan' | 'pick' | 'auto';
+  confidence: number | null;
+}
+
 export interface Profile {
   id: string;
   display_name: string | null;
   units: Units;
   onboarding: OnboardingAnswers | null;
   onboarding_completed_at: string | null;
+  /** Strength settings from the Strength page (see StrengthPrefs); null until saved. */
+  strength?: StrengthPrefs | null;
 }

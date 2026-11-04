@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { CalendarDays, Home, ListChecks, RefreshCw, Settings, TrendingUp, Watch } from 'lucide-react';
+import { CalendarDays, Dumbbell, Home, ListChecks, RefreshCw, Settings, TrendingUp, Watch } from 'lucide-react';
 import { useData } from '../lib/data';
 import { fmtRelative } from '../lib/format';
 import { cx } from './ui';
@@ -24,6 +24,7 @@ export function Logo({ className, light }: { className?: string; light?: boolean
 const NAV = [
   { to: '/', label: 'Today', icon: Home, end: true },
   { to: '/plan', label: 'Plan', icon: CalendarDays },
+  { to: '/strength', label: 'Strength', icon: Dumbbell },
   { to: '/progress', label: 'Progress', icon: TrendingUp },
   { to: '/activities', label: 'Activities', icon: ListChecks },
   { to: '/settings', label: 'Settings', icon: Settings },

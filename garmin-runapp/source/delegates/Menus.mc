@@ -1,6 +1,7 @@
 // Menüs, die der Startbildschirm öffnet:
 //   Hauptmenü      Training · Diese Woche · Trainingsplan · Einstellungen
-//   Training       heutige Einheit, Lauftypen (Easy, Long, …), Freier Lauf → Startbildschirm mit GPS
+//   Training       heutige Einheit, Lauftypen (Easy, Long, …), Freier Lauf → Startbildschirm mit GPS;
+//                  dazu Kraft (heutige Einheit, freies Training) → StrengthEntry
 //   Einstellungen  Datenseiten, Einheiten, km-Zusammenfassung, Pace-Alarm, Töne, Wetter, MaraPlanna trennen
 // Alle Untertitel kommen aus den aktuellen Daten, nichts ist fest eingetragen.
 
@@ -108,6 +109,7 @@ module TrainMenu {
                 menu.addItem(new WatchUi.MenuItem(StartView.zoneName(id), range, id, null));
             }
         }
+        StrengthEntry.addItems(menu, feed);
         WatchUi.pushView(menu, new TrainMenuDelegate(), WatchUi.SLIDE_LEFT);
     }
 }
@@ -119,6 +121,10 @@ class TrainMenuDelegate extends WatchUi.Menu2InputDelegate {
 
     // Gewählte Einheit → Startbildschirm (GPS-Suche, START beginnt den Lauf).
     function onSelect(item as WatchUi.MenuItem) as Void {
+        if (StrengthEntry.handles(item.getId())) {
+            StrengthEntry.open(item.getId(), WeekPlan.feed());
+            return;
+        }
         var view = new StartView(item.getId() as Number);
         WatchUi.pushView(view, new StartDelegate(view), WatchUi.SLIDE_LEFT);
     }

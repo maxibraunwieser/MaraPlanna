@@ -11,6 +11,7 @@ import type {
   OnboardingAnswers,
   PlanAdjustment,
   PlannedWorkout,
+  StrengthSetRow,
   Profile,
   Step,
   TrainingPlan,
@@ -19,6 +20,7 @@ import type {
   WorkoutDraft,
 } from './types';
 import type { AdaptResult, WorkoutPatch } from './planner/adapt';
+import { exerciseById, sessionOrder, type StrengthPrefs } from '../../supabase/functions/_shared/strength.ts';
 import type { GeneratedPlan } from './planner/generate';
 import { generateWeeks } from './planner/generate';
 
@@ -326,3 +328,46 @@ async function invokeWatch<T>(body: Record<string, unknown>): Promise<T> {
 export const linkWatch = (code: string) => invokeWatch<{ linked: boolean }>({ action: 'link', code });
 export const listWatches = () => invokeWatch<{ devices: WatchDevice[] }>({ action: 'list' });
 export const unlinkWatch = (id: string) => invokeWatch<{ unlinked: boolean }>({ action: 'unlink', id });
+
+
+// ---------------------------------------------------------------------------
+// Strength
+// ---------------------------------------------------------------------------
+
+export async function saveStrengthPrefs(userId: string, prefs: StrengthPrefs) {
+  await saveProfile(userId, { strength: prefs });
+}
+
+export async function fetchStrengthSets(userId: string, since: string): Promise<StrengthSetRow[]> {
+  return check(await supabase.from('strength_sets').select('*').eq('user_id', userId).gte('local_date', since).order('local_date', { ascending: false }).order('idx').limit(1000)) as StrengthSetRow[];
+}
+
+/** A short strength session for today in the active plan, built from the user's exercises, so the watch has something to run. */
+export async function createTestStrengthWorkout(userId: string, plan: TrainingPlan, workouts: PlannedWorkout[], date: string, exerciseIds: string[]) {
+  const picked = sessionOrder(exerciseIds).slice(0, 5).flatMap((id) => {
+    const e = exerciseById(id);
+    return e ? [e] : [];
+  });
+  if (!picked.length) throw new Error('Choose at least one exercise and save first.');
+  // Week and phase of the plan at that date (the closest session on or before it, else the first one).
+  const ref = [...workouts].filter((w) => w.date <= date).sort((a, b) => b.date.localeCompare(a.date))[0] ?? workouts[0];
+  if (!ref) throw new Error('Your plan has no sessions yet.');
+  check(await supabase.from('planned_workouts').delete().eq('plan_id', plan.id).eq('date', date).like('title', 'Strength test%'));
+  const steps: Step[] = picked.map((e) => ({ type: 'exercise', id: e.id, name: e.en, sets: e.sets, reps: String(e.reps) }));
+  check(
+    await supabase.from('planned_workouts').insert({
+      plan_id: plan.id,
+      user_id: userId,
+      date,
+      week: ref.week,
+      phase: ref.phase,
+      kind: 'strength_full',
+      title: 'Strength test',
+      steps,
+      distance_km: null,
+      duration_min: 30,
+      key_session: false,
+      status: 'planned',
+    }),
+  );
+}

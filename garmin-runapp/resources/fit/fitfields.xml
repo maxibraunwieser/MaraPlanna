@@ -12,5 +12,8 @@
                   unitLabel="@Strings.FitNoUnit" fillColor="#A3E635" />
         <fitField id="3" displayInActivitySummary="true" sortOrder="3" precision="1"
                   dataLabel="@Strings.FitVdot" unitLabel="@Strings.FitNoUnit" />
+        <fitField id="10" sortOrder="10" precision="0" dataLabel="@Strings.FitSetReps" unitLabel="@Strings.FitNoUnit" />
+        <fitField id="11" sortOrder="11" precision="1" dataLabel="@Strings.FitSetWeight" unitLabel="@Strings.FitKg" />
+        <fitField id="12" sortOrder="12" precision="0" dataLabel="@Strings.FitSetExercise" unitLabel="@Strings.FitNoUnit" />
     </fitContributions>
 </resources>

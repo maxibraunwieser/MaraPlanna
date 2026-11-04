@@ -5,7 +5,9 @@
 //   GET  /functions/v1/watch/data?date=YYYY-MM-DD      header X-Watch-Secret
 //        → the watch face feed, { paired: false, code } while waiting, { revoked: true } if unlinked
 //   GET  /functions/v1/watch/run?date=YYYY-MM-DD       same, for the MaraPlanna Run app:
-//        VDOT, paces, today's run as steps, this and next week's sessions, race
+//        VDOT, paces, today's run as steps, this and next week's sessions, race,
+//        and the strength part (settings from the website, exercise list, today's session)
+//   POST /functions/v1/watch/strength                  same header: the sets of a finished strength training
 // The website (with the user's Supabase session):
 //   POST /functions/v1/watch  { action: "link", code } | { action: "list" } | { action: "unlink", id }
 //
@@ -16,6 +18,7 @@ import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { buildWatchFeed, addDays, mondayOf } from '../_shared/watchFeed.ts';
 import { buildRunFeed } from '../_shared/runFeed.ts';
 import type { CalUnits, CalWorkout } from '../_shared/calendar.ts';
+import { normalizePrefs, strengthRows } from '../_shared/strength.ts';
 
 const CODE_MINUTES = 30;
 const MIGRATION_HINT = 'Database update needed: run supabase/migrations/20261030000000_watch_devices.sql in the Supabase SQL Editor.';
@@ -129,6 +132,19 @@ async function run(admin: SupabaseClient, secret: string, date: string) {
     admin.from('profiles').select('units').eq('id', dev.userId).maybeSingle(),
     admin.from('activities').select('distance_m').eq('user_id', dev.userId).eq('sport', 'run').gte('local_date', start).lte('local_date', addDays(start, 6)),
   ]);
+  // Separate query: without the strength column (migration not run yet) the units above still work.
+  const { data: strengthRow } = await admin.from('profiles').select('strength').eq('id', dev.userId).maybeSingle();
+  // Last weight per exercise (kg), newest set first. Without the strength table (migration not run yet) it stays empty.
+  const { data: lastSets } = await admin
+    .from('strength_sets')
+    .select('exercise_id, weight_kg')
+    .eq('user_id', dev.userId)
+    .not('exercise_id', 'is', null)
+    .not('weight_kg', 'is', null)
+    .order('started_at', { ascending: false })
+    .limit(120);
+  const lastKg: Record<string, number> = {};
+  for (const s of (lastSets ?? []) as { exercise_id: string; weight_kg: number }[]) if (!(s.exercise_id in lastKg)) lastKg[s.exercise_id] = Number(s.weight_kg);
   const { data: workouts } = plan
     ? await admin
         .from('planned_workouts')
@@ -147,7 +163,23 @@ async function run(admin: SupabaseClient, secret: string, date: string) {
     weekDoneKm: (runs ?? []).reduce((s: number, r: { distance_m: number | null }) => s + (r.distance_m ?? 0) / 1000, 0),
     raceDate: plan?.race_date ?? null,
     raceName: plan?.race_name ?? null,
+    strength: { prefs: normalizePrefs(strengthRow?.strength), lastKg },
   });
+}
+
+/** The sets of one finished strength training. Uploading the same training twice changes nothing. */
+async function saveStrength(admin: SupabaseClient, secret: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const dev = await device(admin, secret);
+  if ('reply' in dev) return dev.reply as Record<string, unknown>;
+  const { data: profile } = await admin.from('profiles').select('strength').eq('id', dev.userId).maybeSingle();
+  const made = strengthRows(dev.userId, body, normalizePrefs(profile?.strength).wrist);
+  if ('error' in made) return made;
+  const { error } = await admin.from('strength_sets').upsert(made.rows, { onConflict: 'user_id,session_key,idx' });
+  if (error) {
+    const missing = /strength_sets|schema cache|does not exist/.test(error.message);
+    return { error: missing ? 'Database update needed: run supabase/migrations/20261104000000_strength.sql in the Supabase SQL Editor.' : error.message };
+  }
+  return { saved: made.rows.length };
 }
 
 // ---------------------------------------------------------------------------
@@ -201,6 +233,13 @@ Deno.serve(async (req) => {
       if (!/^[a-f0-9]{64}$/.test(secret)) return json({ revoked: true });
       const date = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('date') ?? '') ? url.searchParams.get('date')! : new Date().toISOString().slice(0, 10);
       return json(route === 'run' ? await run(admin, secret, date) : await feed(admin, secret, date));
+    }
+
+    if (route === 'strength' && req.method === 'POST') {
+      const secret = req.headers.get('x-watch-secret') ?? '';
+      if (!/^[a-f0-9]{64}$/.test(secret)) return json({ revoked: true });
+      const reply = await saveStrength(admin, secret, (await req.json().catch(() => ({}))) as Record<string, unknown>);
+      return json(reply, 'error' in reply ? 400 : 200);
     }
 
     if (req.method !== 'POST') return json({ error: 'Not found' }, 404);

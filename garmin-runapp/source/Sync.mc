@@ -16,6 +16,8 @@ class Sync {
     private const STALE_S = 900;
     private var _timer as Timer.Timer?;
     private var _busy as Boolean = false;
+    private var _sendingStrength as Boolean = false;
+    private var _strengthDone as Method? = null;
     private var _onChange as Method() as Void;
     var lastError as Number? = null;
 
@@ -127,6 +129,65 @@ class Sync {
             Application.Storage.deleteValue("code");
         }
         _onChange.invoke();
+        sendQueued();
+    }
+
+    // ---- Krafttraining: Sätze nach dem Training senden. Klappt das nicht (kein Handy, keine Verbindung), bleiben
+    // sie gespeichert (höchstens drei Trainings) und gehen beim nächsten erfolgreichen Abgleich raus.
+
+    private function queue() as Array<Application.Storage.ValueType> {
+        var q = Application.Storage.getValue("strengthQueue");
+        return q instanceof Array ? q as Array<Application.Storage.ValueType> : [] as Array<Application.Storage.ValueType>;
+    }
+
+    function postStrength(payload as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>, done as Method) as Void {
+        var q = queue();
+        q.add(payload);
+        while (q.size() > 3) {
+            q = q.slice(1, null) as Array<Application.Storage.ValueType>;
+        }
+        Application.Storage.setValue("strengthQueue", q);
+        _strengthDone = done;
+        sendQueued();
+    }
+
+    function sendQueued() as Void {
+        if (_sendingStrength) {
+            return;
+        }
+        var q = queue();
+        var secret = Application.Storage.getValue("secret");
+        if (q.size() == 0 || !(secret instanceof String)) {
+            return;
+        }
+        _sendingStrength = true;
+        Communications.makeWebRequest(
+            BASE + "/strength",
+            q[0] as Dictionary<Object, Object>,
+            {
+                :method => Communications.HTTP_REQUEST_METHOD_POST,
+                :headers => { "Content-Type" => Communications.REQUEST_CONTENT_TYPE_JSON, "X-Watch-Secret" => secret },
+                :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON
+            },
+            method(:onStrength)
+        );
+    }
+
+    function onStrength(code as Number, data as Dictionary or String or Null) as Void {
+        _sendingStrength = false;
+        var ok = code == 200;
+        if (ok) {
+            var q = queue();
+            if (q.size() > 0) {
+                Application.Storage.setValue("strengthQueue", q.slice(1, null) as Array<Application.Storage.ValueType>);
+            }
+        }
+        if (_strengthDone != null) {
+            (_strengthDone as Method).invoke(ok);
+        }
+        if (ok) {
+            sendQueued();
+        }
     }
 
     // Lokales Datum JJJJ-MM-TT (der Plan rechnet in lokalen Tagen).
