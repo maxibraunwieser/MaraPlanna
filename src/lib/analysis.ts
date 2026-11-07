@@ -17,9 +17,12 @@ import { median } from './planner/fitness';
 import { vdotFromHeartRate } from './planner/vdot';
 import { zonePace } from './planner/workouts';
 import { isRunWorkout } from './planner/adapt';
+import { tr, type MsgKey } from './i18n';
 
 export type CheckStatus = 'good' | 'warn' | 'bad' | 'info';
 export interface Check {
+  /** Stable name of the check (the label is translated). */
+  id: string;
   label: string;
   status: CheckStatus;
   detail: string;
@@ -65,105 +68,16 @@ export interface Analysis {
 // Purpose of each session type
 // ---------------------------------------------------------------------------
 
-const PURPOSE: Partial<Record<WorkoutKind, Purpose>> = {
-  easy: {
-    headline: 'Aerobic base',
-    why: 'Easy running builds capillaries, mitochondria and fat-burning capacity with little fatigue. About 75–80 % of your running should feel this easy.',
-    marathon: 'Weekly volume is one of the strongest training predictors of marathon time: runners above 65 km/week finished ~14 min faster than those at 40–65 km (Fokkema 2020).',
-  },
-  recovery: {
-    headline: 'Active recovery',
-    why: 'Very easy running increases blood flow and helps you absorb the last hard session without adding fatigue.',
-    marathon: 'Consistency over many weeks matters more than any single workout – recovery runs keep the chain unbroken.',
-  },
-  long: {
-    headline: 'Endurance & durability',
-    why: 'Long runs train fat oxidation, glycogen storage and the resilience of muscles and tendons for the last 10 km of the race.',
-    marathon: 'Runners whose longest run was under 25 km finished ~13 min slower than those reaching 30–35 km (Fokkema 2020); more ≥32 km runs go with faster times (Doherty 2020).',
-  },
-  long_mp: {
-    headline: 'Race-specific endurance',
-    why: 'Marathon pace on tired legs teaches you to hold race pace when glycogen runs low – and it is the best place to rehearse fuelling.',
-    marathon: 'The most race-specific session in the plan: it builds both endurance and confidence at goal pace.',
-  },
-  threshold: {
-    headline: 'Lactate threshold',
-    why: 'Threshold running raises the speed you can hold before lactate accumulates. Marathon pace sits just below it.',
-    marathon: 'A higher threshold makes marathon pace feel easier and delays fatigue late in the race.',
-  },
-  intervals: {
-    headline: 'VO₂max & economy',
-    why: 'Hard 3–5 min efforts raise your aerobic ceiling and improve running economy.',
-    marathon: 'A bigger aerobic ceiling lifts every pace below it, including marathon pace.',
-  },
-  marathon_pace: {
-    headline: 'Race-pace practice',
-    why: 'Running at goal pace grooves the rhythm, economy and fuelling you will use on race day.',
-    marathon: 'Specific preparation: the closer to race day, the more of your quality should look like the race.',
-  },
-  fartlek: {
-    headline: 'Speed & variety',
-    why: 'Short faster surges recruit more muscle fibres and improve economy without the stress of a full interval session.',
-    marathon: 'Prepares your legs for the harder threshold and marathon-pace work of the build phase.',
-  },
-  shakeout: {
-    headline: 'Stay loose',
-    why: 'A very short, easy run with a few strides keeps you sharp without tiring you before the race.',
-    marathon: 'Arrive at the start line fresh and confident.',
-  },
-  race: {
-    headline: 'Race day',
-    why: 'Everything you trained for.',
-    marathon: 'Start conservatively, fuel early (60–90 g carbs per hour) and save something for the last 10 km.',
-  },
-  strength_lower: {
-    headline: 'Running economy & injury resilience',
-    why: 'Heavy and plyometric strength work make tendons stiffer and more springy, so each stride costs less energy.',
-    marathon: 'High-load, plyometric and combined strength training improve running economy in distance runners (Llanos-Lagos 2024).',
-  },
-  strength_full: {
-    headline: 'Running economy & injury resilience',
-    why: 'Strength work for the whole chain – legs for economy, trunk and upper body for posture when tired.',
-    marathon: 'Strength training improves running economy in distance runners (Llanos-Lagos 2024).',
-  },
-  strength_upper: {
-    headline: 'Posture & arm drive',
-    why: 'A strong back and shoulders keep your posture upright and your arm swing efficient late in the race.',
-    marathon: 'Less upper-body collapse in the last 10 km means less wasted energy.',
-  },
-  core: {
-    headline: 'Trunk stability',
-    why: 'A stable trunk transfers force from leg to ground efficiently and protects the lower back.',
-    marathon: 'Helps you hold good form when fatigue sets in.',
-  },
-  mobility: {
-    headline: 'Mobility & recovery',
-    why: 'Keeps hips and ankles moving freely so your stride stays smooth.',
-    marathon: 'Supports consistent training by reducing stiffness.',
-  },
-  plyo: {
-    headline: 'Elastic power',
-    why: 'Jumps and drills train the stretch-shortening cycle – the "spring" in your stride.',
-    marathon: 'Plyometric training improves running economy, especially at slower speeds (Llanos-Lagos 2024).',
-  },
-  bike: {
-    headline: 'Low-impact aerobic work',
-    why: 'Adds aerobic volume without the impact of running.',
-    marathon: 'Extra aerobic training while protecting legs and tendons.',
-  },
-  swim: {
-    headline: 'Low-impact aerobic work',
-    why: 'Aerobic training with zero impact – great for recovery.',
-    marathon: 'Extra aerobic training while protecting legs and tendons.',
-  },
-  custom: {
-    headline: 'Your own session',
-    why: 'Part of your weekly routine.',
-    marathon: 'The planner keeps it in mind when placing hard running days.',
-  },
-};
+const PURPOSE_KINDS: WorkoutKind[] = [
+  'easy', 'recovery', 'long', 'long_mp', 'threshold', 'intervals', 'marathon_pace', 'fartlek', 'shakeout', 'race',
+  'strength_lower', 'strength_full', 'strength_upper', 'core', 'mobility', 'plyo', 'bike', 'swim', 'custom',
+];
 
-export const purposeFor = (kind: WorkoutKind): Purpose => PURPOSE[kind] ?? PURPOSE.easy!;
+/** What a kind of session is for, in the language of the page. */
+export const purposeFor = (kind: WorkoutKind): Purpose => {
+  const k = PURPOSE_KINDS.includes(kind) ? kind : 'easy';
+  return { headline: tr(`an.p.${k}.h` as MsgKey), why: tr(`an.p.${k}.why` as MsgKey), marathon: tr(`an.p.${k}.goal` as MsgKey) };
+};
 
 // ---------------------------------------------------------------------------
 // Training-based marathon projection (Tanda 2011)
@@ -193,7 +107,7 @@ const pace = (v: number) => 1000 / v;
 
 function hrZones(samples: ActivitySample[], maxHr: number) {
   const bounds = [0.6, 0.7, 0.8, 0.9];
-  const labels = ['Warm-up', 'Easy', 'Aerobic', 'Threshold', 'Maximum'];
+  const labels = [1, 2, 3, 4, 5].map((n) => tr(`an.hz.${n}` as MsgKey));
   const secs = [0, 0, 0, 0, 0];
   for (let i = 0; i < samples.length - 1; i++) {
     const hr = samples[i].hr;
@@ -409,16 +323,16 @@ export function analyze(input: {
     insights,
   };
   if (!a) {
-    if (w && w.status === 'missed') insights.push('No activity was recorded for this session.');
+    if (w && w.status === 'missed') insights.push(tr('an.i.noActivity'));
     return empty;
   }
 
   // Non-running sessions: done is done.
   if (w && !isRunWorkout(w)) {
     const minutes = (a.duration_s ?? 0) / 60;
-    checks.push({ label: 'Completed', status: 'good', detail: `${Math.round(minutes) || w.duration_min} min logged` });
+    checks.push({ id: 'completed', label: tr('an.chk.completed'), status: 'good', detail: tr('an.d.completed', { min: Math.round(minutes) || w.duration_min || 0 }) });
     if (w.duration_min && minutes && minutes < w.duration_min * 0.6)
-      checks.push({ label: 'Duration', status: 'warn', detail: `Shorter than planned (${Math.round(minutes)} of ${w.duration_min} min)` });
+      checks.push({ id: 'duration', label: tr('an.chk.duration'), status: 'warn', detail: tr('an.d.shorter', { min: Math.round(minutes), plan: w.duration_min }) });
     return { ...empty, score: 100, grade: 'excellent', completionPct: 100, checks };
   }
 
@@ -432,9 +346,9 @@ export function analyze(input: {
   if (w?.distance_km && km) {
     completionPct = Math.round((km / w.distance_km) * 100);
     const status: CheckStatus = completionPct >= 90 ? 'good' : completionPct >= 75 ? 'warn' : 'bad';
-    checks.push({ label: 'Distance', status, detail: `${km.toFixed(1)} of ${w.distance_km} km (${completionPct} %)` });
+    checks.push({ id: 'distance', label: tr('an.chk.distance'), status, detail: tr('an.d.distance', { km: km.toFixed(1), plan: w.distance_km, pct: completionPct }) });
     parts.push({ weight: 40, score: Math.min(100, completionPct) - Math.max(0, completionPct - 120) / 2 });
-    if (completionPct > 120) insights.push(`You ran ${completionPct - 100} % further than planned – extra volume is welcome on easy days, but it adds up; watch your total load.`);
+    if (completionPct > 120) insights.push(tr('an.i.further', { pct: completionPct - 100 }));
   }
 
   // --- Pace ---------------------------------------------------------------
@@ -445,11 +359,11 @@ export function analyze(input: {
     const [fast, slow] = zone;
     if (avgPace < fast * 0.97) {
       const pct = ((fast - avgPace) / fast) * 100;
-      checks.push({ label: 'Pace', status: pct > 8 ? 'bad' : 'warn', detail: `${fmt(avgPace)} /km – ${pct.toFixed(0)} % faster than your easy range (${fmt(fast)}–${fmt(slow)})` });
+      checks.push({ id: 'pace', label: tr('an.chk.pace'), status: pct > 8 ? 'bad' : 'warn', detail: tr('an.d.paceFast', { pace: fmt(avgPace), pct: pct.toFixed(0), fast: fmt(fast), slow: fmt(slow) }) });
       parts.push({ weight: 35, score: Math.max(30, 100 - pct * 7) });
-      insights.push('Easy days should stay easy. Running them too fast adds fatigue without extra aerobic benefit and steals energy from your key sessions (80/20 rule).');
+      insights.push(tr('an.i.tooFast'));
     } else {
-      checks.push({ label: 'Pace', status: 'good', detail: `${fmt(avgPace)} /km – in your ${kind === 'long' ? 'long-run' : 'easy'} range (${fmt(fast)}–${fmt(slow)})` });
+      checks.push({ id: 'pace', label: tr('an.chk.pace'), status: 'good', detail: tr(kind === 'long' ? 'an.d.paceOkLong' : 'an.d.paceOkEasy', { pace: fmt(avgPace), fast: fmt(fast), slow: fmt(slow) }) });
       parts.push({ weight: 35, score: 100 });
     }
   } else if (w && main && kind === 'long_mp') {
@@ -462,11 +376,11 @@ export function analyze(input: {
       const dev = ((p - paces.marathon) / paces.marathon) * 100;
       reps = [{ index: 1, ...st, paceS: p, targetPaceS: paces.marathon, deviationPct: dev }];
       const ok = Math.abs(dev) <= 3;
-      checks.push({ label: 'Marathon-pace finish', status: ok ? 'good' : Math.abs(dev) <= 6 ? 'warn' : 'bad', detail: `Last ${mpKm} km at ${fmt(p)} /km (target ${fmt(paces.marathon)})` });
+      checks.push({ id: 'mpFinish', label: tr('an.chk.mpFinish'), status: ok ? 'good' : Math.abs(dev) <= 6 ? 'warn' : 'bad', detail: tr('an.d.mpFinish', { km: mpKm, pace: fmt(p), target: fmt(paces.marathon) }) });
       parts.push({ weight: 35, score: Math.max(30, 100 - Math.max(0, Math.abs(dev) - 2) * 10) });
-      if (dev < -4) insights.push('You finished faster than marathon pace. Great legs – but on race day that energy is better saved for the last 10 km.');
+      if (dev < -4) insights.push(tr('an.i.mpFast'));
     } else {
-      checks.push({ label: 'Marathon-pace finish', status: 'info', detail: 'Needs GPS stream data to check the final segment.' });
+      checks.push({ id: 'mpFinish', label: tr('an.chk.mpFinish'), status: 'info', detail: tr('an.d.mpNeedsGps') });
     }
   } else if (w && main) {
     const target = zonePace(paces, main.zone);
@@ -483,18 +397,18 @@ export function analyze(input: {
       const cv = Math.sqrt(repPaces.reduce((s, p) => s + (p - avgRep) ** 2, 0) / repPaces.length) / avgRep;
       const status: CheckStatus = meanAbs <= 3 ? 'good' : meanAbs <= 6 ? 'warn' : 'bad';
       checks.push({
-        label: 'Work pace',
+        id: 'workPace', label: tr('an.chk.workPace'),
         status,
-        detail: `${reps.length}/${repCount} reps found, avg ${fmt(avgRep)} /km vs target ${fmt(target)} (${meanDev > 0 ? '+' : ''}${meanDev.toFixed(1)} %)`,
+        detail: tr('an.d.workPace', { n: reps.length, reps: repCount, avg: fmt(avgRep), target: fmt(target), dev: `${meanDev > 0 ? '+' : ''}${meanDev.toFixed(1)}` }),
       });
-      checks.push({ label: 'Consistency', status: cv < 0.03 ? 'good' : cv < 0.06 ? 'warn' : 'bad', detail: `Rep-to-rep variation ${(cv * 100).toFixed(1)} %` });
+      checks.push({ id: 'consistency', label: tr('an.chk.consistency'), status: cv < 0.03 ? 'good' : cv < 0.06 ? 'warn' : 'bad', detail: tr('an.d.consistency', { pct: (cv * 100).toFixed(1) }) });
       parts.push({ weight: 35, score: Math.max(30, 100 - Math.max(0, meanAbs - 2) * 10 - (reps.length < repCount ? 10 : 0)) });
-      if (meanDev < -4) insights.push('Your reps were clearly faster than prescribed. If it felt controlled, your fitness may have improved – the planner raises paces automatically when the trend holds.');
-      else if (meanDev > 4) insights.push('The reps were slower than target. Fatigue, heat or hills can explain it; if it repeats, the planner will ease your paces.');
-      if (repPaces.length >= 3 && repPaces[repPaces.length - 1] < repPaces[0] * 0.98) insights.push('You got faster through the session – a great sign of pacing discipline.');
-      if (reps.length < repCount) insights.push(`Only ${reps.length} of ${repCount} reps could be detected – pressing the lap button at the start and end of each rep makes the analysis more precise.`);
+      if (meanDev < -4) insights.push(tr('an.i.repsFaster'));
+      else if (meanDev > 4) insights.push(tr('an.i.repsSlower'));
+      if (repPaces.length >= 3 && repPaces[repPaces.length - 1] < repPaces[0] * 0.98) insights.push(tr('an.i.gotFaster'));
+      if (reps.length < repCount) insights.push(tr('an.i.fewReps', { n: reps.length, total: repCount }));
     } else if (avgPace) {
-      checks.push({ label: 'Work pace', status: 'info', detail: details ? 'Could not detect the reps in the data.' : 'Lap/stream data not loaded – showing averages only.' });
+      checks.push({ id: 'workPace', label: tr('an.chk.workPace'), status: 'info', detail: details ? tr('an.d.noReps') : tr('an.d.noStream') });
     }
   }
 
@@ -506,16 +420,16 @@ export function analyze(input: {
     if (STEADY.includes(kind) || !w) {
       const limit = kind === 'long' ? 0.8 : 0.78;
       const status: CheckStatus = rel <= limit ? 'good' : rel <= limit + 0.04 ? 'warn' : 'bad';
-      checks.push({ label: 'Heart rate', status, detail: `Avg ${a.avg_hr} bpm = ${Math.round(rel * 100)} % of max (easy ≤ ${Math.round(limit * 100)} %)` });
+      checks.push({ id: 'hr', label: tr('an.chk.hr'), status, detail: tr('an.d.hr', { avg: a.avg_hr, pct: Math.round(rel * 100), limit: Math.round(limit * 100) }) });
       parts.push({ weight: 25, score: status === 'good' ? 100 : status === 'warn' ? 70 : 40 });
     } else if (reps?.length && reps.some((r) => r.avgHr)) {
       const repHr = reps.filter((r) => r.avgHr).reduce((s, r) => s + r.avgHr!, 0) / reps.filter((r) => r.avgHr).length;
       const repRel = repHr / maxHr;
       const [lo, hi] = kind === 'intervals' ? [0.88, 0.98] : kind === 'threshold' ? [0.83, 0.93] : kind === 'marathon_pace' || kind === 'long_mp' ? [0.78, 0.9] : [0.8, 0.95];
       const status: CheckStatus = repRel >= lo && repRel <= hi ? 'good' : 'warn';
-      checks.push({ label: 'Effort (HR)', status, detail: `Work HR ${Math.round(repHr)} bpm = ${Math.round(repRel * 100)} % of max (target ${Math.round(lo * 100)}–${Math.round(hi * 100)} %)` });
+      checks.push({ id: 'effort', label: tr('an.chk.effort'), status, detail: tr('an.d.effort', { hr: Math.round(repHr), pct: Math.round(repRel * 100), lo: Math.round(lo * 100), hi: Math.round(hi * 100) }) });
       parts.push({ weight: 25, score: status === 'good' ? 100 : 70 });
-      if (repRel < lo - 0.03) insights.push('Heart rate stayed below the target zone at target pace – a typical sign that you are fitter than your current paces.');
+      if (repRel < lo - 0.03) insights.push(tr('an.i.hrLow'));
     }
     if (kind === 'long' || kind === 'long_mp' || (!w && moving > 4500)) {
       const mpKm = kind === 'long_mp' ? (main?.distanceKm ?? 0) : 0;
@@ -523,17 +437,13 @@ export function analyze(input: {
       decouplingPct = samples.length ? decoupling(samples, total - mpKm * 1000) : null;
       if (decouplingPct !== null) {
         const status: CheckStatus = decouplingPct < 5 ? 'good' : decouplingPct < 8 ? 'warn' : 'bad';
-        checks.push({ label: 'Aerobic decoupling', status, detail: `${decouplingPct.toFixed(1)} % pace:HR drift between first and second half (< 5 % = solid endurance)` });
+        checks.push({ id: 'decoupling', label: tr('an.chk.decoupling'), status, detail: tr('an.d.decoupling', { pct: decouplingPct.toFixed(1) }) });
         if (kind === 'long') parts.push({ weight: 15, score: status === 'good' ? 100 : status === 'warn' ? 70 : 45 });
-        insights.push(
-          decouplingPct < 5
-            ? 'Low cardiac drift: your aerobic endurance is holding up well over this distance. Marathoners with low decoupling run faster in the race (Smyth 2022).'
-            : 'Noticeable cardiac drift in the second half. Heat, dehydration or under-fuelling can cause it – practise drinking and 60–90 g carbs per hour on long runs; more easy volume improves it over time.',
-        );
+        insights.push(tr(decouplingPct < 5 ? 'an.i.driftLow' : 'an.i.driftHigh'));
       }
     }
   } else if (!a.avg_hr) {
-    checks.push({ label: 'Heart rate', status: 'info', detail: 'No heart-rate data recorded.' });
+    checks.push({ id: 'hr', label: tr('an.chk.hr'), status: 'info', detail: tr('an.d.noHr') });
   }
 
   // --- Fitness signal -----------------------------------------------------
@@ -545,20 +455,16 @@ export function analyze(input: {
       const t = reps.reduce((s, r) => s + r.durationS, 0);
       const hr = reps.reduce((s, r) => s + r.avgHr! * r.durationS, 0) / t;
       vdot = vdotFromHeartRate(d, t, hr, restingHr, maxHr);
-      method = 'pace vs. heart rate in the work reps';
+      method = tr('an.m.reps');
     } else if (a.distance_m && moving && a.avg_hr && (STEADY.includes(kind) || !w)) {
       vdot = vdotFromHeartRate(a.distance_m, moving, a.avg_hr, restingHr, maxHr);
-      method = 'pace vs. heart rate of the whole run';
+      method = tr('an.m.run');
     }
   }
   if (vdot) {
     const diff = vdot - plan.fitness.vdot;
     if (Math.abs(diff) >= 1.5)
-      insights.push(
-        diff > 0
-          ? `This run points to a fitness of VDOT ${vdot.toFixed(1)} – above your plan's ${plan.fitness.vdot.toFixed(1)}. If more runs confirm it, paces go up.`
-          : `This run points to VDOT ${vdot.toFixed(1)}, below your plan's ${plan.fitness.vdot.toFixed(1)}. One run means little (heat, fatigue, hills) – the planner only reacts to a clear trend.`,
-      );
+      insights.push(tr(diff > 0 ? 'an.i.vdotUp' : 'an.i.vdotDown', { vdot: vdot.toFixed(1), plan: plan.fitness.vdot.toFixed(1) }));
   }
 
   // --- Marathon projection (Tanda) ---------------------------------------
@@ -568,7 +474,7 @@ export function analyze(input: {
 
   if (kind === 'long' || kind === 'long_mp') {
     const bigRuns = activities.filter((x) => x.sport === 'run' && (x.distance_m ?? 0) >= 28_000 && x.local_date >= plan.start_date).length;
-    insights.push(`Long runs ≥ 28 km in this build so far: ${bigRuns}. The plan aims for ${plan.fitness.peakLongKm >= 32 ? '3–4' : '2–3'} of them before the taper.`);
+    insights.push(tr('an.i.bigRuns', { n: bigRuns, goal: plan.fitness.peakLongKm >= 32 ? '3–4' : '2–3' }));
   }
 
   const total = parts.reduce((s, p) => s + p.weight, 0);

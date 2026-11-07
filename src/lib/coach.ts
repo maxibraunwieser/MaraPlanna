@@ -1,6 +1,7 @@
 // Chat with the AI coach (Edge Function "coach"). The answer arrives as a stream of lines, each a JSON object.
 
 import { supabase } from './supabase';
+import { currentLang, tr } from './i18n';
 import type { CoachAction } from './coachActions';
 
 export interface CoachMessage {
@@ -24,13 +25,15 @@ const functionUrl = () => `${String(import.meta.env.VITE_SUPABASE_URL ?? '').rep
 async function headers(): Promise<Record<string, string>> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
-  if (!token) throw new Error('Please sign in again.');
+  if (!token) throw new Error(tr('co.err.signIn'));
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, apikey: String(import.meta.env.VITE_SUPABASE_ANON_KEY ?? '') };
 }
 
 async function errorOf(res: Response): Promise<Error & { code?: string }> {
   const payload = (await res.json().catch(() => null)) as { error?: string; code?: string } | null;
-  const err = new Error(payload?.error ?? (res.status === 404 ? 'The coach is not deployed yet (Edge Function "coach" is missing).' : `The coach could not answer (${res.status}).`)) as Error & { code?: string };
+  const limit = /today's limit of (\d+) coach messages/.exec(payload?.error ?? '');
+  const message = limit ? tr('co.err.limit', { n: limit[1] }) : (payload?.error ?? (res.status === 404 ? tr('co.err.notDeployed') : tr('co.err.failed', { status: res.status })));
+  const err = new Error(message) as Error & { code?: string };
   err.code = payload?.code;
   return err;
 }
@@ -53,9 +56,9 @@ export async function checkCoach(test = false): Promise<CoachStatus> {
 
 /** Sends a message and reports the answer piece by piece. Resolves when the answer is complete. */
 export async function askCoach(message: string, today: string, onEvent: (e: CoachEvent) => void, signal?: AbortSignal): Promise<void> {
-  const res = await fetch(functionUrl(), { method: 'POST', headers: await headers(), body: JSON.stringify({ action: 'chat', message, today }), signal });
+  const res = await fetch(functionUrl(), { method: 'POST', headers: await headers(), body: JSON.stringify({ action: 'chat', message, today, lang: currentLang() }), signal });
   if (!res.ok) throw await errorOf(res);
-  if (!res.body) throw new Error('The coach did not answer.');
+  if (!res.body) throw new Error(tr('co.err.noAnswer'));
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
@@ -88,7 +91,7 @@ export async function fetchCoachMessages(userId: string): Promise<CoachMessage[]
     .order('created_at', { ascending: false })
     .limit(100);
   if (error) {
-    throw new Error(/coach_messages/.test(error.message) ? 'Database update needed: run supabase/migrations/20261031000000_coach_chat.sql in the Supabase SQL Editor.' : error.message);
+    throw new Error(/coach_messages/.test(error.message) ? tr('co.err.migration') : error.message);
   }
   return ((data ?? []) as CoachMessage[]).reverse();
 }

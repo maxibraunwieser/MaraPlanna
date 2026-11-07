@@ -81,3 +81,16 @@ export function vdotFromHeartRate(
   const estimate = (vo2 - 3.5) / hrr + 3.5;
   return estimate > 20 && estimate < 90 ? estimate : null;
 }
+
+/** VDOT at which a comfortable ("easy") pace is run: the middle of the easy range is about 66 % of VDOT. */
+export function vdotFromEasyPace(paceSPerKm: number): number {
+  let lo = 20;
+  let hi = 90;
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    // faster at a higher VDOT, so pace falls as VDOT rises
+    if (paceAtFraction(mid, 0.66) > paceSPerKm) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}

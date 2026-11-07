@@ -5,7 +5,8 @@ import type { Activity, ActivityDetails, DailyMetric, PlannedWorkout, TrainingPl
 import { analyze, tandaProjection } from './analysis';
 import { addDays } from './planner/dates';
 import { isRunWorkout } from './planner/adapt';
-import { fmtDistance, fmtMinSec, zonePaceText } from './format';
+import { fmtDistance, fmtMinSec, fmtNum, localTitle, zonePaceText } from './format';
+import { tr } from './i18n';
 
 export type NoteTone = 'good' | 'warn' | 'info';
 export interface ReportNote {
@@ -109,7 +110,7 @@ export function weekReport(input: {
   const score = (w: PlannedWorkout | null, a: Activity) => {
     const r = analyze({ workout: w, activity: a, details: detailsOf(a), plan, activities, metrics, maxHr });
     const steady = !w || STEADY.has(w.kind);
-    return { score: r.score, tooFast: steady && a.sport === 'run' && r.checks.some((c) => c.label === 'Pace' && c.status !== 'good') };
+    return { score: r.score, tooFast: steady && a.sport === 'run' && r.checks.some((c) => c.id === 'pace' && c.status !== 'good') };
   };
   const items: ReportItem[] = ws.map((w) => {
     const a = w.activity_id ? (byId.get(w.activity_id) ?? null) : null;
@@ -180,53 +181,50 @@ function coachNotes(r: WeekReport, plan: TrainingPlan, units: Units): ReportNote
 
   if (r.pct !== null && (so ? r.plannedToDateKm : r.plannedKm) >= 5) {
     const ref = so ? r.plannedToDateKm : r.plannedKm;
-    const base = `${so ? 'So far you ran' : 'You ran'} ${d(r.doneKm)} of ${d(ref)}${so ? ' planned up to today' : ''} (${r.pct} %)`;
-    if (r.pct >= 115) notes.push({ tone: 'warn', text: `${base} – more than planned. Extra kilometres add up; keep the easy days easy.` });
-    else if (r.pct >= 90) notes.push({ tone: 'good', text: `${base} – right on target.` });
-    else if (r.pct >= 70) notes.push({ tone: 'info', text: `${base}. No need to make up the missing distance – consistency matters more.` });
-    else notes.push({ tone: 'warn', text: `${base}. If it stays this low, the plan rebuilds from your real level automatically.` });
+    const base = tr(so ? 'rep.n.so' : 'rep.n.past', { done: d(r.doneKm), ref: d(ref), pct: r.pct });
+    if (r.pct >= 115) notes.push({ tone: 'warn', text: base + tr('rep.n.more') });
+    else if (r.pct >= 90) notes.push({ tone: 'good', text: base + tr('rep.n.right') });
+    else if (r.pct >= 70) notes.push({ tone: 'info', text: base + tr('rep.n.mid') });
+    else notes.push({ tone: 'warn', text: base + tr('rep.n.low') });
   }
 
   if (r.key.planned) {
     if (r.key.missed.length) {
-      const titles = r.key.missed.map((w) => w.title).join(', ');
-      notes.push({ tone: 'warn', text: `Missed key session${r.key.missed.length > 1 ? 's' : ''}: ${titles}. Don't squeeze ${r.key.missed.length > 1 ? 'them' : 'it'} in – the next one matters more.` });
+      const titles = r.key.missed.map((w) => localTitle(w.title)).join(', ');
+      notes.push({ tone: 'warn', text: tr(r.key.missed.length > 1 ? 'rep.n.missedN' : 'rep.n.missed1', { titles }) });
     } else if (r.key.done === r.key.planned) {
-      notes.push({ tone: 'good', text: `${r.key.planned === 1 ? 'Key session' : `All ${r.key.planned} key sessions`} done – that's the work that moves your marathon.` });
+      notes.push({ tone: 'good', text: r.key.planned === 1 ? tr('rep.n.key1') : tr('rep.n.keyN', { n: r.key.planned }) });
     }
   }
 
   // A missed long run already shows up under the key sessions.
   if (r.long.workout && r.long.doneKm !== null) {
     const planned = r.long.workout.distance_km ?? 0;
-    if (r.long.longest) notes.push({ tone: 'good', text: `New longest run of this build: ${d(r.long.doneKm)}.` });
-    else if (planned && r.long.doneKm < planned * 0.8) notes.push({ tone: 'info', text: `Long run: ${d(r.long.doneKm)} of ${d(planned)}.` });
+    if (r.long.longest) notes.push({ tone: 'good', text: tr('rep.n.longest', { d: d(r.long.doneKm) }) });
+    else if (planned && r.long.doneKm < planned * 0.8) notes.push({ tone: 'info', text: tr('rep.n.longRun', { d: d(r.long.doneKm), planned: d(planned) }) });
   }
 
   if (r.easy.runs >= 2) {
     if (r.easy.tooFast / r.easy.runs >= 0.5)
-      notes.push({
-        tone: 'warn',
-        text: `${r.easy.tooFast} of ${r.easy.runs} easy runs were faster than your easy pace (${zonePaceText(plan.fitness.paces, 'easy', units)}). Slower easy days let you absorb the hard ones.`,
-      });
-    else if (r.easy.tooFast === 0) notes.push({ tone: 'good', text: 'Easy runs stayed easy – exactly right.' });
+      notes.push({ tone: 'warn', text: tr('rep.n.easyFast', { n: r.easy.tooFast, total: r.easy.runs, pace: zonePaceText(plan.fitness.paces, 'easy', units) }) });
+    else if (r.easy.tooFast === 0) notes.push({ tone: 'good', text: tr('rep.n.easyOk') });
   }
 
   if (r.avgScore !== null) {
-    if (r.avgScore >= 85) notes.push({ tone: 'good', text: `Average execution score ${r.avgScore} – sessions done the way they were meant.` });
-    else if (r.avgScore < 60) notes.push({ tone: 'info', text: `Average execution score ${r.avgScore}. Open the analyses below to see what was off.` });
+    if (r.avgScore >= 85) notes.push({ tone: 'good', text: tr('rep.n.scoreHigh', { n: r.avgScore }) });
+    else if (r.avgScore < 60) notes.push({ tone: 'info', text: tr('rep.n.scoreLow', { n: r.avgScore }) });
   }
 
   const { restingHr, hrv, sleepH } = r.wellness;
   if (restingHr.now !== null && restingHr.prev !== null && restingHr.now - restingHr.prev >= 3)
-    notes.push({ tone: 'warn', text: `Resting heart rate is ${Math.round(restingHr.now - restingHr.prev)} bpm above last week – a sign of fatigue, stress or a coming cold. Sleep and easy days help.` });
+    notes.push({ tone: 'warn', text: tr('rep.n.rhr', { n: Math.round(restingHr.now - restingHr.prev) }) });
   else if (hrv.now !== null && hrv.prev !== null && hrv.now < hrv.prev * 0.9)
-    notes.push({ tone: 'warn', text: `HRV dropped ${Math.round((1 - hrv.now / hrv.prev) * 100)} % compared with last week – recover well before the next hard session.` });
-  if (sleepH.now !== null && sleepH.now < 7) notes.push({ tone: 'info', text: `You slept ${sleepH.now.toFixed(1)} h a night on average – runners adapt better with 7–9 h.` });
+    notes.push({ tone: 'warn', text: tr('rep.n.hrv', { n: Math.round((1 - hrv.now / hrv.prev) * 100) }) });
+  if (sleepH.now !== null && sleepH.now < 7) notes.push({ tone: 'info', text: tr('rep.n.sleep', { h: fmtNum(sleepH.now) }) });
 
   if (r.projection.startS !== null && r.projection.endS !== null) {
     const delta = r.projection.endS - r.projection.startS;
-    if (delta <= -30) notes.push({ tone: 'good', text: `Your training-based marathon projection improved by ${fmtMinSec(-delta)} min this week.` });
+    if (delta <= -30) notes.push({ tone: 'good', text: tr('rep.n.proj', { t: fmtMinSec(-delta) }) });
   }
   return notes.slice(0, 7);
 }

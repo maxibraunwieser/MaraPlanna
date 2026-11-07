@@ -6,6 +6,7 @@ import Toybox.Activity;
 import Toybox.ActivityRecording;
 import Toybox.Lang;
 import Toybox.Sensor;
+import Toybox.Time;
 import Toybox.Timer;
 import Toybox.WatchUi;
 
@@ -55,10 +56,14 @@ class RecordingController {
     private var _timer as Timer.Timer?;
     // Geglättete aktuelle Pace (Fenster aus den Einstellungen)
     private var _smooth as PaceSmoother = new PaceSmoother();
+    // Countdown vor dem nächsten Schrittwechsel
+    private var _countdown as StepCountdown = new StepCountdown();
     private var _noHrTicks as Number = 0;
     private var _offTicks as Number = 0;
     private var _offSign as Number = 0;
     private var _lastAlarm as Number = -ALARM_GAP_MS;
+    // Startzeit des Laufs (Sekunden seit 1970) für die Liste "Absolviert"
+    private var _startedAt as Number = 0;
     private var _lapMs as Number = 0;
     private var _lapDist as Float = 0.0;
     private var _zoneStartMs as Number = 0;
@@ -109,6 +114,7 @@ class RecordingController {
         anaerobic = new AnaerobicLoad(zonePace(5), zonePace(6), zonePace(7));
         _fit = new FitFields(session, zones.vdot);
         session.start();
+        _startedAt = Time.now().value();
         _session = session;
         state = Rec.RECORDING;
         _timer = new Timer.Timer();
@@ -150,8 +156,20 @@ class RecordingController {
             stepChangedAt = ms;
         }
         newLap(ms, dist);
+        restartSection(ms, dist, info);
         Alert.lap();
         WatchUi.requestUpdate();
+    }
+
+    // Neuer Schritt oder neue Runde: die Glättung der Pace beginnt bei null, mit dem aktuellen Messpunkt als erstem.
+    // Die Pace des vorigen Abschnitts fließt nie in die neue ein (kein Verwischen beim Wechsel von Intervall und Trabpause).
+    // Auch der Countdown vor dem nächsten Wechsel beginnt neu.
+    private function restartSection(ms as Number, dist as Float, info as Activity.Info?) as Void {
+        _countdown.reset();
+        _smooth.reset();
+        _smooth.add(ms, dist, info != null ? info.currentSpeed : null);
+        pace = null;
+        _offTicks = 0;
     }
 
     // Kilometer-Zusammenfassung gerade sichtbar? (in den Einstellungen abschaltbar)
@@ -166,7 +184,12 @@ class RecordingController {
                 session.stop();
             }
             // Der Lauf zählt sofort zu den Wochenkilometern, auch bevor MaraPlanna ihn über Garmin Connect kennt.
-            WeekPlan.logRun(distance(Activity.getActivityInfo()), WeekPlan.today());
+            var info = Activity.getActivityInfo();
+            WeekPlan.logRun(distance(info), WeekPlan.today());
+            if (distance(info) >= 100.0) {
+                var hr = info != null ? info.averageHeartRate : null;
+                PlanEntry.logRun(_startedAt, distance(info), timerMs(info) / 1000, hr, workout != null ? (workout as Workout).title : StartView.zoneName(zone));
+            }
             session.save();
             finish();
             Alert.saved();
@@ -240,7 +263,21 @@ class RecordingController {
         if (workout != null && (workout as Workout).update(ms, dist)) {
             stepChangedAt = ms;
             newLap(ms, dist);
+            restartSection(ms, dist, info);
             Alert.lap();
+        }
+
+        // Countdown: in den letzten 5 Sekunden vor dem Wechsel zum nächsten Schritt je ein Impuls.
+        if (workout != null && Prefs.countdown()) {
+            var wk = workout as Workout;
+            // Restzeit eines Strecken-Schritts aus dem Tempo der letzten Sekunden (die geglättete Pace hinkt hinterher)
+            var speed = _smooth.speedOver(4);
+            if (speed == null) {
+                speed = pace != null ? 1000.0 / (pace as Float) : (info != null ? info.currentSpeed : null);
+            }
+            if (_countdown.due(wk.secondsLeft(ms, dist, speed), wk.stepSeconds(ms))) {
+                Alert.countdown();
+            }
         }
 
         // Zielbereich prüfen; Alarm höchstens alle 30 s und nicht direkt nach einem Schrittwechsel.

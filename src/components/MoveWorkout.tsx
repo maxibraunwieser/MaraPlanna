@@ -5,7 +5,8 @@ import { ArrowRightLeft } from 'lucide-react';
 import type { PlannedWorkout } from '../lib/types';
 import type { WorkoutPatch } from '../lib/planner/adapt';
 import { canMove, inBounds, moveBounds, movePatches, moveWarnings, swapCandidate } from '../lib/planner/move';
-import { fmtDate } from '../lib/format';
+import { fmtDate, localTitle } from '../lib/format';
+import { useI18n, tr } from '../lib/i18n';
 import { useData } from '../lib/data';
 import * as api from '../lib/api';
 import { Button, Modal, Notice, useToast } from './ui';
@@ -33,10 +34,10 @@ export function useMoveWorkout() {
     try {
       await save(patches);
       toast(message, 'success', {
-        label: 'Undo',
+        label: tr('common.undo'),
         onClick: () => {
           save(before).then(
-            () => toast('Move undone.', 'info'),
+            () => toast(tr('mv.undone'), 'info'),
             (e) => toast((e as Error).message, 'error'),
           );
         },
@@ -94,7 +95,7 @@ export function useWorkoutDnd() {
     const swap = swapCandidate(workouts, w, date, today);
     const warnings = moveWarnings(workouts, movePatches(workouts, w, date, today, !!swap));
     if (swap || warnings.length) setPending({ w, date });
-    else void mover.move(movePatches(workouts, w, date, today, false), `${w.title} moved to ${fmtDate(date)}.`);
+    else void mover.move(movePatches(workouts, w, date, today, false), tr('mv.movedTo', { title: localTitle(w.title), date: fmtDate(date) }));
   };
 
   const dragProps = (w: PlannedWorkout): HTMLAttributes<HTMLDivElement> =>
@@ -142,10 +143,11 @@ export function useWorkoutDnd() {
 /** Shown when a drop needs a decision: swap with the run that's there, or warnings. */
 function MoveConfirm({ w, date, busy, onClose, onMove }: { w: PlannedWorkout; date: string; busy: boolean; onClose: () => void; onMove: (p: Patches, msg: string) => void }) {
   const { workouts, today } = useData();
+  const { t } = useI18n();
   const swap = swapCandidate(workouts, w, date, today);
   const warnings = moveWarnings(workouts, movePatches(workouts, w, date, today, !!swap));
   return (
-    <Modal open onClose={onClose} title={`Move ${w.title}?`}>
+    <Modal open onClose={onClose} title={t('mv.title', { title: localTitle(w.title) })}>
       <div className="space-y-3">
         <p className="flex items-center gap-2 text-sm text-slate-700">
           <span className="font-medium">{fmtDate(w.date)}</span>
@@ -154,7 +156,7 @@ function MoveConfirm({ w, date, busy, onClose, onMove }: { w: PlannedWorkout; da
         </p>
         {swap && (
           <p className="text-sm text-slate-600">
-            "{swap.title}" is already on that day. <b>Swap days</b> puts it on {fmtDate(w.date)} instead.
+            {t('mv.swapPre', { title: localTitle(swap.title) })}<b>{t('mv.swapBold')}</b>{t('mv.swapPost', { date: fmtDate(w.date) })}
           </p>
         )}
         {warnings.map((m) => (
@@ -162,14 +164,14 @@ function MoveConfirm({ w, date, busy, onClose, onMove }: { w: PlannedWorkout; da
         ))}
         <div className="flex flex-wrap gap-2 pt-1">
           {swap && (
-            <Button loading={busy} icon={<ArrowRightLeft className="h-4 w-4" />} onClick={() => onMove(movePatches(workouts, w, date, today, true), `Swapped with ${swap.title}.`)}>
-              Swap days
+            <Button loading={busy} icon={<ArrowRightLeft className="h-4 w-4" />} onClick={() => onMove(movePatches(workouts, w, date, today, true), t('mv.swappedWith', { title: localTitle(swap.title) }))}>
+              {t('mv.swapDays')}
             </Button>
           )}
-          <Button variant={swap ? 'secondary' : 'primary'} loading={busy} onClick={() => onMove(movePatches(workouts, w, date, today, false), `${w.title} moved to ${fmtDate(date)}.`)}>
-            {swap ? 'Move – keep both' : 'Move anyway'}
+          <Button variant={swap ? 'secondary' : 'primary'} loading={busy} onClick={() => onMove(movePatches(workouts, w, date, today, false), t('mv.movedTo', { title: localTitle(w.title), date: fmtDate(date) }))}>
+            {swap ? t('mv.keepBoth') : t('mv.anyway')}
           </Button>
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
         </div>
       </div>
     </Modal>

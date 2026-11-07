@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import type { ProjectionPoint } from '../lib/projection';
 import { daysBetween } from '../lib/planner/dates';
+import { tr } from '../lib/i18n';
 import { fmtDate } from '../lib/format';
 
 // Same validated pair as the volume chart: plan = blue, what you actually ran = orange.
-const TRAINING = '#ea580c';
+const TRAINING = '#f97316';
 const PLAN = '#6b8fd6';
 const GOAL = '#94a3b8';
 
@@ -30,7 +31,7 @@ export function ProjectionChart({ points, goalS, planStart }: { points: Projecti
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  if (points.length < 2) return <p className="py-8 text-center text-sm text-slate-500">Not enough data yet – the chart fills in week by week.</p>;
+  if (points.length < 2) return <p className="py-8 text-center text-sm text-slate-500">{tr('chart.empty')}</p>;
 
   // Drawn 1:1 at the container width so labels keep their size on small screens.
   const W = Math.max(300, width);
@@ -101,23 +102,23 @@ export function ProjectionChart({ points, goalS, planStart }: { points: Projecti
     <div>
       <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-0.5 w-4 rounded" style={{ background: TRAINING }} /> Training-based
+          <span className="h-0.5 w-4 rounded" style={{ background: TRAINING }} /> {tr('chart.training')}
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-0.5 w-4 rounded" style={{ background: PLAN }} /> Race-day projection
+          <span className="h-0.5 w-4 rounded" style={{ background: PLAN }} /> {tr('chart.raceDay')}
         </span>
         {goalS && (
           <span className="inline-flex items-center gap-1.5">
-            <span className="w-4 border-t-2 border-dashed" style={{ borderColor: GOAL }} /> Goal
+            <span className="w-4 border-t-2 border-dashed" style={{ borderColor: GOAL }} /> {tr('chart.goal')}
           </span>
         )}
-        <span className="ml-auto text-slate-400">faster ↑</span>
+        <span className="ml-auto text-slate-400">{tr('chart.faster')}</span>
       </div>
       <div className="relative" ref={box}>
-        <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Marathon projection per week">
+        <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label={tr('chart.aria')}>
           {ticks.map((t) => (
             <g key={t}>
-              <line x1={pad.l} x2={W - pad.r} y1={sy(t)} y2={sy(t)} stroke="#eef1f5" />
+              <line x1={pad.l} x2={W - pad.r} y1={sy(t)} y2={sy(t)} stroke="rgba(255,255,255,0.08)" />
               <text x={pad.l - 6} y={sy(t) + 3} textAnchor="end" fontSize="10" fill="#94a3b8">
                 {hm(t)}
               </text>
@@ -130,17 +131,17 @@ export function ProjectionChart({ points, goalS, planStart }: { points: Projecti
           ))}
           {startX !== null && (
             <g>
-              <line x1={startX} x2={startX} y1={pad.t} y2={H - pad.b} stroke="#cbd5e1" strokeDasharray="2 3" />
+              <line x1={startX} x2={startX} y1={pad.t} y2={H - pad.b} stroke="rgba(255,255,255,0.25)" strokeDasharray="2 3" />
               <text x={startX + 4} y={pad.t + 8} fontSize="10" fill="#94a3b8">
-                Plan start
+                {tr('chart.planStart')}
               </text>
             </g>
           )}
           {goalS && (
             <g>
               <line x1={pad.l} x2={W - pad.r} y1={sy(goalS)} y2={sy(goalS)} stroke={GOAL} strokeWidth={1.5} strokeDasharray="5 4" />
-              <text x={W - pad.r + 6} y={sy(goalS) + 3} fontSize="10" fill="#64748b">
-                Goal {hm(goalS)}
+              <text x={W - pad.r + 6} y={sy(goalS) + 3} fontSize="10" fill="#a4aec0">
+                {tr('chart.goalValue', { t: hm(goalS) })}
               </text>
             </g>
           )}
@@ -149,7 +150,7 @@ export function ProjectionChart({ points, goalS, planStart }: { points: Projecti
           {ends.map((s) => (
             <g key={s.key}>
               <circle cx={sx(s.p.date)} cy={sy(s.p[s.key]!)} r={4} fill={s.color} stroke="#fff" strokeWidth={2} />
-              <text x={W - pad.r + 6} y={s.y + 3} fontSize="11" fontWeight={600} fill="#334155">
+              <text x={W - pad.r + 6} y={s.y + 3} fontSize="11" fontWeight={600} fill="#e8ecf3">
                 {hm(s.p[s.key]!)}
               </text>
             </g>
@@ -165,27 +166,27 @@ export function ProjectionChart({ points, goalS, planStart }: { points: Projecti
         </svg>
         {h && hover !== null && (
           <div
-            className="pointer-events-none absolute top-2 z-10 -translate-x-1/2 whitespace-nowrap rounded-lg bg-white px-3 py-2 text-xs shadow-lg ring-1 ring-slate-200"
+            className="pointer-events-none absolute top-2 z-10 -translate-x-1/2 whitespace-nowrap rounded-lg bg-surface px-3 py-2 text-xs shadow-lg ring-1 ring-slate-200"
             style={{ left: `${Math.min(85, Math.max(15, (sx(h.date) / W) * 100))}%` }}
           >
-            <div className="font-semibold text-slate-900">{h.date === last.date ? 'Today' : `Week to ${fmtDate(h.date, { day: 'numeric', month: 'short' })}`}</div>
+            <div className="font-semibold text-slate-900">{h.date === last.date ? tr('common.today') : tr('chart.weekTo', { date: fmtDate(h.date, { day: 'numeric', month: 'short' }) })}</div>
             <div className="mt-1 flex items-center gap-1.5 text-slate-600">
-              <span className="h-2 w-2 rounded-full" style={{ background: TRAINING }} /> Training-based {h.tandaS !== null ? hm(h.tandaS) : '–'}
+              <span className="h-2 w-2 rounded-full" style={{ background: TRAINING }} /> {tr('chart.trainingValue', { t: h.tandaS !== null ? hm(h.tandaS) : '–' })}
             </div>
             <div className="flex items-center gap-1.5 text-slate-600">
-              <span className="h-2 w-2 rounded-full" style={{ background: PLAN }} /> Race-day {h.planS !== null ? hm(h.planS) : '–'}
+              <span className="h-2 w-2 rounded-full" style={{ background: PLAN }} /> {tr('chart.raceDayValue', { t: h.planS !== null ? hm(h.planS) : '–' })}
             </div>
           </div>
         )}
       </div>
       <details className="mt-2 text-xs text-slate-500">
-        <summary className="cursor-pointer select-none hover:text-slate-700">Show as table</summary>
+        <summary className="cursor-pointer select-none hover:text-slate-700">{tr('chart.table')}</summary>
         <table className="mt-2 w-full text-left tabular-nums">
           <thead>
             <tr className="text-slate-400">
-              <th className="py-1 font-medium">Week to</th>
-              <th className="py-1 font-medium">Training-based</th>
-              <th className="py-1 font-medium">Race-day</th>
+              <th className="py-1 font-medium">{tr('chart.colWeek')}</th>
+              <th className="py-1 font-medium">{tr('chart.training')}</th>
+              <th className="py-1 font-medium">{tr('chart.colRace')}</th>
             </tr>
           </thead>
           <tbody>

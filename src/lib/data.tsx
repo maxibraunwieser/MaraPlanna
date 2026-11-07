@@ -3,15 +3,18 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAuth } from './auth';
 import * as api from './api';
+import { normalizePrefs } from '../../supabase/functions/_shared/strength';
 import { adaptPlan } from './planner/adapt';
 import { addDays, todayISO } from './planner/dates';
 import type { Activity, DailyMetric, GarminConnection, PlanAdjustment, PlannedWorkout, Profile, TrainingPlan, Units } from './types';
 import { useToast } from '../components/ui';
+import { tr } from './i18n';
+import { localMessage } from './format';
 
 const AUTO_SYNC_MINUTES = 20;
 
 /** Message after the sync removed activities that were deleted in Garmin Connect. */
-const removedText = (n: number) => `${n} ${n === 1 ? 'activity' : 'activities'} deleted in Garmin Connect removed here too.`;
+const removedText = (n: number) => (n === 1 ? tr('data.removed1') : tr('data.removedN', { n }));
 
 export interface DataState {
   loading: boolean;
@@ -78,12 +81,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
       try {
         const result = adaptPlan({ plan: s.plan, workouts: s.workouts, activities: s.activities, metrics: s.metrics, today });
         if (result.patches.length || result.replan || result.fitness || result.messages.length) {
-          await api.persistAdaptation(s.plan, result);
-          for (const m of result.messages) toast(m.message, 'info');
+          await api.persistAdaptation(s.plan, result, normalizePrefs(s.profile?.strength).routines);
+          for (const m of result.messages) toast(localMessage(m.message), 'info');
           await load();
         }
       } catch (e) {
-        toast(`Could not update the plan: ${(e as Error).message}`, 'error');
+        toast(tr('data.planFail', { message: (e as Error).message }), 'error');
       } finally {
         adapting.current = false;
       }
@@ -96,7 +99,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setSyncing(true);
       try {
         const res = await api.invokeGarmin({ action: 'sync', full });
-        toast(`Garmin synced: ${res.activities} activities, ${res.days} days of wellness data.`, 'success');
+        toast(tr('data.synced', { a: res.activities, d: res.days }), 'success');
         if (res.removed) toast(removedText(res.removed), 'info');
       } catch (e) {
         toast((e as Error).message, 'error');
@@ -125,7 +128,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             const res = await api.invokeGarmin({ action: 'sync' });
             if (res.removed) toast(removedText(res.removed), 'info');
           } catch (e) {
-            toast(`Garmin sync: ${(e as Error).message}`, 'error');
+            toast(tr('data.syncFail', { message: (e as Error).message }), 'error');
           } finally {
             setSyncing(false);
           }

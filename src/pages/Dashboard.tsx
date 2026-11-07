@@ -1,15 +1,17 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity as ActivityIcon, BatteryMedium, CalendarDays, Gauge, HeartPulse, History, Moon, Sparkles, Waves, Watch } from 'lucide-react';
+import { Activity as ActivityIcon, CalendarDays, Gauge, History, Sparkles, Watch } from 'lucide-react';
 import { analyze } from '../lib/analysis';
 import { estimateMaxHr } from '../lib/planner/fitness';
 import { fmtPace } from '../lib/format';
+import { useI18n, type MsgKey } from '../lib/i18n';
+import { weekdayNames } from '../lib/i18n/dates';
 import { useData } from '../lib/data';
-import { addDays, daysBetween, mondayOf, weekdayOf } from '../lib/planner/dates';
+import { addDays, englishWeekday, mondayOf, weekdayOf } from '../lib/planner/dates';
 import { findEasySwap, isRunWorkout } from '../lib/planner/adapt';
 import { readiness } from '../lib/planner/readiness';
 import { useActivityDetails } from '../lib/details';
-import { describeStep, fmtDate, fmtDistance, fmtDuration, fmtRelative, zonePaceText } from '../lib/format';
+import { describeStep, fmtDate, fmtDistance, fmtDuration, fmtRelative, localMessage, localTitle, zonePaceText } from '../lib/format';
 import { logAdjustment, updateWorkout } from '../lib/api';
 import type { PlannedWorkout } from '../lib/types';
 import { Badge, Button, Card, CardTitle, cx, Notice, Spinner, useToast } from '../components/ui';
@@ -17,52 +19,11 @@ import { KIND_STYLE, pressable, WorkoutDetail, WorkoutRow } from '../components/
 import { dropClass, useWorkoutDnd } from '../components/MoveWorkout';
 import { ReportTeaser } from './Progress';
 import { VolumeChart, type VolumePoint } from '../components/VolumeChart';
-
-const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-function ReadinessCard() {
-  const { metrics, today, connection } = useData();
-  const r = readiness(metrics, today);
-  if (!connection) {
-    return (
-      <Card>
-        <CardTitle icon={<HeartPulse className="h-5 w-5 text-brand" />}>Readiness</CardTitle>
-        <p className="text-sm text-slate-600">Connect Garmin to see resting heart rate, HRV, sleep and Body Battery here.</p>
-        <Link to="/connect" className="mt-3 inline-block text-sm font-semibold text-brand">Connect Garmin →</Link>
-      </Card>
-    );
-  }
-  const m = r.metric;
-  const tone = r.level === 'good' ? 'green' : r.level === 'ok' ? 'amber' : r.level === 'low' ? 'red' : 'slate';
-  const label = { good: 'Ready to train', ok: 'Train with care', low: 'Take it easy', unknown: 'No data yet' }[r.level];
-  const stat = (icon: ReactNode, name: string, value: string | null) => (
-    <div className="rounded-xl bg-slate-50 p-3">
-      <div className="flex items-center gap-1.5 text-xs text-slate-500">
-        {icon}
-        {name}
-      </div>
-      <div className="mt-1 font-semibold text-slate-900">{value ?? '–'}</div>
-    </div>
-  );
-  return (
-    <Card>
-      <CardTitle icon={<HeartPulse className="h-5 w-5 text-brand" />} action={<Badge tone={tone}>{label}</Badge>}>
-        Readiness
-      </CardTitle>
-      <div className="grid grid-cols-2 gap-2">
-        {stat(<HeartPulse className="h-3.5 w-3.5" />, 'Resting HR', m?.resting_hr ? `${m.resting_hr} bpm` : null)}
-        {stat(<Waves className="h-3.5 w-3.5" />, 'HRV', m?.hrv_last_night ? `${Math.round(m.hrv_last_night)} ms${m.hrv_status ? ` · ${m.hrv_status.toLowerCase()}` : ''}` : null)}
-        {stat(<Moon className="h-3.5 w-3.5" />, 'Sleep', m?.sleep_s ? `${(m.sleep_s / 3600).toFixed(1)} h${m.sleep_score ? ` · ${m.sleep_score}` : ''}` : null)}
-        {stat(<BatteryMedium className="h-3.5 w-3.5" />, 'Body Battery', m?.body_battery_high !== null && m?.body_battery_high !== undefined ? `${m.body_battery_high}` : null)}
-      </div>
-      {r.reasons.length > 0 && <p className="mt-3 text-xs text-slate-500">{r.reasons.join(' · ')}</p>}
-      {m && m.date !== today && <p className="mt-2 text-xs text-slate-400">Latest data from {fmtDate(m.date)}.</p>}
-    </Card>
-  );
-}
+import { HomeHero } from '../components/home/HomeHero';
 
 function LatestRun() {
   const { plan, workouts, activities, metrics, units, connection, today } = useData();
+  const { t } = useI18n();
   const run = activities.find((a) => a.sport === 'run' && (a.distance_m ?? 0) > 1000);
   // Score from the same lap/stream data as the full analysis.
   const { ready, detailsOf } = useActivityDetails(run ? [run] : []);
@@ -74,8 +35,8 @@ function LatestRun() {
   const tone = res.score === null ? 'text-slate-500' : res.score >= 85 ? 'text-emerald-600' : res.score >= 70 ? 'text-lime-600' : res.score >= 50 ? 'text-amber-600' : 'text-red-600';
   return (
     <Card>
-      <CardTitle icon={<Gauge className="h-5 w-5 text-brand" />} action={<Link to={`/analysis/${run.id}`}><Button size="sm" variant="secondary">Full analysis</Button></Link>}>
-        Latest run
+      <CardTitle icon={<Gauge className="h-5 w-5 text-brand" />} action={<Link to={`/analysis/${run.id}`}><Button size="sm" variant="secondary">{t('dash.fullAnalysis')}</Button></Link>}>
+        {t('dash.latest')}
       </CardTitle>
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
         {!ready ? (
@@ -87,12 +48,12 @@ function LatestRun() {
           res.score !== null && (
             <div>
               <div className={`text-3xl font-extrabold tabular-nums ${tone}`}>{res.score}</div>
-              <div className="text-xs capitalize text-slate-500">{res.grade} execution</div>
+              <div className="text-xs text-slate-500">{res.grade ? t(`dash.grade.${res.grade}` as MsgKey) : ''}</div>
             </div>
           )
         )}
-        <div className="min-w-0 flex-1">
-          <div className="font-semibold text-slate-900">{workout?.title ?? run.name ?? 'Run'}</div>
+        <div className="min-w-[14rem] flex-1">
+          <div className="font-semibold text-slate-900">{workout ? localTitle(workout.title) : (run.name ?? t('dash.run'))}</div>
           <div className="text-sm text-slate-500">
             {fmtDate(run.local_date)} · {fmtDistance((run.distance_m ?? 0) / 1000, units)} · {fmtDuration(moving)}
             {run.distance_m ? ` · ${fmtPace(moving / (run.distance_m / 1000), units)}` : ''}
@@ -109,6 +70,8 @@ function LatestRun() {
 
 export function Dashboard() {
   const { loading, error, profile, plan, workouts, activities, metrics, adjustments, units, today, connection, reload, adapt } = useData();
+  const { t, lang } = useI18n();
+  const dayShort = weekdayNames(lang);
   const [open, setOpen] = useState<PlannedWorkout | null>(null);
   const [swapping, setSwapping] = useState(false);
   const toast = useToast();
@@ -130,8 +93,8 @@ export function Dashboard() {
         .reduce((s, w) => s + (w.distance_km ?? 0), 0);
       const week = plan.weeks.find((w) => w.startDate === start);
       points.push({
-        label: week ? `W${week.week}` : fmtDate(start, { day: 'numeric', month: 'short' }),
-        sublabel: week ? week.phase : '',
+        label: week ? t('common.weekShort', { n: week.week }) : fmtDate(start, { day: 'numeric', month: 'short' }),
+        sublabel: week ? t(`phase.${week.phase}` as MsgKey) : '',
         plannedKm: planned,
         actualKm: i <= 0 ? runKm(start, end) : null,
         current: i === 0,
@@ -140,34 +103,34 @@ export function Dashboard() {
     return points;
   }, [plan, workouts, activities, today]);
 
-  if (loading) return <Spinner label="Loading your training…" />;
+  if (loading) return <Spinner label={t('dash.loading')} />;
   if (error) return <Notice tone="error">{error}</Notice>;
 
   if (!plan) {
     return (
       <Card className="mx-auto max-w-xl p-8 text-center">
         <Sparkles className="mx-auto h-10 w-10 text-brand" />
-        <h1 className="mt-4 text-2xl font-bold">Let's build your marathon plan</h1>
+        <h1 className="mt-4 text-2xl font-bold">{t('dash.build')}</h1>
         <p className="mt-2 text-slate-600">
-          {profile?.onboarding ? 'Your answers are saved – review your fitness and create the plan.' : 'Answer a few questions about your race and training first.'}
+          {profile?.onboarding ? t('dash.saved') : t('dash.first')}
         </p>
         <div className="mt-6 flex justify-center gap-2">
           {!connection && (
             <Link to="/connect">
-              <Button variant="secondary" icon={<Watch className="h-4 w-4" />}>Connect Garmin</Button>
+              <Button variant="secondary" icon={<Watch className="h-4 w-4" />}>{t('sync.connect')}</Button>
             </Link>
           )}
           <Link to={profile?.onboarding ? '/plan/new' : '/onboarding'}>
-            <Button>{profile?.onboarding ? 'Create my plan' : 'Start'}</Button>
+            <Button>{profile?.onboarding ? t('dash.create') : t('dash.start')}</Button>
           </Link>
         </div>
       </Card>
     );
   }
 
-  const daysToRace = daysBetween(today, plan.race_date);
-  const currentWeek = plan.weeks.find((w) => w.startDate === mondayOf(today));
-  const totalWeeks = plan.weeks[plan.weeks.length - 1]?.week ?? 0;
+  // Plans saved before goals existed are marathons; plans without a race have null.
+  const raceM = plan.fitness.raceDistanceM === undefined ? 42_195 : plan.fitness.raceDistanceM;
+  const hasRace = raceM !== null;
   const todays = workouts.filter((w) => w.date === today && w.status !== 'skipped');
   const weekStart = mondayOf(today);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -178,7 +141,6 @@ export function Dashboard() {
     .reduce((s, a) => s + (a.distance_m ?? 0) / 1000, 0);
   const r = readiness(metrics, today);
   const swap = r.level === 'low' ? findEasySwap(workouts, today) : null;
-  const name = profile?.display_name?.split(' ')[0];
 
   const doSwap = async () => {
     if (!swap) return;
@@ -186,10 +148,10 @@ export function Dashboard() {
     try {
       await updateWorkout(swap.key.id, { date: swap.easy.date, original_date: swap.key.original_date ?? today });
       await updateWorkout(swap.easy.id, { date: today, original_date: swap.easy.original_date ?? swap.easy.date });
-      await logAdjustment(plan, 'readiness', `Low readiness: "${swap.key.title}" moved to ${fmtDate(swap.easy.date, { weekday: 'long' })}, easy run today instead.`);
+      await logAdjustment(plan, 'readiness', `Low readiness: "${swap.key.title}" moved to ${englishWeekday(swap.easy.date)}, easy run today instead.`);
       await reload();
       await adapt();
-      toast('Swapped – easy day today.', 'success');
+      toast(t('dash.swapped'), 'success');
     } catch (e) {
       toast((e as Error).message, 'error');
     } finally {
@@ -199,56 +161,24 @@ export function Dashboard() {
 
   return (
     <div className="space-y-5">
-      {/* Hero */}
-      <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-ink to-ink-soft p-6 text-white shadow-lg sm:p-8">
-        <div className="flex flex-wrap items-end justify-between gap-6">
-          <div>
-            <p className="text-sm text-slate-300">{name ? `Hi ${name} – ` : ''}{fmtDate(today, { weekday: 'long', day: 'numeric', month: 'long' })}</p>
-            <h1 className="mt-1 text-2xl font-bold sm:text-3xl">{plan.race_name || 'Marathon'}</h1>
-            <p className="mt-1 text-sm text-slate-300">
-              {currentWeek ? (
-                <>
-                  Week {currentWeek.week} of {totalWeeks} · <span className="capitalize">{currentWeek.phase}</span>
-                  {currentWeek.recovery ? ' · recovery week' : ''}
-                </>
-              ) : (
-                fmtDate(plan.race_date, { day: 'numeric', month: 'long', year: 'numeric' })
-              )}
-            </p>
-          </div>
-          <div className="flex gap-6">
-            <div>
-              <div className="text-4xl font-extrabold tabular-nums text-brand">{Math.max(0, daysToRace)}</div>
-              <div className="text-xs uppercase tracking-wide text-slate-400">days to go</div>
-            </div>
-            <div>
-              <div className="text-4xl font-extrabold tabular-nums">{fmtDuration(plan.fitness.predictedMarathonS).replace(/:\d\d$/, '')}</div>
-              <div className="text-xs uppercase tracking-wide text-slate-400">projected h:mm</div>
-            </div>
-          </div>
-        </div>
-        <div className="mt-6 h-1.5 overflow-hidden rounded-full bg-white/10">
-          <div className="h-full rounded-full bg-brand" style={{ width: `${Math.min(100, ((currentWeek?.week ?? 0) / Math.max(1, totalWeeks)) * 100)}%` }} />
-        </div>
-      </div>
+      <HomeHero />
 
       {swap && (
         <Notice tone="warn">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span>
-              Your body signals fatigue today ({r.reasons.join(', ').toLowerCase()}). Swap <b>{swap.key.title}</b> with the easy run on{' '}
-              {fmtDate(swap.easy.date, { weekday: 'long' })}?
+              {t('dash.swapPre', { reasons: lang === 'de' ? r.reasons.join(', ') : r.reasons.join(', ').toLowerCase() })}<b>{localTitle(swap.key.title)}</b>{t('dash.swapPost', { day: fmtDate(swap.easy.date, { weekday: 'long' }) })}
             </span>
             <Button size="sm" variant="dark" loading={swapping} onClick={doSwap}>
-              Make today easy
+              {t('dash.makeEasy')}
             </Button>
           </div>
         </Notice>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardTitle icon={<ActivityIcon className="h-5 w-5 text-brand" />}>Today</CardTitle>
+      <div>
+        <Card>
+          <CardTitle icon={<ActivityIcon className="h-5 w-5 text-brand" />}>{t('dash.today')}</CardTitle>
           {todays.length ? (
             <div className="space-y-5">
               {todays.map((w) => (
@@ -273,12 +203,11 @@ export function Dashboard() {
             </div>
           ) : (
             <div className="rounded-xl bg-slate-50 p-6 text-center">
-              <div className="text-lg font-semibold">Rest day</div>
-              <p className="mt-1 text-sm text-slate-500">Recovery is where the adaptation happens. Sleep well, eat well.</p>
+              <div className="text-lg font-semibold">{t('dash.restDay')}</div>
+              <p className="mt-1 text-sm text-slate-500">{t('dash.restText')}</p>
             </div>
           )}
         </Card>
-        <ReadinessCard />
       </div>
 
       <ReportTeaser />
@@ -290,14 +219,14 @@ export function Dashboard() {
           icon={<CalendarDays className="h-5 w-5 text-brand" />}
           action={
             <span className="flex items-center gap-3 text-sm text-slate-500">
-              {fmtDistance(weekDone, units)} of {fmtDistance(weekPlanned, units)}
+              {t('dash.ofPlanned', { done: fmtDistance(weekDone, units), planned: fmtDistance(weekPlanned, units) })}
               <Link to="/progress" className="font-semibold text-brand hover:underline">
-                Report →
+                {t('dash.report')}
               </Link>
             </span>
           }
         >
-          This week
+          {t('dash.thisWeek')}
         </CardTitle>
         <div className="mb-4 h-2 overflow-hidden rounded-full bg-slate-100">
           <div className="h-full rounded-full bg-brand" style={{ width: `${Math.min(100, (weekDone / Math.max(1, weekPlanned)) * 100)}%` }} />
@@ -308,7 +237,7 @@ export function Dashboard() {
             return (
               <div key={d} data-day={d} {...dnd.dropProps(d)} className={cx('rounded-xl p-2 transition', d === today ? 'bg-brand-soft ring-2 ring-brand' : 'bg-slate-50', dropClass(dnd.dropState(d)))}>
                 <div className="mb-1.5 flex items-baseline justify-between px-1 sm:block">
-                  <span className="text-xs font-semibold text-slate-700">{DAY_SHORT[weekdayOf(d)]}</span>
+                  <span className="text-xs font-semibold text-slate-700">{dayShort[weekdayOf(d)]}</span>
                   <span className="text-xs text-slate-400 sm:ml-1">{fmtDate(d, { day: 'numeric' })}</span>
                 </div>
                 <div className="space-y-1.5">
@@ -334,7 +263,7 @@ export function Dashboard() {
                       </div>
                     ))
                   ) : (
-                    <div className="px-1 text-xs text-slate-400">Rest</div>
+                    <div className="px-1 text-xs text-slate-400">{t('dash.rest')}</div>
                   )}
                 </div>
               </div>
@@ -345,36 +274,30 @@ export function Dashboard() {
 
       <div className="grid gap-5 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <CardTitle>Weekly volume</CardTitle>
+          <CardTitle>{t('dash.volume')}</CardTitle>
           <VolumeChart data={volume} units={units} />
         </Card>
         <Card>
           <CardTitle icon={<Sparkles className="h-5 w-5 text-brand" />} action={<Badge tone="orange">VDOT {plan.fitness.vdot.toFixed(1)}</Badge>}>
-            Your paces
+            {t('dash.paces')}
           </CardTitle>
           <div className="space-y-2 text-sm">
-            {(
-              [
-                ['easy', 'Easy'],
-                ['long', 'Long run'],
-                ['marathon', 'Marathon pace'],
-                ['threshold', 'Threshold'],
-                ['interval', 'Intervals'],
-              ] as const
-            ).map(([z, label]) => (
+            {(['easy', 'long', 'marathon', 'threshold', 'interval'] as const)
+              .filter((z) => hasRace || z !== 'marathon')
+              .map((z) => (
               <div key={z} className="flex justify-between gap-3">
-                <span className="text-slate-500">{label}</span>
+                <span className="text-slate-500">{t(`pace.${z}` as MsgKey)}</span>
                 <span className="font-semibold tabular-nums">{zonePaceText(plan.fitness.paces, z, units)}</span>
               </div>
             ))}
           </div>
-          <p className="mt-4 text-xs text-slate-500">Paces update automatically when your Garmin runs show a change in fitness.</p>
+          <p className="mt-4 text-xs text-slate-500">{t('dash.pacesNote')}</p>
         </Card>
       </div>
 
       <Card>
-        <CardTitle icon={<History className="h-5 w-5 text-brand" />} action={connection && <span className="text-xs text-slate-400">Garmin synced {fmtRelative(connection.last_sync_at)}</span>}>
-          Plan adjustments
+        <CardTitle icon={<History className="h-5 w-5 text-brand" />} action={connection && <span className="text-xs text-slate-400">{t('dash.synced', { when: fmtRelative(connection.last_sync_at) })}</span>}>
+          {t('dash.adjust')}
         </CardTitle>
         {adjustments.length ? (
           <ul className="space-y-3">
@@ -382,14 +305,14 @@ export function Dashboard() {
               <li key={a.id} className="flex gap-3 text-sm">
                 <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand" />
                 <div>
-                  <p className="text-slate-800">{a.message}</p>
+                  <p className="text-slate-800">{localMessage(a.message)}</p>
                   <p className="text-xs text-slate-400">{fmtRelative(a.created_at)}</p>
                 </div>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-slate-500">No changes yet. When you miss or move sessions, the planner explains what it adjusted here.</p>
+          <p className="text-sm text-slate-500">{t('dash.noChanges')}</p>
         )}
       </Card>
 

@@ -250,7 +250,7 @@ Deno.serve(async (req) => {
             model: cfg.model,
             maxTokens: cfg.maxTokens,
             effort: cfg.effort,
-            system: systemPrompt(buildContext(data)),
+            system: systemPrompt(buildContext(data), body.lang === 'de' ? 'de' : 'en'),
             history: messages,
             state: { data, actions: [], laps: (id) => lapsOf(admin, userId, id), newId: () => crypto.randomUUID() },
             emit,

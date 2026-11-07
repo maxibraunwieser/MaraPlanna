@@ -3,13 +3,13 @@
 project.manifest = bin/demo-manifest.xml
 base.sourcePath = source
 base.resourcePath = resources
-base.excludeAnnotations = live;nostrength
-enduro.excludeAnnotations = live;strength
-fenix6.excludeAnnotations = live;strength
-fenix6s.excludeAnnotations = live;strength
-fr245.excludeAnnotations = live;strength
-fr55.excludeAnnotations = live;strength
-venusq.excludeAnnotations = live;strength
+base.excludeAnnotations = live;nostrength;nodetails
+enduro.excludeAnnotations = live;strength;details
+fenix6.excludeAnnotations = live;strength;details
+fenix6s.excludeAnnotations = live;strength;details
+fr245.excludeAnnotations = live;strength;details
+fr55.excludeAnnotations = live;strength;details
+venusq.excludeAnnotations = live;strength;details
 
 # --- launcher icons per watch (tools/launcher-icons.ps1) ---
 approachs50.resourcePath = $(approachs50.resourcePath);resources-launcher/56x56

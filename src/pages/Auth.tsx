@@ -4,8 +4,23 @@ import { Activity, CalendarCheck, Watch } from 'lucide-react';
 import { appUrl, supabase } from '../lib/supabase';
 import { CenteredPage } from '../components/Layout';
 import { Button, Card, Field, Input, Notice } from '../components/ui';
+import { useI18n, type MsgKey, type Translate } from '../lib/i18n';
+
+/** The messages of Supabase Auth come in English; the usual ones are shown in the language of the page. */
+export function authMessage(message: string, t: Translate): string {
+  const table: [RegExp, MsgKey][] = [
+    [/invalid login credentials/i, 'auth.err.credentials'],
+    [/email not confirmed/i, 'auth.err.unconfirmed'],
+    [/already (been )?registered/i, 'auth.err.exists'],
+    [/password should be at least|weak password/i, 'auth.err.weak'],
+    [/rate limit|too many/i, 'auth.err.rate'],
+  ];
+  const hit = table.find(([re]) => re.test(message));
+  return hit ? t(hit[1]) : message;
+}
 
 function AuthCard({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
+  const { t } = useI18n();
   return (
     <CenteredPage>
       <Card className="p-6 sm:p-8">
@@ -14,15 +29,16 @@ function AuthCard({ title, subtitle, children }: { title: string; subtitle?: str
         <div className="mt-6">{children}</div>
       </Card>
       <ul className="mt-8 grid gap-3 text-sm text-slate-300">
-        <li className="flex items-center gap-3"><CalendarCheck className="h-4 w-4 text-brand" /> A marathon plan built around your race, schedule and goal</li>
-        <li className="flex items-center gap-3"><Watch className="h-4 w-4 text-brand" /> Syncs your Garmin runs, HRV, sleep and resting HR</li>
-        <li className="flex items-center gap-3"><Activity className="h-4 w-4 text-brand" /> Adapts automatically when you miss or crush a session</li>
+        <li className="flex items-center gap-3"><CalendarCheck className="h-4 w-4 text-brand" /> {t('auth.tag1')}</li>
+        <li className="flex items-center gap-3"><Watch className="h-4 w-4 text-brand" /> {t('auth.tag2')}</li>
+        <li className="flex items-center gap-3"><Activity className="h-4 w-4 text-brand" /> {t('auth.tag3')}</li>
       </ul>
     </CenteredPage>
   );
 }
 
 export function Login() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -40,21 +56,21 @@ export function Login() {
   };
 
   return (
-    <AuthCard title="Welcome back" subtitle="Sign in to see today's training.">
+    <AuthCard title={t('auth.welcome')} subtitle={t('auth.welcome.sub')}>
       <form onSubmit={submit} className="space-y-4">
-        {error && <Notice tone="error">{error}</Notice>}
-        <Field label="Email">
+        {error && <Notice tone="error">{authMessage(error, t)}</Notice>}
+        <Field label={t('auth.email')}>
           <Input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         </Field>
-        <Field label="Password">
+        <Field label={t('auth.password')}>
           <Input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
         </Field>
         <Button type="submit" className="w-full" size="lg" loading={busy}>
-          Sign in
+          {t('auth.signIn')}
         </Button>
         <div className="flex justify-between text-sm">
-          <Link to="/forgot-password" className="text-slate-500 hover:text-slate-800">Forgot password?</Link>
-          <Link to="/register" className="font-semibold text-brand hover:text-brand-dark">Create account</Link>
+          <Link to="/forgot-password" className="text-slate-500 hover:text-slate-800">{t('auth.forgot')}</Link>
+          <Link to="/register" className="font-semibold text-brand hover:text-brand-dark">{t('auth.create')}</Link>
         </div>
       </form>
     </AuthCard>
@@ -62,6 +78,7 @@ export function Login() {
 }
 
 export function Register() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -72,7 +89,7 @@ export function Register() {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (password.length < 8) return setError('Use at least 8 characters for your password.');
+    if (password.length < 8) return setError('too short');
     setBusy(true);
     setError(null);
     const { data, error } = await supabase.auth.signUp({
@@ -88,33 +105,31 @@ export function Register() {
 
   if (sent) {
     return (
-      <AuthCard title="Check your inbox">
-        <Notice tone="success">
-          We sent a confirmation link to <b>{email}</b>. Open it to activate your account – you'll land right in the setup questions.
-        </Notice>
-        <Link to="/login" className="mt-6 block text-center text-sm font-semibold text-brand">Back to sign in</Link>
+      <AuthCard title={t('auth.inbox')}>
+        <Notice tone="success">{t('auth.inbox.text', { email })}</Notice>
+        <Link to="/login" className="mt-6 block text-center text-sm font-semibold text-brand">{t('auth.backToSignIn')}</Link>
       </AuthCard>
     );
   }
 
   return (
-    <AuthCard title="Create your account" subtitle="Two minutes of questions, then your plan.">
+    <AuthCard title={t('auth.createTitle')} subtitle={t('auth.createSub')}>
       <form onSubmit={submit} className="space-y-4">
-        {error && <Notice tone="error">{error}</Notice>}
-        <Field label="Name">
+        {error && <Notice tone="error">{error === 'too short' ? t('auth.min8') : authMessage(error, t)}</Notice>}
+        <Field label={t('auth.name')}>
           <Input autoComplete="name" required value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
-        <Field label="Email">
+        <Field label={t('auth.email')}>
           <Input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         </Field>
-        <Field label="Password" hint="At least 8 characters.">
+        <Field label={t('auth.password')} hint={t('auth.password.hint')}>
           <Input type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
         </Field>
         <Button type="submit" className="w-full" size="lg" loading={busy}>
-          Create account
+          {t('auth.create')}
         </Button>
         <p className="text-center text-sm text-slate-500">
-          Already registered? <Link to="/login" className="font-semibold text-brand">Sign in</Link>
+          {t('auth.already')} <Link to="/login" className="font-semibold text-brand">{t('auth.signIn')}</Link>
         </p>
       </form>
     </AuthCard>
@@ -122,6 +137,7 @@ export function Register() {
 }
 
 export function ForgotPassword() {
+  const { t } = useI18n();
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -135,31 +151,32 @@ export function ForgotPassword() {
     else setSent(true);
   };
   return (
-    <AuthCard title="Reset password" subtitle="We'll email you a link to choose a new one.">
+    <AuthCard title={t('auth.reset')} subtitle={t('auth.reset.sub')}>
       {sent ? (
-        <Notice tone="success">If an account exists for {email}, a reset link is on its way.</Notice>
+        <Notice tone="success">{t('auth.reset.sent', { email })}</Notice>
       ) : (
         <form onSubmit={submit} className="space-y-4">
-          {error && <Notice tone="error">{error}</Notice>}
-          <Field label="Email">
+          {error && <Notice tone="error">{authMessage(error, t)}</Notice>}
+          <Field label={t('auth.email')}>
             <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </Field>
-          <Button type="submit" className="w-full" loading={busy}>Send reset link</Button>
+          <Button type="submit" className="w-full" loading={busy}>{t('auth.reset.send')}</Button>
         </form>
       )}
-      <Link to="/login" className="mt-6 block text-center text-sm font-semibold text-brand">Back to sign in</Link>
+      <Link to="/login" className="mt-6 block text-center text-sm font-semibold text-brand">{t('auth.backToSignIn')}</Link>
     </AuthCard>
   );
 }
 
 export function ResetPassword() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (password.length < 8) return setError('Use at least 8 characters.');
+    if (password.length < 8) return setError('too short');
     setBusy(true);
     const { error } = await supabase.auth.updateUser({ password });
     setBusy(false);
@@ -167,28 +184,25 @@ export function ResetPassword() {
     else navigate('/');
   };
   return (
-    <AuthCard title="Choose a new password">
+    <AuthCard title={t('auth.newPassword')}>
       <form onSubmit={submit} className="space-y-4">
-        {error && <Notice tone="error">{error}</Notice>}
-        <Field label="New password">
+        {error && <Notice tone="error">{error === 'too short' ? t('auth.min8short') : authMessage(error, t)}</Notice>}
+        <Field label={t('auth.newPassword.label')}>
           <Input type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
         </Field>
-        <Button type="submit" className="w-full" loading={busy}>Save password</Button>
+        <Button type="submit" className="w-full" loading={busy}>{t('auth.newPassword.save')}</Button>
       </form>
     </AuthCard>
   );
 }
 
 export function NotConfigured() {
+  const { t } = useI18n();
   return (
     <CenteredPage wide>
       <Card className="p-6 sm:p-8">
-        <h1 className="text-xl font-bold">Almost there – connect Supabase</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          MaraPlanna needs a Supabase project for accounts and data. Set <code className="rounded bg-slate-100 px-1">VITE_SUPABASE_URL</code> and{' '}
-          <code className="rounded bg-slate-100 px-1">VITE_SUPABASE_ANON_KEY</code> (locally in <code>.env</code>, or as GitHub repository variables for
-          the Pages deployment), then rebuild. The README walks through every step.
-        </p>
+        <h1 className="text-xl font-bold">{t('auth.setup.title')}</h1>
+        <p className="mt-2 text-sm text-slate-600">{t('auth.setup.text')}</p>
       </Card>
     </CenteredPage>
   );

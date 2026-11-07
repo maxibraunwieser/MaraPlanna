@@ -44,12 +44,13 @@ module Prefs {
         return u == UNITS_MI ? true : (u == UNITS_KM ? false : auto);
     }
 
-    // Glättung der aktuellen Pace: 0 = 10 s (Standard), 1 = 20 s, 2 = 30 s
+    // Glättung der aktuellen Pace: 0 = 10 s, 1 = 20 s (Standard), 2 = 30 s
     const SMOOTH_COUNT = 3;
+    const SMOOTH_DEFAULT = 1;
 
     function smooth() as Number {
-        var s = number("smooth", 0);
-        return s >= 0 && s < SMOOTH_COUNT ? s : 0;
+        var s = number("smooth", SMOOTH_DEFAULT);
+        return s >= 0 && s < SMOOTH_COUNT ? s : SMOOTH_DEFAULT;
     }
 
     // Fenster der aktuellen Pace in Sekunden
@@ -76,6 +77,11 @@ module Prefs {
 
     function vibration() as Boolean {
         return flag("vibe", true);
+    }
+
+    // Countdown vor jedem Schrittwechsel einer Einheit (5 kurze Impulse)
+    function countdown() as Boolean {
+        return flag("countdown", true);
     }
 
     // Wetter auf dem Startbildschirm

@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom';
 import { ArrowRightLeft, Bike, Check, CircleDashed, Dumbbell, Flag, Footprints, Gauge, PersonStanding, RotateCcw, SkipForward, Sparkles, Target, Undo2, Waves, X, Zap } from 'lucide-react';
 import { purposeFor } from '../lib/analysis';
 import type { Activity, Paces, PlannedWorkout, Units, WorkoutKind } from '../lib/types';
-import { describeStep, fmtDate, fmtDistance, fmtDuration, fmtMinutes, fmtPace, keyPace, fromUnit, toUnit } from '../lib/format';
+import { describeStep, fmtDate, fmtDay, fmtDistance, fmtDuration, fmtMinutes, fmtNum, fmtPace, keyPace, fromUnit, localNote, localTitle, toUnit } from '../lib/format';
+import { tr, useI18n, type MsgKey } from '../lib/i18n';
 import { isRunWorkout } from '../lib/planner/adapt';
-import { addDays } from '../lib/planner/dates';
 import { canMove, inBounds, moveBounds, moveDays, movePatches, moveWarnings, swapCandidate } from '../lib/planner/move';
 import { useAuth } from '../lib/auth';
 import { useData } from '../lib/data';
@@ -13,40 +13,50 @@ import * as api from '../lib/api';
 import { Badge, Button, cx, Field, Input, Modal, Notice, useToast } from './ui';
 import { useMoveWorkout, type Patches } from './MoveWorkout';
 
-export const KIND_STYLE: Record<WorkoutKind, { label: string; dot: string; bar: string; soft: string }> = {
-  easy: { label: 'Easy', dot: 'bg-emerald-500', bar: 'border-l-emerald-500', soft: 'bg-emerald-50' },
-  recovery: { label: 'Recovery', dot: 'bg-teal-400', bar: 'border-l-teal-400', soft: 'bg-teal-50' },
-  long: { label: 'Long run', dot: 'bg-sky-600', bar: 'border-l-sky-600', soft: 'bg-sky-50' },
-  long_mp: { label: 'Long + MP', dot: 'bg-indigo-600', bar: 'border-l-indigo-600', soft: 'bg-indigo-50' },
-  threshold: { label: 'Threshold', dot: 'bg-orange-500', bar: 'border-l-orange-500', soft: 'bg-orange-50' },
-  intervals: { label: 'Intervals', dot: 'bg-red-500', bar: 'border-l-red-500', soft: 'bg-red-50' },
-  marathon_pace: { label: 'Marathon pace', dot: 'bg-fuchsia-600', bar: 'border-l-fuchsia-600', soft: 'bg-fuchsia-50' },
-  fartlek: { label: 'Fartlek', dot: 'bg-amber-500', bar: 'border-l-amber-500', soft: 'bg-amber-50' },
-  shakeout: { label: 'Shakeout', dot: 'bg-teal-400', bar: 'border-l-teal-400', soft: 'bg-teal-50' },
-  race: { label: 'Race', dot: 'bg-yellow-400', bar: 'border-l-yellow-400', soft: 'bg-yellow-50' },
-  strength_upper: { label: 'Upper body', dot: 'bg-violet-500', bar: 'border-l-violet-500', soft: 'bg-violet-50' },
-  strength_lower: { label: 'Lower body', dot: 'bg-violet-600', bar: 'border-l-violet-600', soft: 'bg-violet-50' },
-  strength_full: { label: 'Full body', dot: 'bg-violet-500', bar: 'border-l-violet-500', soft: 'bg-violet-50' },
-  core: { label: 'Core', dot: 'bg-purple-400', bar: 'border-l-purple-400', soft: 'bg-purple-50' },
-  mobility: { label: 'Mobility', dot: 'bg-lime-500', bar: 'border-l-lime-500', soft: 'bg-lime-50' },
-  plyo: { label: 'Plyometrics', dot: 'bg-pink-500', bar: 'border-l-pink-500', soft: 'bg-pink-50' },
-  bike: { label: 'Cycling', dot: 'bg-cyan-500', bar: 'border-l-cyan-500', soft: 'bg-cyan-50' },
-  swim: { label: 'Swimming', dot: 'bg-blue-400', bar: 'border-l-blue-400', soft: 'bg-blue-50' },
-  custom: { label: 'Own workout', dot: 'bg-slate-500', bar: 'border-l-slate-500', soft: 'bg-slate-50' },
+/** Colours of a kind of session; the label is read when it is shown, so it follows the language of the page. */
+const style = (kind: WorkoutKind, dot: string, bar: string, soft: string) => ({
+  get label() {
+    return tr(`wk.${kind}` as MsgKey);
+  },
+  dot,
+  bar,
+  soft,
+});
+
+export const KIND_STYLE: Record<WorkoutKind, { readonly label: string; dot: string; bar: string; soft: string }> = {
+  easy: style('easy', 'bg-emerald-500', 'border-l-emerald-500', 'bg-emerald-50'),
+  recovery: style('recovery', 'bg-teal-400', 'border-l-teal-400', 'bg-teal-50'),
+  long: style('long', 'bg-sky-600', 'border-l-sky-600', 'bg-sky-50'),
+  long_mp: style('long_mp', 'bg-indigo-600', 'border-l-indigo-600', 'bg-indigo-50'),
+  threshold: style('threshold', 'bg-orange-500', 'border-l-orange-500', 'bg-orange-50'),
+  intervals: style('intervals', 'bg-red-500', 'border-l-red-500', 'bg-red-50'),
+  marathon_pace: style('marathon_pace', 'bg-fuchsia-600', 'border-l-fuchsia-600', 'bg-fuchsia-50'),
+  fartlek: style('fartlek', 'bg-amber-500', 'border-l-amber-500', 'bg-amber-50'),
+  shakeout: style('shakeout', 'bg-teal-400', 'border-l-teal-400', 'bg-teal-50'),
+  race: style('race', 'bg-yellow-400', 'border-l-yellow-400', 'bg-yellow-50'),
+  strength_upper: style('strength_upper', 'bg-violet-500', 'border-l-violet-500', 'bg-violet-50'),
+  strength_lower: style('strength_lower', 'bg-violet-600', 'border-l-violet-600', 'bg-violet-50'),
+  strength_full: style('strength_full', 'bg-violet-500', 'border-l-violet-500', 'bg-violet-50'),
+  core: style('core', 'bg-purple-400', 'border-l-purple-400', 'bg-purple-50'),
+  mobility: style('mobility', 'bg-lime-500', 'border-l-lime-500', 'bg-lime-50'),
+  plyo: style('plyo', 'bg-pink-500', 'border-l-pink-500', 'bg-pink-50'),
+  bike: style('bike', 'bg-cyan-500', 'border-l-cyan-500', 'bg-cyan-50'),
+  swim: style('swim', 'bg-blue-400', 'border-l-blue-400', 'bg-blue-50'),
+  custom: style('custom', 'bg-slate-500', 'border-l-slate-500', 'bg-slate-50'),
 };
 
 export function StatusBadge({ w }: { w: PlannedWorkout }) {
   switch (w.status) {
     case 'completed':
-      return <Badge tone="green"><Check className="h-3 w-3" /> Done</Badge>;
+      return <Badge tone="green"><Check className="h-3 w-3" /> {tr('st.done')}</Badge>;
     case 'partial':
-      return <Badge tone="amber">Partly done</Badge>;
+      return <Badge tone="amber">{tr('st.partial')}</Badge>;
     case 'missed':
-      return <Badge tone="red"><X className="h-3 w-3" /> Missed</Badge>;
+      return <Badge tone="red"><X className="h-3 w-3" /> {tr('st.missed')}</Badge>;
     case 'skipped':
-      return <Badge>Skipped</Badge>;
+      return <Badge>{tr('st.skipped')}</Badge>;
     default:
-      return w.original_date ? <Badge tone="blue"><ArrowRightLeft className="h-3 w-3" /> Moved</Badge> : null;
+      return w.original_date ? <Badge tone="blue"><ArrowRightLeft className="h-3 w-3" /> {tr('st.moved')}</Badge> : null;
   }
 }
 
@@ -63,11 +73,11 @@ function WorkoutIcon({ kind, className }: { kind: WorkoutKind; className?: strin
 }
 
 function StatusIcon({ w }: { w: PlannedWorkout }) {
-  if (w.status === 'completed') return <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-label="Done" />;
-  if (w.status === 'partial') return <Check className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-label="Partly done" />;
-  if (w.status === 'missed') return <X className="h-3.5 w-3.5 shrink-0 text-red-500" aria-label="Missed" />;
-  if (w.status === 'skipped') return <SkipForward className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-label="Skipped" />;
-  if (w.original_date) return <ArrowRightLeft className="h-3.5 w-3.5 shrink-0 text-sky-600" aria-label="Moved" />;
+  if (w.status === 'completed') return <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-label={tr('st.done')} />;
+  if (w.status === 'partial') return <Check className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-label={tr('st.partial')} />;
+  if (w.status === 'missed') return <X className="h-3.5 w-3.5 shrink-0 text-red-500" aria-label={tr('st.missed')} />;
+  if (w.status === 'skipped') return <SkipForward className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-label={tr('st.skipped')} />;
+  if (w.original_date) return <ArrowRightLeft className="h-3.5 w-3.5 shrink-0 text-sky-600" aria-label={tr('st.moved')} />;
   return null;
 }
 
@@ -123,12 +133,12 @@ export function WorkoutRow({
       >
         <div className="flex items-center gap-1">
           <span className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">{style.label}</span>
-          {w.key_session && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand" title="Key session" />}
+          {w.key_session && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand" title={tr('wr.keySession')} />}
           <span className="ml-auto">
             <StatusIcon w={w} />
           </span>
         </div>
-        <div className={cx('text-[13px] leading-snug font-semibold text-slate-900', w.status === 'skipped' && 'line-through')}>{w.title}</div>
+        <div className={cx('text-[13px] leading-snug font-semibold text-slate-900', w.status === 'skipped' && 'line-through')}>{localTitle(w.title)}</div>
         <div className="text-[11px] text-slate-500">
           {w.distance_km ? fmtDistance(w.distance_km, units) : `~${fmtMinutes(w.duration_min)}`}
         </div>
@@ -152,9 +162,9 @@ export function WorkoutRow({
           <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
             <WorkoutIcon kind={w.kind} className="h-3.5 w-3.5" />
             {style.label}
-            {w.key_session && <span className="text-brand">· key</span>}
+            {w.key_session && <span className="text-brand">{tr('wr.key')}</span>}
           </div>
-          <div className={cx('mt-0.5 font-semibold text-slate-900', compact ? 'text-sm' : 'text-[15px]', w.status === 'skipped' && 'line-through')}>{w.title}</div>
+          <div className={cx('mt-0.5 font-semibold text-slate-900', compact ? 'text-sm' : 'text-[15px]', w.status === 'skipped' && 'line-through')}>{localTitle(w.title)}</div>
           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500">
             {w.distance_km ? <span>{fmtDistance(w.distance_km, units)}</span> : null}
             {w.duration_min ? <span>~{fmtMinutes(w.duration_min)}</span> : null}
@@ -170,11 +180,12 @@ export function WorkoutRow({
 /** Pick a day (a week around the workout, or any date) and move or swap. */
 function MovePanel({ w, busy, onMove }: { w: PlannedWorkout; busy: boolean; onMove: (patches: Patches, message: string) => void }) {
   const { plan, workouts, today } = useData();
+  const { t } = useI18n();
   const [target, setTarget] = useState<string | null>(null);
   if (!plan) return null;
   const bounds = moveBounds(today, plan.race_date);
   const days = moveDays(w, today, plan.race_date);
-  const dayName = (d: string) => (d === today ? 'Today' : d === addDays(today, 1) ? 'Tomorrow' : fmtDate(d, { weekday: 'short' }));
+  const dayName = (d: string) => fmtDay(d, today, { weekday: 'short' });
   const onDay = (d: string) => workouts.filter((o) => o.id !== w.id && o.date === d && o.status !== 'skipped');
   const valid = !!target && target !== w.date && inBounds(target, bounds);
   const swap = valid ? swapCandidate(workouts, w, target, today) : null;
@@ -182,7 +193,7 @@ function MovePanel({ w, busy, onMove }: { w: PlannedWorkout; busy: boolean; onMo
 
   return (
     <div className="space-y-3 rounded-xl bg-slate-50 p-3">
-      <div className="text-sm font-semibold text-slate-900">Move to</div>
+      <div className="text-sm font-semibold text-slate-900">{t('mv.moveTo')}</div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {days.map((d) => {
           const current = d === w.date;
@@ -201,18 +212,18 @@ function MovePanel({ w, busy, onMove }: { w: PlannedWorkout; busy: boolean; onMo
             >
               <div className="text-xs font-semibold text-slate-900">{dayName(d)}</div>
               <div className="truncate text-[11px] text-slate-500">
-                {fmtDate(d, { day: 'numeric', month: 'short' })} · {current ? 'now' : items.length ? items.map((o) => KIND_STYLE[o.kind].label).join(' + ') : 'Rest'}
+                {fmtDate(d, { day: 'numeric', month: 'short' })} · {current ? t('common.now') : items.length ? items.map((o) => KIND_STYLE[o.kind].label).join(' + ') : t('mv.rest')}
               </div>
-              {d === w.original_date && !current && <div className="text-[11px] font-semibold text-sky-700">Original day</div>}
+              {d === w.original_date && !current && <div className="text-[11px] font-semibold text-sky-700">{t('mv.originalDay')}</div>}
             </button>
           );
         })}
       </div>
-      <Field label="Or any other day">
+      <Field label={t('mv.anyDay')}>
         <Input type="date" min={bounds.min} max={bounds.max} value={target && !days.includes(target) ? target : ''} onChange={(e) => setTarget(e.target.value || null)} />
       </Field>
       {target && !valid && target !== w.date && (
-        <Notice tone="error">Pick a day from today until {fmtDate(bounds.max)} – workouts can't move into the past.</Notice>
+        <Notice tone="error">{t('mv.pickDay', { date: fmtDate(bounds.max) })}</Notice>
       )}
       {valid && (
         <>
@@ -221,17 +232,17 @@ function MovePanel({ w, busy, onMove }: { w: PlannedWorkout; busy: boolean; onMo
           ))}
           <div className="flex flex-wrap gap-2">
             {swap && (
-              <Button loading={busy} onClick={() => onMove(movePatches(workouts, w, target, today, true), `Swapped with ${swap.title}`)} icon={<ArrowRightLeft className="h-4 w-4" />}>
-                Swap days
+              <Button loading={busy} onClick={() => onMove(movePatches(workouts, w, target, today, true), t('mv.swappedWith', { title: localTitle(swap.title) }))} icon={<ArrowRightLeft className="h-4 w-4" />}>
+                {t('mv.swapDays')}
               </Button>
             )}
-            <Button variant={swap ? 'secondary' : 'primary'} loading={busy} onClick={() => onMove(movePatches(workouts, w, target, today, false), `Moved to ${fmtDate(target)}`)}>
-              {swap ? 'Move – keep both' : `Move to ${fmtDate(target)}`}
+            <Button variant={swap ? 'secondary' : 'primary'} loading={busy} onClick={() => onMove(movePatches(workouts, w, target, today, false), t('mv.moved', { date: fmtDate(target) }))}>
+              {swap ? t('mv.keepBoth') : t('mv.moveToDate', { date: fmtDate(target) })}
             </Button>
           </div>
           {swap && (
             <p className="text-xs text-slate-500">
-              Swap puts "{swap.title}" on {fmtDate(w.date)} instead.
+              {t('mv.swapNote', { title: localTitle(swap.title), date: fmtDate(w.date) })}
             </p>
           )}
         </>
@@ -243,6 +254,7 @@ function MovePanel({ w, busy, onMove }: { w: PlannedWorkout; busy: boolean; onMo
 export function WorkoutDetail({ w, onClose }: { w: PlannedWorkout | null; onClose: () => void }) {
   const { plan, units, activities, workouts, adapt, reload, today } = useData();
   const { user } = useAuth();
+  const { t } = useI18n();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<'view' | 'log' | 'move'>('view');
@@ -289,7 +301,7 @@ export function WorkoutDetail({ w, onClose }: { w: PlannedWorkout | null; onClos
           user_id: user!.id,
           source: 'manual',
           external_id: null,
-          name: w.title,
+          name: localTitle(w.title),
           sport: run ? 'run' : 'strength',
           sub_type: 'manual',
           start_time: `${w.date}T12:00:00Z`,
@@ -312,46 +324,46 @@ export function WorkoutDetail({ w, onClose }: { w: PlannedWorkout | null; onClos
         activity_id: created?.id ?? null,
         actual_distance_km: km ? Math.round(km * 10) / 10 : null,
       });
-    }, 'Logged – nice work!');
+    }, t('wd.logged'));
 
   return (
-    <Modal open={!!w} onClose={onClose} title={<span>{w.title}</span>}>
+    <Modal open={!!w} onClose={onClose} title={<span>{localTitle(w.title)}</span>}>
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
           <span className="font-medium text-slate-900">{fmtDate(w.date, { weekday: 'long', day: 'numeric', month: 'long' })}</span>
           <span>·</span>
-          <span className="capitalize">{w.phase} phase</span>
+          <span>{t('wd.phase', { phase: t(`phase.${w.phase}` as MsgKey) })}</span>
           <StatusBadge w={w} />
         </div>
         {home && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-sky-50 px-3 py-2 text-sm text-sky-900 ring-1 ring-sky-200">
             <span className="flex items-center gap-1.5">
-              <ArrowRightLeft className="h-4 w-4 shrink-0" /> Originally planned for {fmtDate(home, { weekday: 'long', day: 'numeric', month: 'short' })}.
+              <ArrowRightLeft className="h-4 w-4 shrink-0" /> {t('wd.original', { date: fmtDate(home, { weekday: 'long', day: 'numeric', month: 'short' }) })}
             </span>
             {canGoHome && (
               <Button size="sm" variant="secondary" loading={mover.busy} icon={<Undo2 className="h-4 w-4" />}
-                onClick={() => moveAndClose(movePatches(workouts, w, home, today, false), 'Back on its original day.')}>
-                Move back
+                onClick={() => moveAndClose(movePatches(workouts, w, home, today, false), t('wd.backHome'))}>
+                {t('wd.moveBack')}
               </Button>
             )}
           </div>
         )}
         <div className="rounded-xl bg-brand-soft/60 p-3 text-sm">
-          <div className="font-semibold text-slate-900">Why: {purposeFor(w.kind).headline}</div>
+          <div className="font-semibold text-slate-900">{t('wd.why', { headline: purposeFor(w.kind).headline })}</div>
           <p className="mt-0.5 text-slate-700">{purposeFor(w.kind).why}</p>
         </div>
-        {w.note && <Notice tone="warn">{w.note}</Notice>}
+        {w.note && <Notice tone="warn">{localNote(w.note)}</Notice>}
 
         <div className="flex gap-4 rounded-xl bg-slate-50 p-3 text-sm">
           {w.distance_km ? (
             <div>
-              <div className="text-xs text-slate-500">Distance</div>
+              <div className="text-xs text-slate-500">{t('wd.distance')}</div>
               <div className="font-semibold">{fmtDistance(w.distance_km, units)}</div>
             </div>
           ) : null}
           {w.duration_min ? (
             <div>
-              <div className="text-xs text-slate-500">Time</div>
+              <div className="text-xs text-slate-500">{t('wd.time')}</div>
               <div className="font-semibold">~{fmtMinutes(w.duration_min)}</div>
             </div>
           ) : null}
@@ -375,13 +387,13 @@ export function WorkoutDetail({ w, onClose }: { w: PlannedWorkout | null; onClos
         {activity && (
           <Link to={`/analysis/${activity.id}`} onClick={onClose} className="block">
             <Button className="w-full" variant="dark" icon={<Gauge className="h-4 w-4" />}>
-              Open workout analysis
+              {t('wd.analysis')}
             </Button>
           </Link>
         )}
         {activity && (
           <div className="rounded-xl bg-emerald-50 p-3 text-sm ring-1 ring-emerald-200">
-            <div className="font-semibold text-emerald-900">{activity.name ?? 'Activity'} ({activity.source === 'garmin' ? 'Garmin' : activity.source === 'fit' ? 'FIT file' : 'logged manually'})</div>
+            <div className="font-semibold text-emerald-900">{activity.name ?? t('wd.activity')} ({activity.source === 'garmin' ? t('wd.src.garmin') : activity.source === 'fit' ? t('wd.src.fit') : t('wd.src.manual')})</div>
             <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-emerald-900/80">
               {activity.distance_m ? <span>{fmtDistance(activity.distance_m / 1000, units, 2)}</span> : null}
               {activity.moving_s || activity.duration_s ? <span>{fmtDuration(activity.moving_s ?? activity.duration_s)}</span> : null}
@@ -396,15 +408,15 @@ export function WorkoutDetail({ w, onClose }: { w: PlannedWorkout | null; onClos
         {mode === 'log' && (
           <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3">
             {run && (
-              <Field label={`Distance (${units})`}>
-                <Input type="number" inputMode="decimal" step="0.1" placeholder={toUnit(w.distance_km ?? 0, units).toFixed(1)} value={logKm} onChange={(e) => setLogKm(e.target.value)} />
+              <Field label={t('wd.distanceIn', { unit: units })}>
+                <Input type="number" inputMode="decimal" step="0.1" placeholder={fmtNum(toUnit(w.distance_km ?? 0, units))} value={logKm} onChange={(e) => setLogKm(e.target.value)} />
               </Field>
             )}
-            <Field label="Duration (min)">
+            <Field label={t('wd.durationMin')}>
               <Input type="number" inputMode="numeric" placeholder={String(w.duration_min ?? '')} value={logMin} onChange={(e) => setLogMin(e.target.value)} />
             </Field>
             <Button className="col-span-2" loading={busy} onClick={logDone} icon={<Check className="h-4 w-4" />}>
-              Save as done
+              {t('wd.saveDone')}
             </Button>
           </div>
         )}
@@ -415,12 +427,12 @@ export function WorkoutDetail({ w, onClose }: { w: PlannedWorkout | null; onClos
           <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
             {(w.status === 'planned' || w.status === 'missed') && w.date <= today && (
               <Button size="sm" onClick={() => setMode('log')} icon={<Check className="h-4 w-4" />}>
-                Log as done
+                {t('wd.logDone')}
               </Button>
             )}
             {canMove(w) && (
               <Button size="sm" variant="secondary" onClick={() => setMode('move')} icon={<ArrowRightLeft className="h-4 w-4" />}>
-                Move
+                {t('wd.move')}
               </Button>
             )}
             {w.status === 'planned' && w.kind !== 'race' && (
@@ -429,10 +441,10 @@ export function WorkoutDetail({ w, onClose }: { w: PlannedWorkout | null; onClos
                   size="sm"
                   variant="secondary"
                   loading={busy}
-                  onClick={() => act(() => api.updateWorkout(w.id, { status: 'skipped', status_source: 'user' }), 'Workout skipped')}
+                  onClick={() => act(() => api.updateWorkout(w.id, { status: 'skipped', status_source: 'user' }), t('wd.skipped'))}
                   icon={<SkipForward className="h-4 w-4" />}
                 >
-                  Skip
+                  {t('wd.skip')}
                 </Button>
               </>
             )}
@@ -448,12 +460,12 @@ export function WorkoutDetail({ w, onClose }: { w: PlannedWorkout | null; onClos
                 }
                 icon={<RotateCcw className="h-4 w-4" />}
               >
-                Reset
+                {t('wd.reset')}
               </Button>
             )}
             {w.status === 'planned' && w.date > today && (
               <span className="flex items-center gap-1 text-xs text-slate-500">
-                <CircleDashed className="h-3.5 w-3.5" /> Syncs automatically from Garmin once done.
+                <CircleDashed className="h-3.5 w-3.5" /> {t('wd.autoSync')}
               </span>
             )}
           </div>

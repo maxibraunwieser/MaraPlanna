@@ -3,6 +3,7 @@ import ICAL from 'ical.js';
 import type { PlannedWorkout } from './types';
 import { buildIcs, foldLine, stepText, type CalWorkout } from '../../supabase/functions/_shared/calendar';
 import { describeStep } from './format';
+import { setActiveLang } from './i18n';
 import { addDays } from './planner/dates';
 import { assessFitness } from './planner/fitness';
 import { buildPlan } from './planner/generate';
@@ -45,6 +46,28 @@ describe('calendar feed', () => {
     const ev = cal.getAllSubcomponents('vevent').map((e) => new ICAL.Event(e)).find((e) => e.summary.startsWith('Intervals') || e.summary.startsWith('Threshold') || e.summary.startsWith('Fartlek'))!;
     expect(ev.description).toMatch(/^\d+(\.\d)? km · ~\d+ min · key session\n\n1\. /);
     expect(ev.description).toContain('Open in MaraPlanna: https://example.github.io/MaraPlanna/plan');
+  });
+
+  it('describes every step in German exactly like the app does, and writes the feed in German', () => {
+    setActiveLang('de');
+    try {
+      for (const w of gen.workouts) {
+        for (const s of w.steps) {
+          expect(stepText(s, paces, 'km', 'de')).toEqual(describeStep(s, paces, 'km'));
+          expect(stepText(s, paces, 'mi', 'de')).toEqual(describeStep(s, paces, 'mi'));
+        }
+      }
+    } finally {
+      setActiveLang('en');
+    }
+    const de = buildIcs({ name: 'MaraPlanna', workouts, paces, units: 'km', appUrl: 'https://example.github.io/MaraPlanna/plan', now, lang: 'de' });
+    const cal = new ICAL.Component(ICAL.parse(de));
+    const events = cal.getAllSubcomponents('vevent').map((e) => new ICAL.Event(e));
+    expect(events.some((e) => e.summary.startsWith('Langer Lauf'))).toBe(true);
+    expect(events.some((e) => e.summary.includes('Wettkampftag'))).toBe(true);
+    expect(events.some((e) => /Intervalle|Schwelle|Fahrtspiel|Tempolauf|Marathontempo/.test(e.summary))).toBe(true);
+    expect(de).toContain('In MaraPlanna öffnen: https://example.github.io/MaraPlanna/plan');
+    expect(de).not.toMatch(/Open in MaraPlanna|key session|Easy run/);
   });
 
   it('folds long lines to ≤ 75 octets without breaking characters and uses CRLF', () => {

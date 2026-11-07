@@ -664,12 +664,103 @@ function testWeeklyKilometres(logger as Logger) as Boolean {
     return true;
 }
 
+// Countdown: je ein Impuls bei 5, 4, 3, 2, 1 Sekunden vor dem Wechsel, nicht mehr und nicht doppelt.
+(:test)
+function testStepCountdownTimeStep(logger as Logger) as Boolean {
+    var steps = [
+        { "n" => "Intervall 1/2", "t" => "a", "d" => 1000, "lo" => 270, "hi" => 278, "z" => 6 },
+        { "n" => "Trabpause", "t" => "r", "s" => 60, "z" => 3 },
+        { "n" => "Intervall 2/2", "t" => "a", "d" => 1000, "lo" => 270, "hi" => 278, "z" => 6 }
+    ] as Array<Dictionary>;
+    var w = new Workout("Intervalle", 6, steps);
+    var c = new StepCountdown();
+    // Strecken-Schritt: bei 4,0 m/s sind 1000 m in 250 s geschafft. Restdistanz / Geschwindigkeit = Sekunden.
+    var pulses = [] as Array<Number>;
+    for (var t = 1; t <= 252; t++) {
+        var dist = t * 4.0;
+        var left = w.secondsLeft(t * 1000, dist, 4.0);
+        if (c.due(left, t)) {
+            pulses.add(t);
+        }
+        if (w.update(t * 1000, dist)) {
+            c.reset();
+            break;
+        }
+    }
+    // 1000 m sind bei t = 250 erreicht: Impulse bei 245 (5 s vorher) bis 249 (1 s vorher)
+    logger.debug("pulses " + pulses);
+    Test.assertEqual(pulses.size(), 5);
+    Test.assertEqual(pulses[0], 245);
+    Test.assertEqual(pulses[4], 249);
+    Test.assertEqual(w.name(w.current()), "Trabpause");
+    // Zeit-Schritt (60 s) ist exakt: Impulse bei noch 5, 4, 3, 2, 1 Sekunden
+    var base = 250000;
+    var times = [] as Array<Number>;
+    for (var t = 1; t <= 60; t++) {
+        var left = w.secondsLeft(base + t * 1000, 1000.0 + t, null);
+        if (c.due(left, t)) {
+            times.add(60 - t);
+        }
+        w.update(base + t * 1000, 1000.0 + t);
+    }
+    Test.assertEqual(times.size(), 5);
+    Test.assertEqual(times[0], 5);
+    Test.assertEqual(times[4], 1);
+    return true;
+}
+
+(:test)
+function testStepCountdownEdges(logger as Logger) as Boolean {
+    var steps = [
+        { "n" => "Einlaufen", "t" => "w", "d" => 2000, "z" => 1 },
+        { "n" => "Intervall", "t" => "a", "d" => 1000, "z" => 6 }
+    ] as Array<Dictionary>;
+    var w = new Workout("Test", 6, steps);
+    // Der letzte Schritt hat keinen Wechsel mehr: kein Countdown
+    w.advance(100000, 2000.0);
+    Test.assert(w.secondsLeft(110000, 2990.0, 4.0) == null);
+    // Auch ohne Geschwindigkeit (Stehen) lässt sich ein Strecken-Schritt nicht schätzen
+    var w2 = new Workout("Test", 6, steps);
+    Test.assert(w2.secondsLeft(1000, 1990.0, null) == null);
+    Test.assert(w2.secondsLeft(1000, 1990.0, 0.3) == null);
+    Test.assert(w2.secondsLeft(1000, 1990.0, 4.0) != null);
+    // Schwankende Schätzung bei Strecken-Schritten: sie löst nur den Beginn aus, danach schlägt der Takt gleichmäßig
+    // (ein Impuls je Aufruf, höchstens fünf), auch wenn die Schätzung hin und her springt
+    var c = new StepCountdown();
+    Test.assert(!c.due(null, 100));
+    Test.assert(!c.due(6.2, 100));
+    Test.assert(c.due(4.6, 100));
+    Test.assert(c.due(4.9, 101));
+    Test.assert(c.due(4.1, 102));
+    Test.assert(c.due(2.9, 103));
+    Test.assert(c.due(3.4, 104));
+    Test.assert(!c.due(0.4, 105));
+    Test.assert(!c.due(0.0, 106));
+    // Wird man langsam (der Wechsel rückt weit weg), schweigt er und beginnt bei der nächsten Annäherung neu
+    c.reset();
+    Test.assert(c.due(4.0, 100));
+    Test.assert(!c.due(12.0, 101));
+    Test.assert(!c.due(9.0, 102));
+    Test.assert(c.due(4.5, 103));
+    // Neuer Schritt: von vorn
+    c.reset();
+    Test.assert(c.due(5.0, 100));
+    // Der Countdown beginnt erst, wenn der Schritt schon SECONDS Sekunden läuft (kurze Schritte nicht zerhacken)
+    c.reset();
+    Test.assert(!c.due(3.0, 2));
+    Test.assert(c.due(3.0, 5));
+    // NaN
+    c.reset();
+    Test.assert(!c.due(Math.sqrt(-1.0).toFloat(), 100));
+    return true;
+}
+
 (:test)
 function testPrefs(logger as Logger) as Boolean {
     var saved = Application.Storage.getValue("prefs");
     Application.Storage.deleteValue("prefs");
     // Standard: alles an, Einheiten automatisch
-    Test.assert(Prefs.kmSummary() && Prefs.paceAlert() && Prefs.tones() && Prefs.vibration() && Prefs.weather());
+    Test.assert(Prefs.kmSummary() && Prefs.paceAlert() && Prefs.tones() && Prefs.vibration() && Prefs.weather() && Prefs.countdown());
     Test.assertEqual(Prefs.units(), Prefs.UNITS_AUTO);
     Test.assert(Prefs.miles(true));
     Test.assert(!Prefs.miles(false));
@@ -738,11 +829,12 @@ function testClockAndDate(logger as Logger) as Boolean {
 (:test)
 function testPaceSmoother(logger as Logger) as Boolean {
     var s = new PaceSmoother();
-    // zu wenig Daten
+    // ein einziger Messpunkt: noch keine Pace; ab dem zweiten gibt es einen Wert
     Test.assert(s.pace(20) == null);
     s.add(1000, 3.0, 3.0);
-    s.add(2000, 6.0, 3.0);
     Test.assert(s.pace(20) == null);
+    s.add(2000, 6.0, 3.0);
+    Test.assert((s.pace(20) as Float - 333.3).abs() < 1.0);
     // Geschwindigkeit schwankt um 3,0 m/s (+-0,4): die Pace bleibt über 20 s ruhig bei 333 s/km
     s.reset();
     for (var t = 1; t <= 40; t++) {
@@ -762,16 +854,102 @@ function testPaceSmoother(logger as Logger) as Boolean {
         s.add(t * 1000, t * 3.0, null);
     }
     Test.assert((s.pace(20) as Float - 333.3).abs() < 1.0);
-    // Tempowechsel: 20 s mit 3,0 m/s, dann 20 s mit 4,0 m/s. Kurzes Fenster folgt, langes mittelt.
+    return true;
+}
+
+// Geschwindigkeit der letzten Sekunden aus der Strecke: folgt einem Tempowechsel sofort.
+(:test)
+function testPaceSmootherSpeedOver(logger as Logger) as Boolean {
+    var s = new PaceSmoother();
+    Test.assert(s.speedOver(4) == null);
+    s.add(1000, 0.0, 3.0);
+    Test.assert(s.speedOver(4) == null);
+    // 10 s mit 3 m/s, dann 4 s mit 5 m/s: die Geschwindigkeit über 4 s ist schon die neue
+    var dist = 0.0;
+    for (var t = 2; t <= 11; t++) {
+        dist += 3.0;
+        s.add(t * 1000, dist, 3.0);
+    }
+    Test.assert((s.speedOver(4) as Float - 3.0).abs() < 0.01);
+    for (var t = 12; t <= 15; t++) {
+        dist += 5.0;
+        s.add(t * 1000, dist, 5.0);
+    }
+    Test.assert((s.speedOver(4) as Float - 5.0).abs() < 0.01);
+    // nach einem Neubeginn zählt nur, was seitdem gemessen wurde
     s.reset();
-    for (var t = 1; t <= 20; t++) {
+    Test.assert(s.speedOver(4) == null);
+    s.add(16000, dist, 5.0);
+    s.add(17000, dist + 2.0, 2.0);
+    Test.assert((s.speedOver(4) as Float - 2.0).abs() < 0.01);
+    return true;
+}
+
+// Neuer Intervall: Die Glättung beginnt bei null, die alte Pace fließt nicht ein, der Anlauf zählt nicht mit.
+(:test)
+function testPaceSmootherRestartAtStep(logger as Logger) as Boolean {
+    var s = new PaceSmoother();
+    // 40 s Trab mit 3,0 m/s (5:33), dann beginnt der Intervall mit 4,4 m/s (3:47) nach 4 s Beschleunigung
+    for (var t = 1; t <= 40; t++) {
         s.add(t * 1000, t * 3.0, 3.0);
     }
-    for (var t = 21; t <= 40; t++) {
-        s.add(t * 1000, 60.0 + (t - 20) * 4.0, 4.0);
+    s.reset();
+    var ramp = [3.4, 3.8, 4.1, 4.3] as Array<Float>;
+    var dist = 120.0;
+    for (var k = 0; k < 14; k++) {
+        var v = k < 4 ? ramp[k] : 4.4;
+        dist += v;
+        s.add((41 + k) * 1000, dist, v);
+        var p = s.pace(20);
+        if (k == 1) {
+            // zwei Sekunden nach dem Start gibt es schon einen Wert, und er ist schon näher an der neuen Pace
+            Test.assert(p != null && (p as Float) < 300.0);
+        }
+        if (k == 7) {
+            // acht Sekunden nach dem Start: ohne Anlauf schon innerhalb von 3 % der neuen Pace (227 s/km)
+            logger.debug("pace after 8 s: " + p);
+            Test.assert(p != null && ((p as Float) - 227.3).abs() < 227.3 * 0.03);
+        }
     }
-    Test.assert((s.pace(10) as Float - 250.0).abs() < 1.0);
-    Test.assert((s.pace(30) as Float - 272.7).abs() < 2.0);
+    return true;
+}
+
+// Läufe ohne Schritte: ein Spurt oder Stehenbleiben beginnt das Fenster von selbst neu; Rauschen nicht.
+(:test)
+function testPaceSmootherFollowsChanges(logger as Logger) as Boolean {
+    var s = new PaceSmoother();
+    var dist = 0.0;
+    // 60 s gleichmäßig mit 3,33 m/s (5:00) und Rauschen: die Anzeige bleibt ruhig
+    var lo = 1000.0;
+    var hi = 0.0;
+    for (var t = 1; t <= 60; t++) {
+        var v = 3.33 + Math.sin(t * 2.7).toFloat() * 0.2;
+        dist += v;
+        s.add(t * 1000, dist, v);
+        var p = s.pace(20);
+        if (t > 30 && p != null) {
+            lo = (p as Float) < lo ? (p as Float) : lo;
+            hi = (p as Float) > hi ? (p as Float) : hi;
+        }
+    }
+    logger.debug("steady range " + lo + " .. " + hi);
+    Test.assert(hi - lo < 8.0);
+    // Spurt auf 4,17 m/s (4:00): nach zehn Sekunden innerhalb von 5 % der neuen Pace
+    for (var t = 61; t <= 75; t++) {
+        var v = 4.17 + Math.sin(t * 2.7).toFloat() * 0.2;
+        dist += v;
+        s.add(t * 1000, dist, v);
+        if (t == 71) {
+            var p = s.pace(20) as Float;
+            logger.debug("pace 10 s into the surge: " + p);
+            Test.assert((p - 240.0).abs() < 240.0 * 0.05);
+        }
+    }
+    // Stehenbleiben: sofort keine Pace statt eines Mischwerts
+    for (var t = 76; t <= 86; t++) {
+        s.add(t * 1000, dist, 0.0);
+    }
+    Test.assert(s.pace(20) == null);
     return true;
 }
 
@@ -779,13 +957,15 @@ function testPaceSmoother(logger as Logger) as Boolean {
 function testPaceSmoothingSetting(logger as Logger) as Boolean {
     var saved = Application.Storage.getValue("prefs");
     Application.Storage.deleteValue("prefs");
-    Test.assertEqual(Prefs.paceSeconds(), 10);
+    Test.assertEqual(Prefs.paceSeconds(), 20);
     Prefs.set("smooth", 1);
     Test.assertEqual(Prefs.paceSeconds(), 20);
     Prefs.set("smooth", 2);
     Test.assertEqual(Prefs.paceSeconds(), 30);
-    Prefs.set("smooth", 9);
+    Prefs.set("smooth", 0);
     Test.assertEqual(Prefs.paceSeconds(), 10);
+    Prefs.set("smooth", 9);
+    Test.assertEqual(Prefs.paceSeconds(), 20);
     if (saved == null) {
         Application.Storage.deleteValue("prefs");
     } else {

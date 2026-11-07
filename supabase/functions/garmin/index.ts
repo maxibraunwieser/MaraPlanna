@@ -376,11 +376,42 @@ async function readProfile(g: GarminClient, warnings: string[]) {
       profile.maxHr = int(findNum(zone, ['maxHeartRateUsed', 'maxHeartRate']));
       profile.restingHr = int(findNum(zone, ['restingHeartRateUsed', 'restingHeartRate']));
       profile.lthr ??= int(findNum(zone, ['lactateThresholdHeartRateUsed']));
+      // The lower limit of each of the five zones as set in Garmin Connect (used instead of our own estimate when complete).
+      const floors = [1, 2, 3, 4, 5].map((n) => int(findNum(zone, [`zone${n}Floor`])));
+      if (floors.every((f): f is number => f !== null) && floors.every((f, i) => i === 0 || f > floors[i - 1])) profile.zones = floors;
     }
   } catch (e) {
     warnings.push(`heart-rate zones: ${(e as Error).message}`);
   }
+  await readExtras(g, profile, displayName);
   return { profile, displayName };
+}
+
+/**
+ * Weight and race predictions for the setup wizard. These endpoints are not documented by Garmin and have not been checked
+ * against a real account: anything unexpected is ignored without a warning (the setup then asks the person), and a value is
+ * only used when it is plausible.
+ */
+async function readExtras(g: GarminClient, profile: Rec, displayName: string | null) {
+  try {
+    const weight = await g.get('/weight-service/weight/dateRange', { startDate: isoDay(Date.now() - 45 * DAY_MS), endDate: isoDay(Date.now() + DAY_MS) });
+    const grams = findNum(weight, ['weight', 'totalAverage'], 4);
+    if (grams !== null && grams >= 30_000 && grams <= 250_000) profile.weightKg = Math.round(grams / 100) / 10;
+  } catch {
+    // not available: the person enters their weight
+  }
+  try {
+    if (!displayName) return;
+    const p = await g.get(`/metrics-service/metrics/racepredictions/latest/${encodeURIComponent(displayName)}`);
+    const pred: Rec = {};
+    for (const [key, field, lo, hi] of [['5k', 'time5K', 600, 7200], ['10k', 'time10K', 1200, 14_400], ['half', 'timeHalfMarathon', 2700, 28_800], ['marathon', 'timeMarathon', 5400, 57_600]] as const) {
+      const t = findNum(p, [field], 2);
+      if (t !== null && t >= lo && t <= hi) pred[key] = Math.round(t);
+    }
+    if (Object.keys(pred).length) profile.racePredictions = pred;
+  } catch {
+    // not available: paces then come from the other sources
+  }
 }
 
 const METRIC_COLUMNS = [

@@ -4,6 +4,8 @@
 import type { PlannedWorkout } from '../types';
 import { isRunWorkout, type WorkoutPatch } from './adapt';
 import { addDays, maxDate, minDate } from './dates';
+import { tr } from '../i18n';
+import { localTitle } from '../format';
 
 /** Anything not done yet can move – also missed and skipped sessions – except the race. */
 export const canMove = (w: PlannedWorkout) => w.kind !== 'race' && (w.status === 'planned' || w.status === 'missed' || w.status === 'skipped');
@@ -48,10 +50,10 @@ export function moveWarnings(workouts: PlannedWorkout[], patches: { id: string; 
   const active = after.filter((o) => o.id !== moved.id && o.status !== 'skipped' && o.status !== 'missed');
   const warnings: string[] = [];
   const sameDay = active.filter((o) => o.date === moved.date && isRunWorkout(o) && isRunWorkout(moved));
-  if (sameDay.length) warnings.push(`"${sameDay[0].title}" is on the same day – that's two runs.`);
+  if (sameDay.length) warnings.push(tr('mvw.same', { title: localTitle(sameDay[0].title) }));
   if (isHard(moved)) {
     const next = active.find((o) => isHard(o) && (o.date === addDays(moved.date, -1) || o.date === addDays(moved.date, 1)));
-    if (next) warnings.push(`"${next.title}" is the day ${next.date < moved.date ? 'before' : 'after'}. Two hard days in a row raise the injury risk – keep an easy day between them if you can.`);
+    if (next) warnings.push(tr(next.date < moved.date ? 'mvw.hardBefore' : 'mvw.hardAfter', { title: localTitle(next.title) }));
   }
   return warnings;
 }

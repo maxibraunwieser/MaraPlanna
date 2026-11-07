@@ -7,6 +7,8 @@ import Toybox.Lang;
 class Workout {
     // Pace für Schritte ohne Zielbereich (z. B. Trabpause), wenn keine Zonen bekannt sind.
     private const FALLBACK_PACE = 360.0;
+    // Langsamer als 2,5 km/h läuft niemand: Restzeit eines Strecken-Schritts lässt sich dann nicht schätzen.
+    private const MIN_SPEED = 0.7;
 
     var title as String;
     var zone as Number;
@@ -140,6 +142,24 @@ class Workout {
             return [left < 0 ? 0 : left, false];
         }
         return null;
+    }
+
+    // Geschätzte Sekunden bis zum Ende des aktuellen Schritts für den Countdown; null beim letzten Schritt (danach
+    // kommt kein Wechsel mehr) und wenn sie sich nicht schätzen lassen. Zeit-Schritte sind exakt, bei Strecken-Schritten
+    // rechnet die Restdistanz mit der Geschwindigkeit (m/s); unter MIN_SPEED (Stehen, Gehen) gibt es keine Schätzung.
+    function secondsLeft(timerMs as Number, dist as Float, speed as Float?) as Float? {
+        if (next() == null) {
+            return null;
+        }
+        var left = remaining(timerMs, dist);
+        if (left == null) {
+            return null;
+        }
+        var value = (left[0] as Numeric).toFloat();
+        if (!(left[1] as Boolean)) {
+            return value;
+        }
+        return speed == null || speed != speed || speed < MIN_SPEED ? null : value / speed;
     }
 
     // Anteil des aktuellen Schritts, der geschafft ist (0..1).

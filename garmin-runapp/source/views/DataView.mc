@@ -37,8 +37,7 @@ class DataView extends WatchUi.View {
     function onUpdate(dc as Graphics.Dc) as Void {
         Draw.plain(dc);
         var h = dc.getHeight();
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
-        dc.clear();
+        Draw.background(dc, true);
         var app = getApp();
         var c = app.controller as RecordingController;
         var info = Activity.getActivityInfo();
@@ -97,7 +96,7 @@ class DataView extends WatchUi.View {
             return;
         }
         var texts = [Pages.NAMES[page], Pages.SHORT[page]] as Array<String>;
-        var color = Draw.GRAY;
+        var color = Draw.ORANGE;
         var main = page == Pages.OVERVIEW || page == Pages.PACE || page == Pages.HEART || page == Pages.PACES;
         if (c.summaryShowing(ms)) {
             var n = c.splits.count;

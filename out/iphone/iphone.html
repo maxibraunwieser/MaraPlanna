@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>MaraPlanna im iPhone-Rahmen</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  html, body { margin: 0; height: 100%; background: #E5E7EB; font-family: system-ui, Segoe UI, sans-serif; }
+  .wrap { display: flex; height: 100%; align-items: center; justify-content: center; gap: 40px; padding: 12px; box-sizing: border-box; }
+  .side { width: 250px; color: #1F2937; }
+  .side h1 { font-size: 18px; margin: 0 0 12px; }
+  .side a { display: block; margin: 6px 0; padding: 10px 12px; background: #fff; border-radius: 10px; color: #111827; text-decoration: none; font-size: 14px; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .side a:hover { background: #FFF7ED; }
+  .side p { font-size: 12px; color: #6B7280; line-height: 1.4; }
+  .phone { position: relative; width: 393px; height: 852px; border-radius: 56px; background: #0B0B0F; padding: 14px; box-sizing: content-box;
+           box-shadow: 0 0 0 2px #6B7280, 0 30px 60px rgba(0,0,0,.35); transform-origin: center center; }
+  .screen { width: 393px; height: 852px; border-radius: 44px; overflow: hidden; background: #fff; position: relative; }
+  iframe { width: 393px; height: 768px; border: 0; display: block; }
+  .status { height: 54px; background: #0b1220; color: #fff; font-size: 15px; font-weight: 600; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 30px 8px; box-sizing: border-box; }
+  .home { height: 30px; background: #fff; display: flex; justify-content: center; align-items: flex-end; padding-bottom: 8px; box-sizing: border-box; }
+  .home i { width: 134px; height: 5px; border-radius: 3px; background: #111; display: block; }
+  .island { position: absolute; top: 26px; left: 50%; width: 112px; height: 32px; margin-left: -56px; background: #000; border-radius: 20px; z-index: 5; pointer-events: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="side">
+    <h1>MaraPlanna · iPhone-Ansicht</h1>
+    <a href="http://localhost:5174/?scenario=runner&bar=0&lang=de" target="app">Heute</a>
+    <a href="http://localhost:5174/plan?scenario=runner&bar=0&lang=de" target="app">Plan</a>
+    <a href="http://localhost:5174/activities?scenario=runner&bar=0&lang=de" target="app">Laufen</a>
+    <a href="http://localhost:5174/strength?scenario=runner&bar=0&lang=de" target="app">Kraft</a>
+    <a href="http://localhost:5174/food?scenario=runner&bar=0&lang=de" target="app">Essen</a>
+    <a href="http://localhost:5174/settings?scenario=runner&bar=0&lang=de" target="app">Einstellungen</a>
+    <a href="http://localhost:5174/?scenario=new&bar=0&garmin=ok&lang=de" target="app">Fragebogen (neuer Account)</a>
+    <a href="http://localhost:5174/?scenario=ready&bar=0&lang=de" target="app">Heute ohne Garmin</a>
+    <p>Das ist Chrome in einem Rahmen von 393 × 852 Punkten (iPhone 15 Pro). Es ist keine Darstellung in Safari, Schriften und Ränder können auf einem echten iPhone leicht abweichen. Keine Daten werden gespeichert.</p>
+  </div>
+  <div class="phone" id="phone">
+    <div class="island"></div>
+    <div class="screen"><div class="status"><span>9:41</span><span>5G ▮▮▮</span></div><iframe name="app" src="http://localhost:5174/?scenario=runner&bar=0&lang=de"></iframe><div class="home"><i></i></div></div>
+  </div>
+</div>
+<script>
+  // Das Telefon passt sich der Fensterhoehe an
+  function fit() { const h = window.innerHeight - 24, need = 852 + 28; document.getElementById('phone').style.transform = 'scale(' + Math.min(1, h / need) + ')'; }
+  window.addEventListener('resize', fit); fit();
+</script>
+</body>
+</html>

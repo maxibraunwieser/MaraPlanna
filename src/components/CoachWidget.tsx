@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { MessageCircle, X } from 'lucide-react';
 import { CoachChat } from './CoachChat';
 import { cx } from './ui';
+import { useI18n } from '../lib/i18n';
 
 /**
  * The coach as a chat bubble: a round button fixed at the bottom right of every page that opens
@@ -10,6 +11,7 @@ import { cx } from './ui';
  * being written is not lost; the button shows when something new arrived.
  */
 export function CoachWidget() {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [everOpened, setEverOpened] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -41,10 +43,10 @@ export function CoachWidget() {
     <>
       <div
         role="dialog"
-        aria-label="Coach chat"
+        aria-label={t('co.widget')}
         aria-hidden={!open}
         className={cx(
-          'fixed z-50 flex flex-col overflow-hidden bg-white shadow-2xl ring-1 ring-slate-900/10 transition duration-200 ease-out',
+          'fixed z-50 flex flex-col overflow-hidden bg-surface shadow-2xl ring-1 ring-white/10 transition duration-200 ease-out',
           // phone: the whole screen; larger screens: a window above the button
           'inset-0 sm:inset-auto sm:bottom-24 sm:right-6 sm:h-[min(44rem,calc(100dvh-11rem))] sm:w-[26rem] sm:rounded-2xl',
           open ? 'visible translate-y-0 scale-100 opacity-100' : 'pointer-events-none invisible translate-y-4 scale-95 opacity-0',
@@ -55,13 +57,13 @@ export function CoachWidget() {
 
       <button
         onClick={() => (open ? close() : show())}
-        aria-label={open ? 'Close coach chat' : 'Open coach chat'}
+        aria-label={open ? t('co.widget.close') : t('co.widget.open')}
         aria-expanded={open}
-        title="Ask your coach"
+        title={t('co.widget.title')}
         className={cx(
           'fixed right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-brand text-white shadow-lg shadow-orange-500/30 transition hover:scale-105 hover:bg-brand-dark focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/40',
           // above the bottom navigation on phones; in the corner on larger screens
-          'bottom-[calc(4.75rem+env(safe-area-inset-bottom))] sm:bottom-6 sm:right-6',
+          'bottom-[calc(var(--fab-bottom,6rem)+env(safe-area-inset-bottom))] sm:bottom-6 sm:right-6',
           // on a phone the open window covers the screen, so the button gives way
           open && 'max-sm:invisible',
         )}
@@ -74,7 +76,7 @@ export function CoachWidget() {
         </span>
         {!open && busy && <span className="absolute inset-0 animate-ping rounded-full bg-brand/40" aria-hidden />}
         {!open && unread && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center" aria-label="New answer">
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center" aria-label={t('co.widget.new')}>
             <span className="absolute h-4 w-4 animate-ping rounded-full bg-lime/70" />
             <span className="relative h-3.5 w-3.5 rounded-full bg-lime ring-2 ring-white" />
           </span>

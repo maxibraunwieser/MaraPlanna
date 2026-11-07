@@ -49,6 +49,7 @@ Deno.serve(async (req) => {
       workouts: (workouts ?? []) as CalWorkout[],
       paces: plan?.fitness?.paces ?? null,
       units: (profile?.units === 'mi' ? 'mi' : 'km') as CalUnits,
+      lang: url.searchParams.get('lang') === 'de' ? 'de' : 'en',
       appUrl: feed.app_url ?? '',
       now: new Date(),
     });

@@ -7,18 +7,51 @@ import Toybox.Math;
 import Toybox.System;
 
 module Draw {
+    // Die Farben der MaraPlanna-App (Dunkelmodus): Nachtgrund, Glaskarten, Orange als Markenfarbe.
     const ORANGE = 0xF97316;
-    const GREEN = 0x22C55E;
-    const RED = 0xEF4444;
+    const GREEN = 0x34D399;
+    const RED = 0xF87171;
     const BLUE = 0x60A5FA;
+    const VIOLET = 0xA78BFA;
+    const AMBER = 0xFBBF24;
     const LIME = 0xA3E635;
-    const GRAY = 0xAAAAAA;
+    const GRAY = 0xA4AEC0;
     // Hell genug, dass es auch auf 8-Farben-Displays (z. B. FR 55) nicht schwarz wird.
-    const DIM = 0x888888;
+    const DIM = 0x8A93A6;
     // Dunkle Flächen: Balken-Hintergrund und feine Hilfslinien
-    const TRACK = 0x2A2A2A;
-    const GRID = 0x262626;
+    const TRACK = 0x2A2D38;
+    const GRID = 0x262935;
+    // Nachtgrund und die dünnen Trennlinien (keine Kästen: Abtrennung nur durch Linien, Abstand und Farbe)
+    const BG = 0x0C0D12;
+    const EDGE = 0x4A4F60;
     const CENTER = Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER;
+
+    // AMOLED-Displays (mit Einbrennschutz) zeigen die feinen Töne der App; die Uhren mit 64 Farben bekommen Grau und Linien.
+    function amoled() as Boolean {
+        var d = System.getDeviceSettings();
+        return (d has :requiresBurnInProtection) && d.requiresBurnInProtection;
+    }
+
+    // Weicher Lichtschein in einer Ecke: ineinanderliegende Kreise, außen kaum sichtbar.
+    function glow(dc as Graphics.Dc, cx as Numeric, cy as Numeric, radius as Numeric, tint as Number) as Void {
+        for (var i = 0; i < 16; i++) {
+            dc.setColor(blend(BG, tint, 0.02 + 0.0225 * i), Graphics.COLOR_TRANSPARENT);
+            dc.fillCircle(cx, cy, radius * (1.0 - i * 0.055));
+        }
+    }
+
+    // Grund aller Ansichten wie in der App: Nachtgrund, auf AMOLED mit blauem und orangem Schein oben (glow).
+    function background(dc as Graphics.Dc, withGlow as Boolean) as Void {
+        dc.setColor(BG, BG);
+        dc.clear();
+        if (withGlow && amoled()) {
+            var w = dc.getWidth();
+            var h = dc.getHeight();
+            glow(dc, w * 0.12, -h * 0.05, w * 0.85, 0x3076C4);
+            glow(dc, w * 1.02, h * 0.1, w * 0.8, 0xE8641A);
+        }
+    }
+
 
     // Randabstand relativ zur Displaybreite (statt fester Pixel).
     function margin(dc as Graphics.Dc) as Number {
@@ -241,10 +274,10 @@ module Draw {
             dc.setColor(colors[k], Graphics.COLOR_TRANSPARENT);
             dc.drawText(x, baseline - Graphics.getFontAscent(font), font, numberFont ? digits(values[k]) : values[k], Graphics.TEXT_JUSTIFY_CENTER);
         }
-        // feine Trennlinien zwischen den Feldern
+        // dünne Linien zwischen den Feldern
         var midY = top + rowH;
         var lineW = widthAt(dc, midY, 0) * 0.9;
-        dc.setColor(GRID, Graphics.COLOR_TRANSPARENT);
+        dc.setColor(EDGE, Graphics.COLOR_TRANSPARENT);
         dc.setPenWidth(1);
         dc.drawLine(cx - lineW / 2, midY, cx + lineW / 2, midY);
         dc.drawLine(cx, top + 4, cx, bottom - 4);
@@ -299,8 +332,12 @@ module Draw {
         var gap = r * 3.2;
         var x0 = dc.getWidth() / 2.0 - (count - 1) * gap / 2.0;
         for (var i = 0; i < count; i++) {
-            dc.setColor(i == current ? ORANGE : DIM, Graphics.COLOR_TRANSPARENT);
-            dc.fillCircle(x0 + i * gap, y, i == current ? r + 1 : r);
+            dc.setColor(i == current ? ORANGE : TRACK, Graphics.COLOR_TRANSPARENT);
+            if (i == current) {
+                dc.fillRoundedRectangle(x0 + i * gap - r * 1.6, y - r, r * 3.2, r * 2, r);
+            } else {
+                dc.fillCircle(x0 + i * gap, y, r);
+            }
         }
     }
 
@@ -551,6 +588,27 @@ module Draw {
         dc.drawLine(cx, cy, cx + r * 0.5, cy - r * 0.45);
         dc.setPenWidth(1);
         dc.fillCircle(cx, cy, r * 0.2);
+    }
+
+    // Statussymbol (Mark.*): grüner Haken erledigt, Kreis geplant (orange heute, rot verpasst), Kreuz ausgefallen.
+    function mark(dc as Graphics.Dc, kind as Number, cx as Numeric, cy as Numeric, r as Numeric) as Void {
+        smooth(dc);
+        if (kind == Mark.DONE) {
+            dc.setColor(GREEN, Graphics.COLOR_TRANSPARENT);
+            dc.fillCircle(cx, cy, r);
+            check(dc, cx, cy, r * 1.25, Graphics.COLOR_BLACK);
+        } else if (kind == Mark.SKIPPED) {
+            dc.setColor(DIM, Graphics.COLOR_TRANSPARENT);
+            dc.setPenWidth(penWidth(r, 0.3));
+            dc.drawLine(cx - r * 0.6, cy - r * 0.6, cx + r * 0.6, cy + r * 0.6);
+            dc.drawLine(cx - r * 0.6, cy + r * 0.6, cx + r * 0.6, cy - r * 0.6);
+            dc.setPenWidth(1);
+        } else {
+            dc.setColor(kind == Mark.MISSED ? RED : (kind == Mark.TODAY ? ORANGE : DIM), Graphics.COLOR_TRANSPARENT);
+            dc.setPenWidth(penWidth(r, 0.28));
+            dc.drawCircle(cx, cy, r * 0.85);
+            dc.setPenWidth(1);
+        }
     }
 
     // Häkchen mit Mitte cx, cy.

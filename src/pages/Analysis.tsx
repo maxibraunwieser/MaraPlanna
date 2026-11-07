@@ -5,7 +5,8 @@ import { useData } from '../lib/data';
 import { analyze, purposeFor, type CheckStatus } from '../lib/analysis';
 import { useActivityDetails } from '../lib/details';
 import { estimateMaxHr } from '../lib/planner/fitness';
-import { describeStep, fmtDate, fmtDistance, fmtDuration, fmtMinSec, fmtPace, KM_PER_MI } from '../lib/format';
+import { describeStep, fmtDate, fmtDistance, fmtDuration, fmtMinSec, fmtNum, fmtPace, KM_PER_MI, localTitle } from '../lib/format';
+import { useI18n, tr, type MsgKey } from '../lib/i18n';
 import { Badge, Card, CardTitle, cx, Notice, Spinner } from '../components/ui';
 import { KIND_STYLE } from '../components/Workout';
 import { LineChart } from '../components/LineChart';
@@ -15,14 +16,14 @@ const PACE_COLOR = '#6b8fd6';
 const HR_COLOR = '#ea580c';
 const ZONE_RAMP = ['#fde7d6', '#fbc89f', '#f59a5b', '#e46a24', '#b8460e'];
 
-const STATUS_ICON: Record<CheckStatus, ReactElement> = {
-  good: <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" aria-label="good" />,
-  warn: <CircleAlert className="h-5 w-5 shrink-0 text-amber-500" aria-label="warning" />,
-  bad: <XCircle className="h-5 w-5 shrink-0 text-red-600" aria-label="off target" />,
-  info: <Info className="h-5 w-5 shrink-0 text-slate-400" aria-label="info" />,
-};
+const statusIcon = (status: CheckStatus): ReactElement =>
+  status === 'good' ? <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" aria-label={tr('ana.good')} />
+  : status === 'warn' ? <CircleAlert className="h-5 w-5 shrink-0 text-amber-500" aria-label={tr('ana.warn')} />
+  : status === 'bad' ? <XCircle className="h-5 w-5 shrink-0 text-red-600" aria-label={tr('ana.bad')} />
+  : <Info className="h-5 w-5 shrink-0 text-slate-400" aria-label={tr('ana.info')} />;
 
 function ScoreRing({ score, grade }: { score: number; grade: string }) {
+  const { t } = useI18n();
   const r = 42;
   const c = 2 * Math.PI * r;
   const color = score >= 85 ? '#059669' : score >= 70 ? '#65a30d' : score >= 50 ? '#d97706' : '#dc2626';
@@ -34,8 +35,8 @@ function ScoreRing({ score, grade }: { score: number; grade: string }) {
       </svg>
       <div>
         <div className="text-4xl font-extrabold tabular-nums text-slate-900">{score}</div>
-        <div className="text-sm font-semibold capitalize" style={{ color }}>
-          {grade} execution
+        <div className="text-sm font-semibold" style={{ color }}>
+          {t(`dash.grade.${grade}` as MsgKey)}
         </div>
       </div>
     </div>
@@ -44,6 +45,7 @@ function ScoreRing({ score, grade }: { score: number; grade: string }) {
 
 export function Analysis() {
   const { activityId } = useParams();
+  const { t } = useI18n();
   const { plan, workouts, activities, metrics, units, connection, today } = useData();
   const activity = activities.find((a) => a.id === activityId) ?? null;
   const workout = workouts.find((w) => w.activity_id === activityId) ?? null;
@@ -62,8 +64,8 @@ export function Analysis() {
   if (!plan || !activity || !result) {
     return (
       <Card className="mx-auto max-w-xl text-center">
-        <p className="text-slate-600">Activity not found.</p>
-        <Link to="/activities" className="mt-3 inline-block font-semibold text-brand">Back to activities</Link>
+        <p className="text-slate-600">{t('ana.notFound')}</p>
+        <Link to="/activities" className="mt-3 inline-block font-semibold text-brand">{t('ana.backToActivities')}</Link>
       </Card>
     );
   }
@@ -85,12 +87,12 @@ export function Analysis() {
   const zone = main && main.type === 'run' ? main.zone : 'easy';
   const zp = paces[zone];
   const band: [number, number] = Array.isArray(zp) ? [zp[0] * unitDiv, zp[1] * unitDiv] : [zp * 0.97 * unitDiv, zp * 1.03 * unitDiv];
-  const fmtX = (x: number) => `${(units === 'mi' ? x / KM_PER_MI : x).toFixed(1)} ${units}`;
+  const fmtX = (x: number) => `${fmtNum(units === 'mi' ? x / KM_PER_MI : x)} ${units}`;
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       <Link to={workout ? '/plan' : '/activities'} className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-900">
-        <ArrowLeft className="h-4 w-4" /> Back
+        <ArrowLeft className="h-4 w-4" /> {t('common.back')}
       </Link>
 
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -98,13 +100,13 @@ export function Analysis() {
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
             <span className={cx('h-2.5 w-2.5 rounded-full', style.dot)} />
             {style.label}
-            {!workout && <Badge>Unplanned</Badge>}
+            {!workout && <Badge>{t('ana.unplanned')}</Badge>}
           </div>
-          <h1 className="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">{workout?.title ?? activity.name ?? 'Activity'}</h1>
+          <h1 className="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">{workout ? localTitle(workout.title) : (activity.name ?? t('wd.activity'))}</h1>
           <p className="text-sm text-slate-500">{fmtDate(activity.local_date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
         </div>
         {loading ? (
-          <div className="h-24 w-24 animate-pulse rounded-full bg-slate-100" aria-label="Loading score" />
+          <div className="h-24 w-24 animate-pulse rounded-full bg-slate-100" aria-label={t('ana.loadingScore')} />
         ) : (
           result.score !== null && result.grade && <ScoreRing score={result.score} grade={result.grade} />
         )}
@@ -114,11 +116,11 @@ export function Analysis() {
 
       <div className="grid gap-5 md:grid-cols-2">
         <Card>
-          <CardTitle icon={<Target className="h-5 w-5 text-brand" />}>Goal of this session</CardTitle>
+          <CardTitle icon={<Target className="h-5 w-5 text-brand" />}>{t('ana.goal')}</CardTitle>
           <div className="text-lg font-semibold text-slate-900">{purpose.headline}</div>
           <p className="mt-1 text-sm text-slate-600">{purpose.why}</p>
           <p className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
-            <b className="text-slate-800">Marathon benefit:</b> {purpose.marathon}
+            <b className="text-slate-800">{t('ana.benefit')}</b> {purpose.marathon}
           </p>
           {workout && (
             <ul className="mt-4 space-y-1.5 text-sm">
@@ -139,27 +141,27 @@ export function Analysis() {
         </Card>
 
         <Card>
-          <CardTitle>What you did</CardTitle>
+          <CardTitle>{t('ana.did')}</CardTitle>
           <dl className="grid grid-cols-2 gap-3 text-sm">
             {isRun && (
               <div className="rounded-xl bg-slate-50 p-3">
-                <dt className="text-xs text-slate-500">Distance</dt>
+                <dt className="text-xs text-slate-500">{t('ana.distance')}</dt>
                 <dd className="text-lg font-semibold">{fmtDistance(km, units, 2)}</dd>
               </div>
             )}
             <div className="rounded-xl bg-slate-50 p-3">
-              <dt className="text-xs text-slate-500">Moving time</dt>
+              <dt className="text-xs text-slate-500">{t('ana.moving')}</dt>
               <dd className="text-lg font-semibold">{fmtDuration(moving)}</dd>
             </div>
             {isRun && km > 0 && (
               <div className="rounded-xl bg-slate-50 p-3">
-                <dt className="text-xs text-slate-500">Avg pace</dt>
+                <dt className="text-xs text-slate-500">{t('ana.avgPace')}</dt>
                 <dd className="text-lg font-semibold">{fmtPace(moving / km, units)}</dd>
               </div>
             )}
             {activity.avg_hr && (
               <div className="rounded-xl bg-slate-50 p-3">
-                <dt className="text-xs text-slate-500">Avg / max HR</dt>
+                <dt className="text-xs text-slate-500">{t('ana.avgMaxHr')}</dt>
                 <dd className="text-lg font-semibold">
                   {activity.avg_hr}
                   {activity.max_hr ? ` / ${activity.max_hr}` : ''} bpm
@@ -168,14 +170,14 @@ export function Analysis() {
             )}
             {activity.elevation_gain_m ? (
               <div className="rounded-xl bg-slate-50 p-3">
-                <dt className="text-xs text-slate-500">Elevation gain</dt>
+                <dt className="text-xs text-slate-500">{t('ana.elevation')}</dt>
                 <dd className="text-lg font-semibold">{Math.round(activity.elevation_gain_m)} m</dd>
               </div>
             ) : null}
             {activity.aerobic_te ? (
               <div className="rounded-xl bg-slate-50 p-3">
-                <dt className="text-xs text-slate-500">Aerobic effect (Garmin)</dt>
-                <dd className="text-lg font-semibold">{activity.aerobic_te.toFixed(1)}</dd>
+                <dt className="text-xs text-slate-500">{t('ana.te')}</dt>
+                <dd className="text-lg font-semibold">{fmtNum(activity.aerobic_te)}</dd>
               </div>
             ) : null}
           </dl>
@@ -184,16 +186,16 @@ export function Analysis() {
 
       {loading ? (
         <Card>
-          <CardTitle>Execution check</CardTitle>
-          <Spinner label="Checking the session against your lap data…" />
+          <CardTitle>{t('ana.check')}</CardTitle>
+          <Spinner label={t('ana.checking')} />
         </Card>
       ) : result.checks.length > 0 && (
         <Card>
-          <CardTitle>Execution check</CardTitle>
-          <ul className="divide-y divide-slate-100">
+          <CardTitle>{t('ana.check')}</CardTitle>
+          <ul className="space-y-2">
             {result.checks.map((c) => (
-              <li key={c.label} className="flex items-start gap-3 py-3">
-                {STATUS_ICON[c.status]}
+              <li key={c.label} className="flex items-start gap-3 rounded-xl bg-slate-50 px-3 ring-1 ring-slate-200 py-3">
+                {statusIcon(c.status)}
                 <div>
                   <div className="text-sm font-semibold text-slate-900">{c.label}</div>
                   <div className="text-sm text-slate-600">{c.detail}</div>
@@ -206,13 +208,13 @@ export function Analysis() {
 
       {isRun && (
         <Card>
-          <CardTitle>Pace & heart rate</CardTitle>
+          <CardTitle>{t('ana.paceHr')}</CardTitle>
           {loading ? (
-            <Spinner label="Loading lap data from Garmin…" />
+            <Spinner label={t('ana.loadingLaps')} />
           ) : samples.length ? (
             <div className="space-y-4">
               <LineChart
-                label={`Pace (/${units}) – shaded: target range`}
+                label={t('ana.paceChart', { unit: units })}
                 points={pacePoints}
                 color={PACE_COLOR}
                 invert
@@ -220,11 +222,11 @@ export function Analysis() {
                 formatY={(v) => fmtMinSec(v)}
                 formatX={fmtX}
               />
-              {hrPoints.length > 1 && <LineChart label="Heart rate (bpm)" points={hrPoints} color={HR_COLOR} formatY={(v) => `${Math.round(v)}`} formatX={fmtX} />}
+              {hrPoints.length > 1 && <LineChart label={t('ana.hrChart')} points={hrPoints} color={HR_COLOR} formatY={(v) => `${Math.round(v)}`} formatX={fmtX} />}
             </div>
           ) : (
             <p className="text-sm text-slate-500">
-              {activity.source === 'manual' ? 'Manually logged – no stream data.' : 'No lap or GPS data available for this activity.'}
+              {activity.source === 'manual' ? t('ana.manualNoStream') : t('ana.noStream')}
             </p>
           )}
         </Card>
@@ -232,18 +234,18 @@ export function Analysis() {
 
       {result.reps && result.reps.length > 0 && (
         <Card>
-          <CardTitle>Work segments</CardTitle>
+          <CardTitle>{t('ana.segments')}</CardTitle>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-slate-500">
                   <th className="py-2 pr-3 font-medium">#</th>
-                  <th className="py-2 pr-3 font-medium">Distance</th>
-                  <th className="py-2 pr-3 font-medium">Time</th>
-                  <th className="py-2 pr-3 font-medium">Pace</th>
-                  <th className="py-2 pr-3 font-medium">Target</th>
-                  <th className="py-2 pr-3 font-medium">vs target</th>
-                  <th className="py-2 font-medium">HR</th>
+                  <th className="py-2 pr-3 font-medium">{t('ana.distance')}</th>
+                  <th className="py-2 pr-3 font-medium">{t('ana.col.time')}</th>
+                  <th className="py-2 pr-3 font-medium">{t('ana.col.pace')}</th>
+                  <th className="py-2 pr-3 font-medium">{t('ana.col.target')}</th>
+                  <th className="py-2 pr-3 font-medium">{t('ana.col.vs')}</th>
+                  <th className="py-2 font-medium">{t('ana.col.hr')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 tabular-nums">
@@ -256,7 +258,7 @@ export function Analysis() {
                     <td className="py-2 pr-3 text-slate-500">{fmtPace(r.targetPaceS, units)}</td>
                     <td className={cx('py-2 pr-3 font-medium', Math.abs(r.deviationPct) <= 3 ? 'text-emerald-700' : Math.abs(r.deviationPct) <= 6 ? 'text-amber-700' : 'text-red-700')}>
                       {r.deviationPct > 0 ? '+' : ''}
-                      {r.deviationPct.toFixed(1)} %
+                      {fmtNum(r.deviationPct)} %
                     </td>
                     <td className="py-2">{r.avgHr ? Math.round(r.avgHr) : '–'}</td>
                   </tr>
@@ -264,14 +266,14 @@ export function Analysis() {
               </tbody>
             </table>
           </div>
-          <p className="mt-2 text-xs text-slate-500">Positive = slower than target, negative = faster.</p>
+          <p className="mt-2 text-xs text-slate-500">{t('ana.segNote')}</p>
         </Card>
       )}
 
       <div className="grid gap-5 md:grid-cols-2">
         {result.zones && (
           <Card>
-            <CardTitle>Heart-rate zones</CardTitle>
+            <CardTitle>{t('ana.zones')}</CardTitle>
             <div className="space-y-2">
               {result.zones.map((z, i) => (
                 <div key={z.zone} className="flex items-center gap-3 text-sm">
@@ -287,34 +289,34 @@ export function Analysis() {
                 </div>
               ))}
             </div>
-            <p className="mt-3 text-xs text-slate-500">Zones as % of max HR ({maxHr} bpm).</p>
+            <p className="mt-3 text-xs text-slate-500">{t('ana.zonesNote', { maxHr: maxHr ?? 0 })}</p>
           </Card>
         )}
 
         <Card>
-          <CardTitle icon={<TrendingUp className="h-5 w-5 text-brand" />}>Fitness & marathon projection</CardTitle>
+          <CardTitle icon={<TrendingUp className="h-5 w-5 text-brand" />}>{t('ana.fitness')}</CardTitle>
           <dl className="space-y-3 text-sm">
             {!loading && result.fitness.vdot && (
               <div className="flex justify-between gap-3">
-                <dt className="text-slate-500">Fitness shown by this run</dt>
+                <dt className="text-slate-500">{t('ana.fitnessRun')}</dt>
                 <dd className="font-semibold">
-                  VDOT {result.fitness.vdot.toFixed(1)} <span className="font-normal text-slate-400">(plan {result.fitness.planVdot.toFixed(1)})</span>
+                  VDOT {fmtNum(result.fitness.vdot)} <span className="font-normal text-slate-400">{t('ana.plan', { vdot: fmtNum(result.fitness.planVdot) })}</span>
                 </dd>
               </div>
             )}
             <div className="flex justify-between gap-3">
-              <dt className="text-slate-500">Plan projection (race day)</dt>
+              <dt className="text-slate-500">{t('ana.planProjection')}</dt>
               <dd className="font-semibold">{fmtDuration(result.projection.planS)}</dd>
             </div>
             {result.projection.tandaS && (
               <div className="flex justify-between gap-3">
-                <dt className="text-slate-500">Training-based projection now</dt>
+                <dt className="text-slate-500">{t('ana.trainingProjection')}</dt>
                 <dd className="font-semibold">{fmtDuration(result.projection.tandaS)}</dd>
               </div>
             )}
             {result.projection.deltaS !== null && (
               <div className="rounded-xl bg-slate-50 p-3">
-                <div className="text-xs text-slate-500">Effect of this run on the projection</div>
+                <div className="text-xs text-slate-500">{t('ana.effect')}</div>
                 <div className={cx('text-lg font-bold', result.projection.deltaS <= 0 ? 'text-emerald-700' : 'text-amber-700')}>
                   {result.projection.deltaS <= 0 ? '−' : '+'}
                   {fmtDuration(Math.abs(result.projection.deltaS))}
@@ -324,21 +326,21 @@ export function Analysis() {
           </dl>
           <p className="mt-3 text-xs text-slate-500">
             {result.projection.tandaS
-              ? `Training-based projection: Tanda (2011) model from your last 8 weeks – ${result.projection.weeklyKm8?.toFixed(0)} km/week average. Most accurate for 2:45–3:40 marathoners.`
-              : 'The training-based projection needs about 8 weeks of synced runs.'}
-            {result.fitness.method ? ` Fitness estimated from ${result.fitness.method}.` : ''}
+              ? t('ana.tandaNote', { km: result.projection.weeklyKm8?.toFixed(0) ?? 0 })
+              : t('ana.tandaNeeds')}
+            {result.fitness.method ? t('ana.method', { method: result.fitness.method }) : ''}
           </p>
         </Card>
       </div>
 
       {!loading && result.insights.length > 0 && (
         <Card>
-          <CardTitle icon={<Lightbulb className="h-5 w-5 text-brand" />}>Coach notes</CardTitle>
+          <CardTitle icon={<Lightbulb className="h-5 w-5 text-brand" />}>{t('ana.notes')}</CardTitle>
           <ul className="space-y-3">
-            {result.insights.map((t) => (
-              <li key={t} className="flex gap-3 text-sm text-slate-700">
+            {result.insights.map((text) => (
+              <li key={text} className="flex gap-3 text-sm text-slate-700">
                 <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand" />
-                {t}
+                {text}
               </li>
             ))}
           </ul>

@@ -47,3 +47,7 @@ export function maxDate(a: string, b: string): string {
 export function minDate(a: string, b: string): string {
   return a < b ? a : b;
 }
+
+/** English weekday names, for texts that are stored in English and translated when shown. */
+export const EN_WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
+export const englishWeekday = (iso: string) => EN_WEEKDAYS[weekdayOf(iso)];

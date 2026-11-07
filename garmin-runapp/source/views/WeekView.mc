@@ -124,8 +124,7 @@ class WeekView extends WatchUi.View {
     }
 
     function onUpdate(dc as Graphics.Dc) as Void {
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
-        dc.clear();
+        Draw.background(dc, true);
         var h = dc.getHeight();
         var feed = WeekPlan.feed();
         var today = WeekPlan.today();

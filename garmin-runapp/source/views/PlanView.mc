@@ -1,23 +1,55 @@
 // "Trainingsplan": die Verbindung zur MaraPlanna-Web-App und das, was von dort kommt.
 //   nicht gekoppelt   Kopplungscode zum Eingeben auf der Website
-//   gekoppelt         Tage bis zum Rennen, Zielzeit und VDOT, die nächsten Einheiten, Stand des Abgleichs
+//   gekoppelt         Tage bis zum Rennen, Zielzeit und VDOT, Stand des Abgleichs; auf Uhren mit 128 KB Speicher auch die
+//                     nächsten Einheiten (sonst stehen sie in der Liste "Trainingsplan", siehe SessionMenus; diese Seite
+//                     öffnet sich dort über "Rennen & Stand")
 // START bzw. Tippen lädt die Daten neu.
 
 import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.WatchUi;
 
-class PlanView extends WatchUi.View {
+// Unter der Rennzeile: die nächsten Einheiten (Uhren ohne die Liste "Trainingsplan") bzw. der Hinweis zum Aktualisieren.
+module Upcoming {
     // Wie viele kommende Einheiten die Seite zeigt
-    private const UPCOMING = 3;
+    const COUNT = 3;
 
+    (:nodetails)
+    function draw(dc as Graphics.Dc, feed as Dictionary?, today as Number, miles as Boolean, next as Float) as Void {
+        var h = dc.getHeight();
+        // Die nächsten Einheiten ab heute (heute nur, solange sie noch offen ist)
+        var rows = [] as Array<Number>;
+        for (var d = 0; d < 14 && rows.size() < COUNT; d++) {
+            var list = WeekPlan.sessions(feed, today + d);
+            if (list.size() > 0 && !(d == 0 && WeekPlan.allDone(list))) {
+                rows.add(today + d);
+            }
+        }
+        if (rows.size() == 0) {
+            Draw.lineAlt(dc, h * 0.68, Graphics.FONT_XTINY, Draw.GRAY, ["Keine Einheiten geplant" as String]);
+            return;
+        }
+        var rowH = h * 0.1;
+        var nameW = SessionRow.nameWidth(dc);
+        for (var i = 0; i < rows.size(); i++) {
+            SessionRow.draw(dc, next + h * 0.06 + rowH * (i + 0.5), rowH, rows[i], WeekPlan.sessions(feed, rows[i]), today, miles, nameW);
+        }
+    }
+
+    // Die Einheiten selbst stehen in der Liste "Trainingsplan"; hier bleibt der Hinweis zum Aktualisieren.
+    (:details)
+    function draw(dc as Graphics.Dc, feed as Dictionary?, today as Number, miles as Boolean, next as Float) as Void {
+        Draw.lineAlt(dc, dc.getHeight() * 0.68, Graphics.FONT_XTINY, Draw.GRAY, ["START: neu laden", "START = neu laden"] as Array<String>);
+    }
+}
+
+class PlanView extends WatchUi.View {
     function initialize() {
         View.initialize();
     }
 
     function onUpdate(dc as Graphics.Dc) as Void {
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
-        dc.clear();
+        Draw.background(dc, true);
         var h = dc.getHeight();
         Draw.lineAlt(dc, h * 0.105, Graphics.FONT_XTINY, Draw.ORANGE, ["TRAININGSPLAN", "PLAN"] as Array<String>);
         var sync = getApp().sync;
@@ -48,7 +80,6 @@ class PlanView extends WatchUi.View {
         var feed = WeekPlan.feed();
         var today = WeekPlan.today();
         var zones = app.zones;
-        var miles = zones != null && (zones as PaceZones).miles;
 
         var days = WeekPlan.raceDays(feed, today);
         var next = h * 0.5;
@@ -74,23 +105,7 @@ class PlanView extends WatchUi.View {
             next = h * 0.43;
         }
 
-        // Die nächsten Einheiten ab heute (heute nur, solange sie noch offen ist)
-        var rows = [] as Array<Number>;
-        for (var d = 0; d < 14 && rows.size() < UPCOMING; d++) {
-            var list = WeekPlan.sessions(feed, today + d);
-            if (list.size() > 0 && !(d == 0 && WeekPlan.allDone(list))) {
-                rows.add(today + d);
-            }
-        }
-        if (rows.size() == 0) {
-            Draw.lineAlt(dc, h * 0.68, Graphics.FONT_XTINY, Draw.GRAY, ["Keine Einheiten geplant" as String]);
-            return;
-        }
-        var rowH = h * 0.1;
-        var nameW = SessionRow.nameWidth(dc);
-        for (var i = 0; i < rows.size(); i++) {
-            SessionRow.draw(dc, next + h * 0.06 + rowH * (i + 0.5), rowH, rows[i], WeekPlan.sessions(feed, rows[i]), today, miles, nameW);
-        }
+        Upcoming.draw(dc, feed, today, zones != null && (zones as PaceZones).miles, next);
     }
 
     // Stand des Abgleichs, lang und kurz: "Stand: vor 5 Min" / "vor 5 Min", "Aktualisiere…" oder die Fehlernummer.

@@ -104,8 +104,7 @@ class StartView extends WatchUi.View {
         Draw.plain(dc);
         var w = dc.getWidth();
         var h = dc.getHeight();
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
-        dc.clear();
+        Draw.background(dc, true);
         var app = getApp();
         var zones = app.zones;
         var miles = zones != null && (zones as PaceZones).miles;

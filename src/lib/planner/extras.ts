@@ -5,20 +5,36 @@
 // running economy in distance runners (Llanos-Lagos et al., Sports Med 2024),
 // typically 2–3 sessions/week for 8–12 weeks.
 
+import type { Routine } from '../../../supabase/functions/_shared/strength';
 import type { Equipment, ExtraSession, ExtraType, Phase, Step, Weekday, WorkoutKind } from '../types';
+import { routineMinutes, routineSteps } from '../strengthPlan';
+import { tr, type MsgKey } from '../i18n';
+import { isStrengthExtra } from '../onboarding/strengthMap';
 
 export type ExtraLoad = 'legs' | 'light' | 'cross';
 
-export const EXTRA_INFO: Record<ExtraType, { label: string; hint: string; load: ExtraLoad; kind: WorkoutKind }> = {
-  lower: { label: 'Lower body', hint: 'Legs, glutes, calves – best for running economy', load: 'legs', kind: 'strength_lower' },
-  upper: { label: 'Upper body', hint: 'Back, shoulders, arms – posture late in the race', load: 'light', kind: 'strength_upper' },
-  full: { label: 'Full body', hint: 'Everything in one session', load: 'legs', kind: 'strength_full' },
-  core: { label: 'Core', hint: 'Trunk stability, 20–25 min', load: 'light', kind: 'core' },
-  mobility: { label: 'Mobility / yoga', hint: 'Hips, ankles, recovery', load: 'light', kind: 'mobility' },
-  plyo: { label: 'Plyometrics & drills', hint: 'Jumps and skips for springy, economical legs', load: 'legs', kind: 'plyo' },
-  bike: { label: 'Cycling', hint: 'Low-impact aerobic cross-training', load: 'cross', kind: 'bike' },
-  swim: { label: 'Swimming', hint: 'Low-impact aerobic cross-training', load: 'cross', kind: 'swim' },
-  custom: { label: 'Own workout', hint: 'Anything else, e.g. climbing or football', load: 'light', kind: 'custom' },
+/** Label and hint follow the language of the page (read when shown). */
+const info = (type: ExtraType, load: ExtraLoad, kind: WorkoutKind) => ({
+  get label() {
+    return tr(`ex.${type}` as MsgKey);
+  },
+  get hint() {
+    return tr(`ex.${type}.hint` as MsgKey);
+  },
+  load,
+  kind,
+});
+
+export const EXTRA_INFO: Record<ExtraType, { readonly label: string; readonly hint: string; load: ExtraLoad; kind: WorkoutKind }> = {
+  lower: info('lower', 'legs', 'strength_lower'),
+  upper: info('upper', 'light', 'strength_upper'),
+  full: info('full', 'legs', 'strength_full'),
+  core: info('core', 'light', 'core'),
+  mobility: info('mobility', 'light', 'mobility'),
+  plyo: info('plyo', 'legs', 'plyo'),
+  bike: info('bike', 'cross', 'bike'),
+  swim: info('swim', 'cross', 'swim'),
+  custom: info('custom', 'light', 'custom'),
 };
 
 export const extraLoad = (e: ExtraSession): ExtraLoad => (e.type === 'custom' ? (e.hard ? 'legs' : 'light') : EXTRA_INFO[e.type].load);
@@ -157,6 +173,8 @@ export function extraSession(
   phase: Phase,
   recoveryWeek: boolean,
   equipment: Equipment,
+  /** The person's own (or suggested) workout for this kind of session; without it the default exercise pool is used. */
+  routine?: Routine,
 ): { kind: WorkoutKind; title: string; steps: Step[]; duration_min: number } {
   const light = recoveryWeek || phase === 'taper';
   const intensity: Intensity = light ? 'light' : phase;
@@ -167,6 +185,9 @@ export function extraSession(
     case 'lower':
     case 'full': {
       const label = extra.type === 'lower' ? 'Lower body' : extra.type === 'upper' ? 'Upper body' : 'Full body';
+      if (routine && routine.exercises.length) {
+        return { kind, title: `${routine.name ?? `${label} strength`}${suffix}`, steps: routineSteps(routine, light), duration_min: routineMinutes(routine, light) };
+      }
       return { kind, title: `${label} strength${suffix}`, steps: strengthSteps(extra.type, intensity, equipment), duration_min: light ? 25 : intensity === 'build' ? 45 : 40 };
     }
     case 'core':
@@ -214,10 +235,29 @@ const SCORE: Record<ExtraLoad, Record<DayType, number>> = {
 };
 
 /**
+ * Days that get no extra session: the days the person cannot train, and - when they chose no such day and do not run every
+ * day - one day kept free so the week has a rest day (the day after the long run when that is free).
+ */
+export function blockedDays(dayTypes: DayType[], unavailable: Weekday[] = []): Weekday[] {
+  if (unavailable.length) return [...unavailable];
+  const rest = ([0, 1, 2, 3, 4, 5, 6] as Weekday[]).filter((d) => dayTypes[d] === 'rest');
+  if (!rest.length) return [];
+  const long = dayTypes.indexOf('long');
+  const after = long >= 0 ? (((long + 1) % 7) as Weekday) : null;
+  return [after !== null && rest.includes(after) ? after : rest[rest.length - 1]];
+}
+
+/**
  * Pick a day for each session. Leg-heavy work avoids the long run, the day
  * before it and the day before a quality session ("hard days hard").
  */
-export function placeExtras(dayTypes: DayType[], sessions: ExtraSession[], availableDays: Weekday[]): { extra: ExtraSession; day: Weekday }[] {
+/** The days a run can go on: the days the person likes to run on, when they are enough for the runs, else every free day. */
+export function runPool(preferred: Weekday[] | undefined, free: Weekday[], runs: number): Weekday[] {
+  const pref = (preferred ?? []).filter((d) => free.includes(d));
+  return pref.length >= runs ? pref : free;
+}
+
+export function placeExtras(dayTypes: DayType[], sessions: ExtraSession[], availableDays: Weekday[], blocked: Weekday[] = [], sameDay = true): { extra: ExtraSession; day: Weekday }[] {
   const used = new Map<number, ExtraLoad[]>();
   const result: { extra: ExtraSession; day: Weekday }[] = [];
   for (const extra of sessions) {
@@ -229,6 +269,10 @@ export function placeExtras(dayTypes: DayType[], sessions: ExtraSession[], avail
       const next = d < 6 ? dayTypes[d + 1] : 'rest';
       const already = used.get(d) ?? [];
       if (result.some((r) => r.day === d && r.extra.id === extra.id)) continue;
+      // Days the person cannot train, and the day kept free for rest.
+      if (blocked.includes(d as Weekday)) continue;
+      // Without double days a strength session only goes on a day without a run.
+      if (!sameDay && isStrengthExtra(extra) && today !== 'rest') continue;
       let score = SCORE[load][today] + (availableDays.includes(d as Weekday) ? 5 : 0);
       if (load === 'legs') {
         if (next === 'long' || next === 'race') score -= 60;

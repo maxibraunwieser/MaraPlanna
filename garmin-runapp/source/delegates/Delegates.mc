@@ -131,23 +131,27 @@ class DataDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function showMenu() as Void {
-        var menu = new WatchUi.Menu2({ :title => WatchUi.loadResource(Rez.Strings.MenuTitle) as String });
-        menu.addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.Resume) as String, null, :resume, null));
-        menu.addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.Pages) as String, null, :pages, null));
-        menu.addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.Save) as String, null, :save, null));
-        menu.addItem(new WatchUi.MenuItem(WatchUi.loadResource(Rez.Strings.Discard) as String, null, :discard, null));
-        WatchUi.pushView(menu, new PauseMenuDelegate(), WatchUi.SLIDE_UP);
+        var items = [
+            new CardItem(:resume, WatchUi.loadResource(Rez.Strings.Resume) as String, null, Draw.GREEN),
+            new CardItem(:pages, WatchUi.loadResource(Rez.Strings.Pages) as String, null, Draw.BLUE),
+            new CardItem(:save, WatchUi.loadResource(Rez.Strings.Save) as String, null, Draw.ORANGE),
+            new CardItem(:discard, WatchUi.loadResource(Rez.Strings.Discard) as String, null, Draw.RED)
+        ] as Array<CardItem>;
+        Cards.show(WatchUi.loadResource(Rez.Strings.MenuTitle) as String, items, new PauseMenuDelegate(), WatchUi.SLIDE_UP);
     }
 }
 
-class PauseMenuDelegate extends WatchUi.Menu2InputDelegate {
+class PauseMenuDelegate extends CardMenuListener {
     function initialize() {
-        Menu2InputDelegate.initialize();
+        CardMenuListener.initialize();
     }
 
-    function onSelect(item as WatchUi.MenuItem) as Void {
+    function onPick(menu as CardMenu, item as CardItem) as Void {
+        pick(item.id);
+    }
+
+    function pick(id as Object) as Void {
         var c = getApp().controller as RecordingController;
-        var id = item.getId();
         if (id == :resume) {
             WatchUi.popView(WatchUi.SLIDE_DOWN);
             c.resume();
@@ -172,7 +176,7 @@ class PauseMenuDelegate extends WatchUi.Menu2InputDelegate {
     }
 
     // Zurück aus dem Menü: bleibt pausiert.
-    function onBack() as Void {
+    function onClose(menu as CardMenu) as Void {
         WatchUi.popView(WatchUi.SLIDE_DOWN);
     }
 }
@@ -232,33 +236,35 @@ class SummaryDelegate extends WatchUi.BehaviorDelegate {
 // Menü "Datenseiten": jede Seite lässt sich an- und ausschalten, die Auswahl bleibt gespeichert.
 module PagesMenu {
     function show() as Void {
-        var menu = new WatchUi.Menu2({ :title => WatchUi.loadResource(Rez.Strings.Pages) as String });
+        var items = [] as Array<CardItem>;
         for (var i = 0; i < Pages.COUNT; i++) {
-            menu.addItem(new WatchUi.ToggleMenuItem(Pages.NAMES[i], Pages.INFO[i], i, Pages.enabled(i), null));
+            var item = new CardItem(i, Pages.NAMES[i], Pages.INFO[i], Draw.BLUE);
+            item.toggle = Pages.enabled(i) ? 1 : 0;
+            items.add(item);
         }
-        WatchUi.pushView(menu, new PagesMenuDelegate(), WatchUi.SLIDE_LEFT);
+        Cards.show(WatchUi.loadResource(Rez.Strings.Pages) as String, items, new PagesMenuDelegate(), WatchUi.SLIDE_LEFT);
     }
 }
 
-class PagesMenuDelegate extends WatchUi.Menu2InputDelegate {
+class PagesMenuDelegate extends CardMenuListener {
     function initialize() {
-        Menu2InputDelegate.initialize();
+        CardMenuListener.initialize();
     }
 
-    // Das Menü hat den Schalter schon umgelegt, hier wird nur gespeichert. Mindestens eine Seite bleibt an.
-    function onSelect(item as WatchUi.MenuItem) as Void {
-        var toggle = item as WatchUi.ToggleMenuItem;
-        var bit = 1 << (toggle.getId() as Number);
+    function onPick(menu as CardMenu, item as CardItem) as Void {
+        toggle(item, item.toggle != 1);
+    }
+
+    // Schalter umlegen und speichern. Mindestens eine Seite bleibt an.
+    function toggle(item as CardItem, on as Boolean) as Void {
+        var bit = 1 << (item.id as Number);
         var mask = Pages.mask();
-        mask = toggle.isEnabled() ? (mask | bit) : (mask & ~bit);
+        mask = on ? (mask | bit) : (mask & ~bit);
         if (mask == 0) {
-            toggle.setEnabled(true);
             return;
         }
+        item.toggle = on ? 1 : 0;
         Pages.save(mask);
-    }
-
-    function onBack() as Void {
-        WatchUi.popView(WatchUi.SLIDE_RIGHT);
+        WatchUi.requestUpdate();
     }
 }

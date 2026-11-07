@@ -3,17 +3,13 @@ import { Check, CornerDownLeft, Loader2, MessageCircle, Send, Sparkles, Square, 
 import { useAuth } from '../lib/auth';
 import { useData } from '../lib/data';
 import { askCoach, checkCoach, clearCoachMessages, fetchCoachMessages, saveActions, type CoachMessage, type CoachStatus } from '../lib/coach';
+import { coachLine } from '../../supabase/functions/_shared/content';
 import { applyAction, previewAction, staleReason, type ActionContext, type CoachAction } from '../lib/coachActions';
 import { Badge, Button, cx, Notice, Spinner, useToast } from './ui';
 import { Markdown } from './Markdown';
+import { currentLang, useI18n, type MsgKey } from '../lib/i18n';
 
-const SUGGESTIONS = [
-  'How did my last long run go?',
-  'Am I on track for my goal time?',
-  "Explain this week's plan",
-  "I'm tired this week – can you make it easier?",
-  'I can only run 3 days a week from now on',
-];
+const SUGGESTIONS: MsgKey[] = ['co.s1', 'co.s2', 'co.s3', 'co.s4', 'co.s5'];
 
 // ---------------------------------------------------------------------------
 // A proposed change of the plan
@@ -32,20 +28,21 @@ function ActionCard({
   onApply: () => void;
   onDismiss: () => void;
 }) {
-  const lines = ctx ? previewAction(action, ctx) : action.summary.split('\n');
+  const { t } = useI18n();
+  const lines = ctx ? previewAction(action, ctx) : action.summary.split('\n').map((l) => coachLine(l, currentLang()));
   const stale = ctx && action.status === 'pending' ? staleReason(action, ctx) : null;
   const done = action.status === 'applied';
   return (
     <div className={cx('rounded-xl p-3 text-sm ring-1', done ? 'bg-emerald-50 ring-emerald-200' : action.status === 'dismissed' ? 'bg-slate-50 ring-slate-200' : 'bg-orange-50/60 ring-orange-200')}>
       <div className="mb-1.5 flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Proposed change</span>
-        {done && <Badge tone="green"><Check className="h-3 w-3" /> Applied</Badge>}
-        {action.status === 'dismissed' && <Badge>Dismissed</Badge>}
-        {action.status === 'failed' && <Badge tone="red">Failed</Badge>}
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('co.proposed')}</span>
+        {done && <Badge tone="green"><Check className="h-3 w-3" /> {t('co.applied')}</Badge>}
+        {action.status === 'dismissed' && <Badge>{t('co.dismissed')}</Badge>}
+        {action.status === 'failed' && <Badge tone="red">{t('co.failed')}</Badge>}
       </div>
       <ul className={cx('space-y-1 text-slate-800', action.status === 'dismissed' && 'text-slate-500 line-through decoration-slate-300')}>
         {lines.map((l, i) => (
-          <li key={i} className={cx(l.startsWith('The weeks from') && 'text-xs text-slate-500')}>{l}</li>
+          <li key={i} className={cx(l.startsWith(t('co.weeksFrom')) && 'text-xs text-slate-500')}>{l}</li>
         ))}
       </ul>
       {action.reason && action.status !== 'dismissed' && <p className="mt-1.5 text-xs italic text-slate-500">{action.reason}</p>}
@@ -53,10 +50,10 @@ function ActionCard({
       {(action.status === 'pending' || action.status === 'failed') && (
         <div className="mt-3 flex flex-wrap gap-2">
           <Button size="sm" loading={busy} disabled={!!stale || !ctx} icon={<Check className="h-4 w-4" />} onClick={onApply}>
-            Apply
+            {t('co.apply')}
           </Button>
           <Button size="sm" variant="ghost" disabled={busy} icon={<X className="h-4 w-4" />} onClick={onDismiss}>
-            Dismiss
+            {t('co.dismiss')}
           </Button>
         </div>
       )}
@@ -71,6 +68,7 @@ function ActionCard({
 export function CoachChat({ open, onClose, onBusy, onUnread }: { open: boolean; onClose: () => void; onBusy: (busy: boolean) => void; onUnread: () => void }) {
   const { user } = useAuth();
   const { plan, workouts, activities, profile, today, reload, adapt } = useData();
+  const { t } = useI18n();
   const toast = useToast();
 
   const [messages, setMessages] = useState<CoachMessage[]>([]);
@@ -179,7 +177,7 @@ export function CoachChat({ open, onClose, onBusy, onUnread }: { open: boolean; 
       await updateAction(message, action.id, { status: 'applied' });
       await reload();
       await adapt();
-      toast('Plan updated.', 'success');
+      toast(t('co.updated'), 'success');
     } catch (e) {
       await updateAction(message, action.id, { status: 'failed' });
       toast((e as Error).message, 'error');
@@ -189,7 +187,7 @@ export function CoachChat({ open, onClose, onBusy, onUnread }: { open: boolean; 
   };
 
   const clear = async () => {
-    if (!user || !confirm('Delete this whole conversation? The coach will start fresh.')) return;
+    if (!user || !confirm(t('co.clearConfirm'))) return;
     try {
       await clearCoachMessages(user.id);
       setMessages([]);
@@ -212,15 +210,15 @@ export function CoachChat({ open, onClose, onBusy, onUnread }: { open: boolean; 
           <Sparkles className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold leading-tight">Your coach</div>
-          <div className="truncate text-xs text-slate-300">Knows your plan, runs and recovery</div>
+          <div className="text-sm font-semibold leading-tight">{t('co.title')}</div>
+          <div className="truncate text-xs text-slate-300">{t('co.sub')}</div>
         </div>
         {messages.length > 0 && (
-          <button onClick={clear} disabled={busy} title="Clear chat" aria-label="Clear chat" className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white disabled:opacity-40">
+          <button onClick={clear} disabled={busy} title={t('co.clear')} aria-label={t('co.clear')} className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white disabled:opacity-40">
             <Trash2 className="h-4 w-4" />
           </button>
         )}
-        <button onClick={onClose} title="Close" aria-label="Close coach" className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white">
+        <button onClick={onClose} title={t('common.close')} aria-label={t('co.closeCoach')} className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white">
           <X className="h-5 w-5" />
         </button>
       </div>
@@ -229,17 +227,17 @@ export function CoachChat({ open, onClose, onBusy, onUnread }: { open: boolean; 
       <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-4">
         {off && (
           <Notice tone="warn" className="mb-3">
-            <b>The coach is not set up yet.</b> The owner of this installation has to add the <code>ANTHROPIC_API_KEY</code> secret to the Supabase project (see the README, "AI coach").
+            <b>{t('co.off.title')}</b>{t('co.off.text')}
           </Notice>
         )}
         {!plan && (
           <Notice tone="info" className="mb-3">
-            You have no active plan yet. You can still ask general training questions; once you have a plan, I can adjust it for you.
+            {t('co.noPlan')}
           </Notice>
         )}
 
         {!loaded ? (
-          <Spinner label="Loading your conversation…" />
+          <Spinner label={t('co.loading')} />
         ) : (
           <div className="space-y-3">
             {empty && (
@@ -247,14 +245,14 @@ export function CoachChat({ open, onClose, onBusy, onUnread }: { open: boolean; 
                 <div className="mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-100 text-brand">
                   <Sparkles className="h-5 w-5" />
                 </div>
-                <h2 className="font-semibold text-slate-900">Ask me anything</h2>
+                <h2 className="font-semibold text-slate-900">{t('co.ask')}</h2>
                 <p className="mx-auto mt-1 max-w-xs text-sm text-slate-500">
-                  I look at your recent runs, recovery and plan. Tell me what you need – a busy week, a niggle, fewer days – and I'll suggest a change you can apply with one tap.
+                  {t('co.askText')}
                 </p>
                 <div className="mt-3 flex flex-wrap justify-center gap-2">
-                  {SUGGESTIONS.map((s) => (
-                    <button key={s} onClick={() => send(s)} disabled={busy || off} className="rounded-full bg-slate-100 px-3 py-1.5 text-left text-sm text-slate-700 transition hover:bg-orange-100 hover:text-orange-800 disabled:opacity-50">
-                      {s}
+                  {SUGGESTIONS.map((key) => (
+                    <button key={key} onClick={() => send(t(key))} disabled={busy || off} className="rounded-full bg-slate-100 px-3 py-1.5 text-left text-sm text-slate-700 transition hover:bg-orange-100 hover:text-orange-800 disabled:opacity-50">
+                      {t(key)}
                     </button>
                   ))}
                 </div>
@@ -293,7 +291,7 @@ export function CoachChat({ open, onClose, onBusy, onUnread }: { open: boolean; 
                   {stream.text ? <Markdown text={stream.text} /> : null}
                   <div className={cx('flex items-center gap-2 text-sm text-slate-400', stream.text && 'mt-2')}>
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    {stream.status ?? (stream.text ? '' : 'Thinking…')}
+                    {stream.status ?? (stream.text ? '' : t('co.thinking'))}
                   </div>
                 </div>
               </div>
@@ -303,7 +301,7 @@ export function CoachChat({ open, onClose, onBusy, onUnread }: { open: boolean; 
       </div>
 
       {/* Composer */}
-      <div className="shrink-0 border-t border-slate-200 bg-white px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-4">
+      <div className="shrink-0 border-t border-white/10 bg-surface px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-4">
         {error && (
           <Notice tone="error" className="mb-2">
             {error}
@@ -322,29 +320,29 @@ export function CoachChat({ open, onClose, onBusy, onUnread }: { open: boolean; 
             }}
             rows={Math.min(4, Math.max(1, draft.split('\n').length))}
             maxLength={2000}
-            placeholder="Ask your coach…"
+            placeholder={t('co.placeholder')}
             disabled={off}
             className="max-h-32 min-h-[2.5rem] flex-1 resize-none bg-transparent px-2.5 py-2 text-[15px] text-slate-900 outline-none placeholder:text-slate-400 disabled:opacity-50"
           />
           {busy ? (
-            <Button variant="secondary" size="sm" className="!rounded-xl !px-3 !py-2.5" icon={<Square className="h-4 w-4" />} onClick={() => abort.current?.abort()} aria-label="Stop">
-              <span className="sr-only">Stop</span>
+            <Button variant="secondary" size="sm" className="!rounded-xl !px-3 !py-2.5" icon={<Square className="h-4 w-4" />} onClick={() => abort.current?.abort()} aria-label={t('co.stop')}>
+              <span className="sr-only">{t('co.stop')}</span>
             </Button>
           ) : (
-            <Button size="sm" className="!rounded-xl !px-3 !py-2.5" disabled={!draft.trim() || off} icon={<Send className="h-4 w-4" />} onClick={() => send(draft)} aria-label="Send">
-              <span className="sr-only">Send</span>
+            <Button size="sm" className="!rounded-xl !px-3 !py-2.5" disabled={!draft.trim() || off} icon={<Send className="h-4 w-4" />} onClick={() => send(draft)} aria-label={t('co.send')}>
+              <span className="sr-only">{t('co.send')}</span>
             </Button>
           )}
         </div>
         <p className="mt-2 flex items-start gap-1 px-1 text-[11px] leading-snug text-slate-400">
           <MessageCircle className="mt-0.5 h-3 w-3 shrink-0" />
           <span>
-            Your plan, runs and recovery data are sent to Claude (Anthropic) to answer. Not medical advice.
+            {t('co.privacy')}
             <span className="hidden sm:inline">
               {' '}
-              <CornerDownLeft className="inline h-3 w-3" /> Enter sends, Shift+Enter adds a line.
+              <CornerDownLeft className="inline h-3 w-3" />{t('co.enter')}
             </span>
-            {left !== null && left <= 10 ? ` ${left} messages left today.` : ''}
+            {left !== null && left <= 10 ? t('co.left', { n: left }) : ''}
           </span>
         </p>
       </div>

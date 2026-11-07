@@ -2,7 +2,7 @@
 
 import type { Activity, DailyMetric, FitnessAssessment, GarminProfile, Level, OnboardingAnswers } from '../types';
 import { daysBetween } from './dates';
-import { vdotFromHeartRate, vdotFromRace } from './vdot';
+import { vdotFromEasyPace, vdotFromHeartRate, vdotFromRace } from './vdot';
 
 const DEFAULT_VDOT: Record<Level, number> = { beginner: 34, intermediate: 41, advanced: 48 };
 
@@ -53,6 +53,18 @@ export function paceFloorVdot(runs: Activity[]): number | null {
   return efforts[1];
 }
 
+const PREDICTION_M = { '5k': 5000, '10k': 10_000, half: 21_097, marathon: 42_195 } as const;
+
+/** Median VDOT over the race predictions Garmin gives (they come from VO2max and training history). */
+export function garminPredictionVdot(garmin: GarminProfile | null): number | null {
+  const p = garmin?.racePredictions;
+  if (!p) return null;
+  const v = (Object.keys(PREDICTION_M) as (keyof typeof PREDICTION_M)[])
+    .filter((k) => p[k] && p[k]! > 0)
+    .map((k) => vdotFromRace(PREDICTION_M[k], p[k]!));
+  return median(v);
+}
+
 export function assessFitness(input: {
   answers: OnboardingAnswers;
   activities: Activity[];
@@ -98,6 +110,12 @@ export function assessFitness(input: {
   } else if (garminVo2) {
     vdot = garminVo2 * 0.95;
     vdotSource = 'your Garmin VO2max';
+  } else if (garminPredictionVdot(garmin)) {
+    vdot = garminPredictionVdot(garmin)!;
+    vdotSource = 'the race predictions of your Garmin';
+  } else if (answers.setup?.easyPaceS && answers.setup.easyPaceS >= 180 && answers.setup.easyPaceS <= 720) {
+    vdot = vdotFromEasyPace(answers.setup.easyPaceS);
+    vdotSource = 'your comfortable pace';
   } else {
     vdot = DEFAULT_VDOT[answers.level];
     vdotSource = `a typical ${answers.level} runner (connect Garmin or add a race result to personalise)`;

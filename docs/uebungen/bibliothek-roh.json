@@ -1,0 +1,4815 @@
+[
+ {
+  "key": "liegestuetze",
+  "name": "Liegestütze",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "liegestuetze_erhoeht_decline",
+  "name": "Liegestütze erhöht (Decline)",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "liegestuetze_mit_handgriffen_auf_kettlebells",
+  "name": "Liegestütze mit Handgriffen auf Kettlebells",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "KB",
+   "KG"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "archer_push_ups",
+  "name": "Archer Push-ups",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "pseudo_planche_push_ups",
+  "name": "Pseudo-Planche-Push-ups",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "pike_push_ups",
+  "name": "Pike-Push-ups",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "dips_am_barren_brustbetont",
+  "name": "Dips am Barren, brustbetont",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "BR"
+  ],
+  "gear": {
+   "need": [
+    "BR"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "bankdruecken_flach",
+  "name": "Bankdrücken flach",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "LH",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK",
+    "LH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "bankdruecken_schraeg",
+  "name": "Bankdrücken schräg",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "LH",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK",
+    "LH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "bankdruecken_negativ",
+  "name": "Bankdrücken negativ",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "LH",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK",
+    "LH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "bankdruecken_mit_pausen",
+  "name": "Bankdrücken mit Pausen",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "LH",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK",
+    "LH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kurzhantel_bankdruecken_flach",
+  "name": "Kurzhantel-Bankdrücken flach",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "KH",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK",
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kurzhantel_bankdruecken_schraeg",
+  "name": "Kurzhantel-Bankdrücken schräg",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "KH",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK",
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kettlebell_bankdruecken",
+  "name": "Kettlebell-Bankdrücken",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "KB",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK",
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kurzhantel_fliegende_flach",
+  "name": "Kurzhantel-Fliegende flach",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "KH",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK",
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kurzhantel_fliegende_schraeg",
+  "name": "Kurzhantel-Fliegende schräg",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "KH",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK",
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kettlebell_fliegende_liegend",
+  "name": "Kettlebell-Fliegende liegend",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "KB",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK",
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kabelzug_fliegende_hoch_mittel_tief",
+  "name": "Kabelzug-Fliegende hoch, mittel, tief",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kabelzug_crossover",
+  "name": "Kabelzug-Crossover",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "einarmiges_druecken_am_kabel",
+  "name": "Einarmiges Drücken am Kabel",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "butterfly",
+  "name": "Butterfly",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "MA"
+  ],
+  "gear": {
+   "need": [
+    "MA"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "brustpresse",
+  "name": "Brustpresse",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "MA"
+  ],
+  "gear": {
+   "need": [
+    "MA"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "chest_press_an_der_smith_maschine",
+  "name": "Chest Press an der Smith-Maschine",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "SM"
+  ],
+  "gear": {
+   "need": [
+    "SM"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "pullover_mit_kurzhantel_oder_langhantel",
+  "name": "Pullover mit Kurzhantel oder Langhantel",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "KH",
+   "LH",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK"
+   ],
+   "any": [
+    "KH",
+    "LH"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kettlebell_pullover",
+  "name": "Kettlebell-Pullover",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "KB",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK",
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_liegestuetze",
+  "name": "Band-Liegestütze",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "KG",
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_fliegende_stehend",
+  "name": "Band-Fliegende stehend",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_brustpresse",
+  "name": "Band-Brustpresse",
+  "groups": [
+   "chest"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "klimmzuege_obergriff",
+  "name": "Klimmzüge Obergriff",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "KS"
+  ],
+  "gear": {
+   "need": [
+    "KS"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "klimmzuege_untergriff",
+  "name": "Klimmzüge Untergriff",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "KS"
+  ],
+  "gear": {
+   "need": [
+    "KS"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "klimmzuege_neutraler_griff",
+  "name": "Klimmzüge neutraler Griff",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "KS"
+  ],
+  "gear": {
+   "need": [
+    "KS"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "klimmzuege_einarmig_oder_mit_hilfe",
+  "name": "Klimmzüge einarmig oder mit Hilfe",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "KS",
+   "BD"
+  ],
+  "gear": {
+   "bodyweight": false,
+   "need": [
+    "KS"
+   ],
+   "any": []
+  }
+ },
+ {
+  "key": "muscle_ups",
+  "name": "Muscle-Ups",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "KS"
+  ],
+  "gear": {
+   "need": [
+    "KS"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "latzug_vorne",
+  "name": "Latzug vorne",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "KT",
+   "MA"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "KT",
+    "MA"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "latzug_untergriff",
+  "name": "Latzug Untergriff",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "KT",
+   "MA"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "KT",
+    "MA"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "latzug_eng",
+  "name": "Latzug eng",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "KT",
+   "MA"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "KT",
+    "MA"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "rudern_sitzend_am_kabelzug",
+  "name": "Rudern sitzend am Kabelzug",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "einarmiges_rudern_am_kabelzug",
+  "name": "Einarmiges Rudern am Kabelzug",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "rudern_vorgebeugt_mit_langhantel",
+  "name": "Rudern vorgebeugt mit Langhantel",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "LH"
+  ],
+  "gear": {
+   "need": [
+    "LH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "rudern_vorgebeugt_mit_kurzhantel",
+  "name": "Rudern vorgebeugt mit Kurzhantel",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "KH"
+  ],
+  "gear": {
+   "need": [
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "einarmiges_kurzhantelrudern_auf_bank",
+  "name": "Einarmiges Kurzhantelrudern auf Bank",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "KH",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK",
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "chest_supported_row",
+  "name": "Chest-Supported Row",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "KH",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK",
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "t_bar_rudern",
+  "name": "T-Bar-Rudern",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "LH",
+   "GR"
+  ],
+  "gear": {
+   "bodyweight": false,
+   "need": [
+    "LH"
+   ],
+   "any": []
+  }
+ },
+ {
+  "key": "rudern_an_der_maschine",
+  "name": "Rudern an der Maschine",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "MA"
+  ],
+  "gear": {
+   "need": [
+    "MA"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "gorilla_row",
+  "name": "Gorilla Row",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "einarmiges_kettlebell_rudern_vorgebeugt",
+  "name": "Einarmiges Kettlebell-Rudern vorgebeugt",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "renegade_row",
+  "name": "Renegade Row",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "KB",
+   "KG"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kettlebell_kreuzheben_mit_rudern",
+  "name": "Kettlebell-Kreuzheben mit Rudern",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "hyperextension",
+  "name": "Hyperextension",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "MA",
+   "BK"
+  ],
+  "gear": {
+   "bodyweight": false,
+   "need": [],
+   "any": [
+    "MA",
+    "BK"
+   ]
+  }
+ },
+ {
+  "key": "superman",
+  "name": "Superman",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "reverse_snow_angels",
+  "name": "Reverse Snow Angels",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "band_rudern",
+  "name": "Band-Rudern",
+  "groups": [
+   "back",
+   "bandfull"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_pull_apart",
+  "name": "Band-Pull-Apart",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_face_pulls",
+  "name": "Band-Face-Pulls",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "rudern_am_tueranker",
+  "name": "Rudern am Türanker",
+  "groups": [
+   "back"
+  ],
+  "codes": [
+   "BD",
+   "TA"
+  ],
+  "gear": {
+   "need": [
+    "TA",
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "shrugs_mit_langhantel",
+  "name": "Shrugs mit Langhantel",
+  "groups": [
+   "traps"
+  ],
+  "codes": [
+   "LH"
+  ],
+  "gear": {
+   "need": [
+    "LH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "shrugs_mit_kurzhantel",
+  "name": "Shrugs mit Kurzhantel",
+  "groups": [
+   "traps"
+  ],
+  "codes": [
+   "KH"
+  ],
+  "gear": {
+   "need": [
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "shrugs_mit_kettlebells",
+  "name": "Shrugs mit Kettlebells",
+  "groups": [
+   "traps"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "shrugs_am_kabelzug",
+  "name": "Shrugs am Kabelzug",
+  "groups": [
+   "traps"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "shrugs_an_der_smith_maschine",
+  "name": "Shrugs an der Smith-Maschine",
+  "groups": [
+   "traps"
+  ],
+  "codes": [
+   "SM"
+  ],
+  "gear": {
+   "need": [
+    "SM"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "face_pulls",
+  "name": "Face Pulls",
+  "groups": [
+   "traps"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "upright_rows",
+  "name": "Upright Rows",
+  "groups": [
+   "traps"
+  ],
+  "codes": [
+   "LH",
+   "EZ"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "LH",
+    "EZ"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "nackenbeugen_und_nackenstrecken",
+  "name": "Nackenbeugen und Nackenstrecken",
+  "groups": [
+   "traps"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "nackenuebungen_mit_band",
+  "name": "Nackenübungen mit Band",
+  "groups": [
+   "traps"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "nackenmaschine",
+  "name": "Nackenmaschine",
+  "groups": [
+   "traps"
+  ],
+  "codes": [
+   "MA"
+  ],
+  "gear": {
+   "need": [
+    "MA"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "schulterdruecken_stehend",
+  "name": "Schulterdrücken stehend",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "LH"
+  ],
+  "gear": {
+   "need": [
+    "LH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "schulterdruecken_sitzend",
+  "name": "Schulterdrücken sitzend",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "LH",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK",
+    "LH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "schulterdruecken_mit_kurzhantel_sitzend",
+  "name": "Schulterdrücken mit Kurzhantel sitzend",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "KH",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK",
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "schulterdruecken_mit_kurzhantel_stehend",
+  "name": "Schulterdrücken mit Kurzhantel stehend",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "KH"
+  ],
+  "gear": {
+   "need": [
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "arnold_press",
+  "name": "Arnold Press",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "KH"
+  ],
+  "gear": {
+   "need": [
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "schulterdruecken_beidarmig_mit_kettlebell",
+  "name": "Schulterdrücken beidarmig mit Kettlebell",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "schulterdruecken_einarmig_mit_kettlebell",
+  "name": "Schulterdrücken einarmig mit Kettlebell",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "bottoms_up_press",
+  "name": "Bottoms-up Press",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kniender_press",
+  "name": "Kniender Press",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "halbkniender_press",
+  "name": "Halbkniender Press",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kettlebell_halo",
+  "name": "Kettlebell-Halo",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "schulterdruecken_an_der_maschine",
+  "name": "Schulterdrücken an der Maschine",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "MA"
+  ],
+  "gear": {
+   "need": [
+    "MA"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "schulterdruecken_an_der_smith_maschine",
+  "name": "Schulterdrücken an der Smith-Maschine",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "SM"
+  ],
+  "gear": {
+   "need": [
+    "SM"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "seitheben_mit_kurzhantel",
+  "name": "Seitheben mit Kurzhantel",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "KH"
+  ],
+  "gear": {
+   "need": [
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "seitheben_mit_kettlebell",
+  "name": "Seitheben mit Kettlebell",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "seitheben_am_kabel",
+  "name": "Seitheben am Kabel",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "seitheben_an_der_maschine",
+  "name": "Seitheben an der Maschine",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "MA"
+  ],
+  "gear": {
+   "need": [
+    "MA"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "frontheben_mit_kurzhantel",
+  "name": "Frontheben mit Kurzhantel",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "KH"
+  ],
+  "gear": {
+   "need": [
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "frontheben_mit_kettlebell",
+  "name": "Frontheben mit Kettlebell",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "frontheben_am_kabel",
+  "name": "Frontheben am Kabel",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "frontheben_mit_gewichtsscheibe",
+  "name": "Frontheben mit Gewichtsscheibe",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "GR"
+  ],
+  "gear": {
+   "need": [
+    "GR"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "reverse_flys_mit_kurzhantel",
+  "name": "Reverse Flys mit Kurzhantel",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "KH"
+  ],
+  "gear": {
+   "need": [
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "reverse_flys_an_der_maschine",
+  "name": "Reverse Flys an der Maschine",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "MA"
+  ],
+  "gear": {
+   "need": [
+    "MA"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "reverse_flys_am_kabel",
+  "name": "Reverse Flys am Kabel",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "handstand_push_ups_an_der_wand",
+  "name": "Handstand-Push-ups an der Wand",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "band_schulterdruecken",
+  "name": "Band-Schulterdrücken",
+  "groups": [
+   "shoulders",
+   "bandfull"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_seitheben",
+  "name": "Band-Seitheben",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_frontheben",
+  "name": "Band-Frontheben",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_aussenrotation",
+  "name": "Band-Außenrotation",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "aussen_und_innenrotation_mit_kurzhantel_oder_kabel",
+  "name": "Außen- und Innenrotation mit Kurzhantel oder Kabel",
+  "groups": [
+   "shoulders"
+  ],
+  "codes": [
+   "KH",
+   "KT"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "KH",
+    "KT"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "langhantel_curls",
+  "name": "Langhantel-Curls",
+  "groups": [
+   "biceps"
+  ],
+  "codes": [
+   "LH",
+   "EZ"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "LH",
+    "EZ"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kurzhantel_curls_abwechselnd",
+  "name": "Kurzhantel-Curls abwechselnd",
+  "groups": [
+   "biceps"
+  ],
+  "codes": [
+   "KH"
+  ],
+  "gear": {
+   "need": [
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "hammer_curls",
+  "name": "Hammer Curls",
+  "groups": [
+   "biceps"
+  ],
+  "codes": [
+   "KH"
+  ],
+  "gear": {
+   "need": [
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kettlebell_curls",
+  "name": "Kettlebell-Curls",
+  "groups": [
+   "biceps"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kettlebell_hammer_curls",
+  "name": "Kettlebell-Hammer-Curls",
+  "groups": [
+   "biceps"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "konzentrationscurls",
+  "name": "Konzentrationscurls",
+  "groups": [
+   "biceps"
+  ],
+  "codes": [
+   "KH",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK",
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "preacher_curls",
+  "name": "Preacher Curls",
+  "groups": [
+   "biceps"
+  ],
+  "codes": [
+   "EZ",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK",
+    "EZ"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "incline_curls",
+  "name": "Incline Curls",
+  "groups": [
+   "biceps"
+  ],
+  "codes": [
+   "KH",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK",
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kabelzug_curls_mit_stange",
+  "name": "Kabelzug-Curls mit Stange",
+  "groups": [
+   "biceps"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kabelzug_curls_mit_seil",
+  "name": "Kabelzug-Curls mit Seil",
+  "groups": [
+   "biceps"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "einarmige_kabelzug_curls",
+  "name": "Einarmige Kabelzug-Curls",
+  "groups": [
+   "biceps"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "bizeps_maschine",
+  "name": "Bizeps-Maschine",
+  "groups": [
+   "biceps"
+  ],
+  "codes": [
+   "MA"
+  ],
+  "gear": {
+   "need": [
+    "MA"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_curls",
+  "name": "Band-Curls",
+  "groups": [
+   "biceps"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_hammer_curls",
+  "name": "Band-Hammer-Curls",
+  "groups": [
+   "biceps"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "dips_an_bank_oder_stuhl",
+  "name": "Dips an Bank oder Stuhl",
+  "groups": [
+   "triceps"
+  ],
+  "codes": [
+   "BK",
+   "KG"
+  ],
+  "gear": {
+   "need": [
+    "BK"
+   ],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "diamond_push_ups",
+  "name": "Diamond Push-ups",
+  "groups": [
+   "triceps"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "french_press_mit_langhantel_oder_ez",
+  "name": "French Press mit Langhantel oder EZ",
+  "groups": [
+   "triceps"
+  ],
+  "codes": [
+   "LH",
+   "EZ",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK"
+   ],
+   "any": [
+    "LH",
+    "EZ"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "french_press_mit_kurzhantel",
+  "name": "French Press mit Kurzhantel",
+  "groups": [
+   "triceps"
+  ],
+  "codes": [
+   "KH",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK",
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "skull_crusher_mit_kettlebells",
+  "name": "Skull Crusher mit Kettlebells",
+  "groups": [
+   "triceps"
+  ],
+  "codes": [
+   "KB",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK",
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kettlebell_trizepsstrecken_ueberkopf",
+  "name": "Kettlebell-Trizepsstrecken überkopf",
+  "groups": [
+   "triceps"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "trizepsdruecken_am_kabel_mit_seil",
+  "name": "Trizepsdrücken am Kabel mit Seil",
+  "groups": [
+   "triceps"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "trizepsdruecken_am_kabel_mit_stange",
+  "name": "Trizepsdrücken am Kabel mit Stange",
+  "groups": [
+   "triceps"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "einarmiges_trizepsdruecken_am_kabel",
+  "name": "Einarmiges Trizepsdrücken am Kabel",
+  "groups": [
+   "triceps"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "ueberkopf_trizepsstrecken_am_kabel",
+  "name": "Überkopf-Trizepsstrecken am Kabel",
+  "groups": [
+   "triceps"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "overhead_extension_mit_kurzhantel",
+  "name": "Overhead Extension mit Kurzhantel",
+  "groups": [
+   "triceps"
+  ],
+  "codes": [
+   "KH"
+  ],
+  "gear": {
+   "need": [
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kickbacks_mit_kurzhantel",
+  "name": "Kickbacks mit Kurzhantel",
+  "groups": [
+   "triceps"
+  ],
+  "codes": [
+   "KH"
+  ],
+  "gear": {
+   "need": [
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kickbacks_am_kabel",
+  "name": "Kickbacks am Kabel",
+  "groups": [
+   "triceps"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "trizepsmaschine",
+  "name": "Trizepsmaschine",
+  "groups": [
+   "triceps"
+  ],
+  "codes": [
+   "MA"
+  ],
+  "gear": {
+   "need": [
+    "MA"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_trizepsdruecken",
+  "name": "Band-Trizepsdrücken",
+  "groups": [
+   "triceps",
+   "bandfull"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_overhead_extension",
+  "name": "Band-Overhead-Extension",
+  "groups": [
+   "triceps"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "handgelenkscurls_sitzend",
+  "name": "Handgelenkscurls sitzend",
+  "groups": [
+   "forearms"
+  ],
+  "codes": [
+   "KH",
+   "LH"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "KH",
+    "LH"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "umgekehrte_handgelenkscurls",
+  "name": "Umgekehrte Handgelenkscurls",
+  "groups": [
+   "forearms"
+  ],
+  "codes": [
+   "LH",
+   "KH"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "LH",
+    "KH"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kettlebell_handgelenkscurls",
+  "name": "Kettlebell-Handgelenkscurls",
+  "groups": [
+   "forearms"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "dead_hang",
+  "name": "Dead Hang",
+  "groups": [
+   "forearms"
+  ],
+  "codes": [
+   "KS"
+  ],
+  "gear": {
+   "need": [
+    "KS"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "plate_pinch",
+  "name": "Plate Pinch",
+  "groups": [
+   "forearms"
+  ],
+  "codes": [
+   "GR"
+  ],
+  "gear": {
+   "need": [
+    "GR"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "handgelenkscurls_am_kabel",
+  "name": "Handgelenkscurls am Kabel",
+  "groups": [
+   "forearms"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_handgelenksuebungen",
+  "name": "Band-Handgelenksübungen",
+  "groups": [
+   "forearms"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kniebeuge_mit_langhantel_back_squat",
+  "name": "Kniebeuge mit Langhantel (Back Squat)",
+  "groups": [
+   "quads"
+  ],
+  "codes": [
+   "LH",
+   "SM"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "LH",
+    "SM"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "front_squat",
+  "name": "Front Squat",
+  "groups": [
+   "quads"
+  ],
+  "codes": [
+   "LH"
+  ],
+  "gear": {
+   "need": [
+    "LH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "goblet_squat",
+  "name": "Goblet Squat",
+  "groups": [
+   "quads"
+  ],
+  "codes": [
+   "KH",
+   "KB"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "KH",
+    "KB"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "racked_squat_mit_kettlebell",
+  "name": "Racked Squat mit Kettlebell",
+  "groups": [
+   "quads"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "sumo_kniebeuge_mit_kettlebell",
+  "name": "Sumo-Kniebeuge mit Kettlebell",
+  "groups": [
+   "quads"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "hack_squat",
+  "name": "Hack Squat",
+  "groups": [
+   "quads"
+  ],
+  "codes": [
+   "MA"
+  ],
+  "gear": {
+   "need": [
+    "MA"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "beinpresse",
+  "name": "Beinpresse",
+  "groups": [
+   "quads"
+  ],
+  "codes": [
+   "MA"
+  ],
+  "gear": {
+   "need": [
+    "MA"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "beinstrecker",
+  "name": "Beinstrecker",
+  "groups": [
+   "quads"
+  ],
+  "codes": [
+   "MA"
+  ],
+  "gear": {
+   "need": [
+    "MA"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "bulgarian_split_squat",
+  "name": "Bulgarian Split Squat",
+  "groups": [
+   "quads"
+  ],
+  "codes": [
+   "KH",
+   "KB",
+   "BK",
+   "KG"
+  ],
+  "gear": {
+   "need": [
+    "BK"
+   ],
+   "any": [
+    "KH",
+    "KB"
+   ],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "ausfallschritt_vorwaerts_oder_rueckwaerts",
+  "name": "Ausfallschritt vorwärts oder rückwärts",
+  "groups": [
+   "quads"
+  ],
+  "codes": [
+   "KH",
+   "LH",
+   "KB",
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "KH",
+    "LH",
+    "KB"
+   ],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "reverse_lunge_mit_kettlebell",
+  "name": "Reverse Lunge mit Kettlebell",
+  "groups": [
+   "quads"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "lateral_lunge_mit_kettlebell",
+  "name": "Lateral Lunge mit Kettlebell",
+  "groups": [
+   "quads"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "walking_lunges",
+  "name": "Walking Lunges",
+  "groups": [
+   "quads"
+  ],
+  "codes": [
+   "KH",
+   "KG"
+  ],
+  "gear": {
+   "need": [
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "step_ups",
+  "name": "Step-ups",
+  "groups": [
+   "quads"
+  ],
+  "codes": [
+   "KH",
+   "KB",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK"
+   ],
+   "any": [
+    "KH",
+    "KB"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "pistol_squat",
+  "name": "Pistol Squat",
+  "groups": [
+   "quads"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "pistol_squat_mit_gegengewicht",
+  "name": "Pistol Squat mit Gegengewicht",
+  "groups": [
+   "quads"
+  ],
+  "codes": [
+   "KB",
+   "KG"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "wall_sit",
+  "name": "Wall Sit",
+  "groups": [
+   "quads"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "sissy_squat",
+  "name": "Sissy Squat",
+  "groups": [
+   "quads"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "smith_maschine_kniebeuge",
+  "name": "Smith-Maschine-Kniebeuge",
+  "groups": [
+   "quads"
+  ],
+  "codes": [
+   "SM"
+  ],
+  "gear": {
+   "need": [
+    "SM"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_kniebeuge",
+  "name": "Band-Kniebeuge",
+  "groups": [
+   "quads",
+   "bandfull"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "spanish_squat_mit_band",
+  "name": "Spanish Squat mit Band",
+  "groups": [
+   "quads"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_beinstrecker",
+  "name": "Band-Beinstrecker",
+  "groups": [
+   "quads"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "rumaenisches_kreuzheben",
+  "name": "Rumänisches Kreuzheben",
+  "groups": [
+   "hamstrings"
+  ],
+  "codes": [
+   "LH",
+   "KH"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "LH",
+    "KH"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "single_leg_romanian_deadlift",
+  "name": "Single-Leg Romanian Deadlift",
+  "groups": [
+   "hamstrings"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "stiff_legged_deadlift",
+  "name": "Stiff-Legged Deadlift",
+  "groups": [
+   "hamstrings"
+  ],
+  "codes": [
+   "LH",
+   "KH"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "LH",
+    "KH"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "beinbeuger_liegend",
+  "name": "Beinbeuger liegend",
+  "groups": [
+   "hamstrings"
+  ],
+  "codes": [
+   "MA"
+  ],
+  "gear": {
+   "need": [
+    "MA"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "beinbeuger_sitzend",
+  "name": "Beinbeuger sitzend",
+  "groups": [
+   "hamstrings"
+  ],
+  "codes": [
+   "MA"
+  ],
+  "gear": {
+   "need": [
+    "MA"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "nordic_hamstring_curl",
+  "name": "Nordic Hamstring Curl",
+  "groups": [
+   "hamstrings"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "glute_ham_raise",
+  "name": "Glute-Ham-Raise",
+  "groups": [
+   "hamstrings"
+  ],
+  "codes": [
+   "MA",
+   "KG"
+  ],
+  "gear": {
+   "bodyweight": true,
+   "need": [],
+   "any": [
+    "MA"
+   ]
+  }
+ },
+ {
+  "key": "good_morning",
+  "name": "Good Morning",
+  "groups": [
+   "hamstrings"
+  ],
+  "codes": [
+   "LH"
+  ],
+  "gear": {
+   "need": [
+    "LH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kabelzug_beinbeuger",
+  "name": "Kabelzug-Beinbeuger",
+  "groups": [
+   "hamstrings"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "einbeiniges_kreuzheben",
+  "name": "Einbeiniges Kreuzheben",
+  "groups": [
+   "hamstrings"
+  ],
+  "codes": [
+   "KH",
+   "KG"
+  ],
+  "gear": {
+   "bodyweight": true,
+   "need": [],
+   "any": [
+    "KH"
+   ]
+  }
+ },
+ {
+  "key": "slider_curls",
+  "name": "Slider-Curls",
+  "groups": [
+   "hamstrings"
+  ],
+  "codes": [
+   "KG",
+   "GR"
+  ],
+  "gear": {
+   "bodyweight": true,
+   "need": [],
+   "any": [
+    "GR"
+   ]
+  }
+ },
+ {
+  "key": "band_beinbeuger",
+  "name": "Band-Beinbeuger",
+  "groups": [
+   "hamstrings"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kreuzheben_konventionell",
+  "name": "Kreuzheben konventionell",
+  "groups": [
+   "glutes"
+  ],
+  "codes": [
+   "LH"
+  ],
+  "gear": {
+   "need": [
+    "LH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "sumo_kreuzheben",
+  "name": "Sumo-Kreuzheben",
+  "groups": [
+   "glutes"
+  ],
+  "codes": [
+   "LH",
+   "KB"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "LH",
+    "KB"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "hip_thrust_mit_langhantel",
+  "name": "Hip Thrust mit Langhantel",
+  "groups": [
+   "glutes"
+  ],
+  "codes": [
+   "LH",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK",
+    "LH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "hip_thrust_mit_kurzhantel",
+  "name": "Hip Thrust mit Kurzhantel",
+  "groups": [
+   "glutes"
+  ],
+  "codes": [
+   "KH",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK",
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kettlebell_hip_thrust",
+  "name": "Kettlebell-Hip-Thrust",
+  "groups": [
+   "glutes"
+  ],
+  "codes": [
+   "KB",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK",
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "glute_bridge",
+  "name": "Glute Bridge",
+  "groups": [
+   "glutes"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "single_leg_glute_bridge",
+  "name": "Single-Leg Glute Bridge",
+  "groups": [
+   "glutes"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "glute_kickback_am_kabel",
+  "name": "Glute-Kickback am Kabel",
+  "groups": [
+   "glutes"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "glute_kickback_an_der_maschine",
+  "name": "Glute-Kickback an der Maschine",
+  "groups": [
+   "glutes"
+  ],
+  "codes": [
+   "MA"
+  ],
+  "gear": {
+   "need": [
+    "MA"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "abduktion_an_der_maschine",
+  "name": "Abduktion an der Maschine",
+  "groups": [
+   "glutes"
+  ],
+  "codes": [
+   "MA"
+  ],
+  "gear": {
+   "need": [
+    "MA"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "adduktion_an_der_maschine",
+  "name": "Adduktion an der Maschine",
+  "groups": [
+   "glutes"
+  ],
+  "codes": [
+   "MA"
+  ],
+  "gear": {
+   "need": [
+    "MA"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kabelzug_abduktion",
+  "name": "Kabelzug-Abduktion",
+  "groups": [
+   "glutes"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kabelzug_adduktion",
+  "name": "Kabelzug-Adduktion",
+  "groups": [
+   "glutes"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_hip_thrust",
+  "name": "Band-Hip-Thrust",
+  "groups": [
+   "glutes",
+   "bandfull"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_clamshells",
+  "name": "Band-Clamshells",
+  "groups": [
+   "glutes"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_seitschritte",
+  "name": "Band-Seitschritte",
+  "groups": [
+   "glutes"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "donkey_kicks",
+  "name": "Donkey Kicks",
+  "groups": [
+   "glutes"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "fire_hydrants",
+  "name": "Fire Hydrants",
+  "groups": [
+   "glutes"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "wadenheben_stehend",
+  "name": "Wadenheben stehend",
+  "groups": [
+   "calves"
+  ],
+  "codes": [
+   "MA",
+   "LH",
+   "KH"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "MA",
+    "LH",
+    "KH"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "wadenheben_sitzend",
+  "name": "Wadenheben sitzend",
+  "groups": [
+   "calves"
+  ],
+  "codes": [
+   "MA"
+  ],
+  "gear": {
+   "need": [
+    "MA"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "wadenheben_einbeinig",
+  "name": "Wadenheben einbeinig",
+  "groups": [
+   "calves"
+  ],
+  "codes": [
+   "KG",
+   "KH",
+   "KB"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "KH",
+    "KB"
+   ],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "eselheben",
+  "name": "Eselheben",
+  "groups": [
+   "calves"
+  ],
+  "codes": [
+   "MA"
+  ],
+  "gear": {
+   "need": [
+    "MA"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "wadenheben_an_der_treppenstufe",
+  "name": "Wadenheben an der Treppenstufe",
+  "groups": [
+   "calves"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "band_waden",
+  "name": "Band-Waden",
+  "groups": [
+   "calves"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "crunches",
+  "name": "Crunches",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "bicycle_crunches",
+  "name": "Bicycle Crunches",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "beinheben_liegend",
+  "name": "Beinheben liegend",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "haengendes_beinheben",
+  "name": "Hängendes Beinheben",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KS"
+  ],
+  "gear": {
+   "need": [
+    "KS"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "knieheben_haengend",
+  "name": "Knieheben hängend",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KS"
+  ],
+  "gear": {
+   "need": [
+    "KS"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "dragon_flag",
+  "name": "Dragon Flag",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KG",
+   "BK"
+  ],
+  "gear": {
+   "need": [
+    "BK"
+   ],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "plank",
+  "name": "Plank",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "seitlicher_plank",
+  "name": "Seitlicher Plank",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "plank_mit_kettlebell_drag",
+  "name": "Plank mit Kettlebell-Drag",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KB",
+   "KG"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "dead_bug",
+  "name": "Dead Bug",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "bird_dog",
+  "name": "Bird Dog",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "hollow_hold",
+  "name": "Hollow Hold",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "russian_twist",
+  "name": "Russian Twist",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KG",
+   "MB",
+   "KH"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "MB",
+    "KH"
+   ],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "russian_twist_mit_kettlebell",
+  "name": "Russian Twist mit Kettlebell",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kettlebell_woodchopper",
+  "name": "Kettlebell-Woodchopper",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kettlebell_seitbeuge",
+  "name": "Kettlebell-Seitbeuge",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kettlebell_halbkniebeuge_mit_gegengewicht",
+  "name": "Kettlebell-Halbkniebeuge mit Gegengewicht",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kettlebell_sit_up",
+  "name": "Kettlebell-Sit-up",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KB",
+   "KG"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kabelzug_crunches",
+  "name": "Kabelzug-Crunches",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kabelzug_woodchopper",
+  "name": "Kabelzug-Woodchopper",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "pallof_press",
+  "name": "Pallof Press",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KT",
+   "BD"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "KT",
+    "BD"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "bauchpresse",
+  "name": "Bauchpresse",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "MA"
+  ],
+  "gear": {
+   "need": [
+    "MA"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "ab_wheel_rollout",
+  "name": "AB-Wheel Rollout",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "AB"
+  ],
+  "gear": {
+   "need": [
+    "AB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "mountain_climbers",
+  "name": "Mountain Climbers",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "toe_touches",
+  "name": "Toe Touches",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "schraege_crunches",
+  "name": "Schräge Crunches",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "seitliche_rumpfbeuge_mit_kurzhantel",
+  "name": "Seitliche Rumpfbeuge mit Kurzhantel",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "KH"
+  ],
+  "gear": {
+   "need": [
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_crunches",
+  "name": "Band-Crunches",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_anti_rotation",
+  "name": "Band-Anti-Rotation",
+  "groups": [
+   "core"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "hip_flexor_raises_haengend",
+  "name": "Hip Flexor Raises hängend",
+  "groups": [
+   "hipflexors"
+  ],
+  "codes": [
+   "KS"
+  ],
+  "gear": {
+   "need": [
+    "KS"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "knieheben_am_barren",
+  "name": "Knieheben am Barren",
+  "groups": [
+   "hipflexors"
+  ],
+  "codes": [
+   "BR"
+  ],
+  "gear": {
+   "need": [
+    "BR"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "hip_flexor_raises_liegend",
+  "name": "Hip Flexor Raises liegend",
+  "groups": [
+   "hipflexors"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "kabelzug_hueftbeugen",
+  "name": "Kabelzug-Hüftbeugen",
+  "groups": [
+   "hipflexors"
+  ],
+  "codes": [
+   "KT"
+  ],
+  "gear": {
+   "need": [
+    "KT"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_hueftbeugen",
+  "name": "Band-Hüftbeugen",
+  "groups": [
+   "hipflexors"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "front_lever_progressionen",
+  "name": "Front-Lever-Progressionen",
+  "groups": [
+   "calisthenics"
+  ],
+  "codes": [
+   "KS"
+  ],
+  "gear": {
+   "need": [
+    "KS"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "back_lever_progressionen",
+  "name": "Back-Lever-Progressionen",
+  "groups": [
+   "calisthenics"
+  ],
+  "codes": [
+   "KS"
+  ],
+  "gear": {
+   "need": [
+    "KS"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "human_flag",
+  "name": "Human Flag",
+  "groups": [
+   "calisthenics"
+  ],
+  "codes": [
+   "KG",
+   "Pfosten"
+  ],
+  "gear": {
+   "need": [
+    "Pfosten"
+   ],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "planche_progressionen",
+  "name": "Planche-Progressionen",
+  "groups": [
+   "calisthenics"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "l_sit",
+  "name": "L-Sit",
+  "groups": [
+   "calisthenics"
+  ],
+  "codes": [
+   "BR",
+   "KG"
+  ],
+  "gear": {
+   "bodyweight": true,
+   "need": [],
+   "any": [
+    "BR"
+   ]
+  }
+ },
+ {
+  "key": "v_sit",
+  "name": "V-Sit",
+  "groups": [
+   "calisthenics"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "handstand_halten",
+  "name": "Handstand-Halten",
+  "groups": [
+   "calisthenics"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "handstand_liegestuetze",
+  "name": "Handstand-Liegestütze",
+  "groups": [
+   "calisthenics"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "australian_pull_ups",
+  "name": "Australian Pull-ups",
+  "groups": [
+   "calisthenics"
+  ],
+  "codes": [
+   "Tisch"
+  ],
+  "gear": {
+   "need": [
+    "Tisch"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "inverted_rows",
+  "name": "Inverted Rows",
+  "groups": [
+   "calisthenics"
+  ],
+  "codes": [
+   "Tisch",
+   "KS"
+  ],
+  "gear": {
+   "bodyweight": false,
+   "need": [],
+   "any": [
+    "Tisch",
+    "KS"
+   ]
+  }
+ },
+ {
+  "key": "burpees",
+  "name": "Burpees",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "burpees_mit_sprung",
+  "name": "Burpees mit Sprung",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "kettlebell_swing_beidhaendig",
+  "name": "Kettlebell-Swing beidhändig",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kettlebell_swing_einarmig",
+  "name": "Kettlebell-Swing einarmig",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "russian_swing",
+  "name": "Russian Swing",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "clean",
+  "name": "Clean",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KB",
+   "LH"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "KB",
+    "LH"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "hang_clean",
+  "name": "Hang Clean",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "snatch",
+  "name": "Snatch",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KB",
+   "LH"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "KB",
+    "LH"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "hang_snatch",
+  "name": "Hang Snatch",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "jerk",
+  "name": "Jerk",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "clean_and_press",
+  "name": "Clean and Press",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KB",
+   "LH"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "KB",
+    "LH"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "snatch_test",
+  "name": "Snatch Test",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kettlebell_clean_squat",
+  "name": "Kettlebell-Clean-Squat",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "thruster_mit_kurzhantel",
+  "name": "Thruster mit Kurzhantel",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KH"
+  ],
+  "gear": {
+   "need": [
+    "KH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "thruster_mit_langhantel",
+  "name": "Thruster mit Langhantel",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "LH"
+  ],
+  "gear": {
+   "need": [
+    "LH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "thruster_mit_kettlebells",
+  "name": "Thruster mit Kettlebells",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "man_maker",
+  "name": "Man Maker",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KB",
+   "KH"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "KB",
+    "KH"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "high_pull",
+  "name": "High Pull",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "sumo_high_pull",
+  "name": "Sumo High Pull",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "turkish_get_up",
+  "name": "Turkish Get-Up",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kettlebell_pass_zwischen_den_beinen",
+  "name": "Kettlebell-Pass zwischen den Beinen",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kettlebell_figure_8",
+  "name": "Kettlebell-Figure-8",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kettlebell_around_the_world",
+  "name": "Kettlebell-Around-the-World",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "kreuzheben_mit_trap_bar",
+  "name": "Kreuzheben mit Trap-Bar",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "LH"
+  ],
+  "gear": {
+   "need": [
+    "LH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "farmers_walk",
+  "name": "Farmer’s Walk",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KH",
+   "KB"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "KH",
+    "KB"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "suitcase_carry",
+  "name": "Suitcase Carry",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KB",
+   "KH"
+  ],
+  "gear": {
+   "need": [],
+   "any": [
+    "KB",
+    "KH"
+   ],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "rack_carry",
+  "name": "Rack Carry",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "bottoms_up_carry",
+  "name": "Bottoms-up Carry",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KB"
+  ],
+  "gear": {
+   "need": [
+    "KB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "battle_ropes",
+  "name": "Battle Ropes",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "SB",
+   "KG"
+  ],
+  "gear": {
+   "bodyweight": false,
+   "need": [
+    "SB"
+   ],
+   "any": [],
+   "note": "braucht Seile (nicht in der Legende)"
+  }
+ },
+ {
+  "key": "wall_balls",
+  "name": "Wall Balls",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "MB"
+  ],
+  "gear": {
+   "need": [
+    "MB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "medizinball_slams",
+  "name": "Medizinball-Slams",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "MB"
+  ],
+  "gear": {
+   "need": [
+    "MB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "medizinball_wuerfe",
+  "name": "Medizinball-Würfe",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "MB"
+  ],
+  "gear": {
+   "need": [
+    "MB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "sled_push",
+  "name": "Sled Push",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "SCH"
+  ],
+  "gear": {
+   "need": [
+    "SCH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "sled_pull",
+  "name": "Sled Pull",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "SCH"
+  ],
+  "gear": {
+   "need": [
+    "SCH"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "sandsack_training",
+  "name": "Sandsack-Training",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "SB"
+  ],
+  "gear": {
+   "need": [
+    "SB"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "bear_crawl",
+  "name": "Bear Crawl",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "crab_walk",
+  "name": "Crab Walk",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "plyometrie_box_jumps",
+  "name": "Plyometrie: Box Jumps",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KG",
+   "BK"
+  ],
+  "gear": {
+   "bodyweight": false,
+   "need": [
+    "BK"
+   ],
+   "any": []
+  }
+ },
+ {
+  "key": "plyometrie_squat_jumps",
+  "name": "Plyometrie: Squat Jumps",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "plyometrie_broad_jumps",
+  "name": "Plyometrie: Broad Jumps",
+  "groups": [
+   "fullbody"
+  ],
+  "codes": [
+   "KG"
+  ],
+  "gear": {
+   "need": [],
+   "any": [],
+   "bodyweight": true
+  }
+ },
+ {
+  "key": "band_chest_press",
+  "name": "Band-Chest-Press",
+  "groups": [
+   "bandfull"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_bizeps_curls",
+  "name": "Band-Bizeps-Curls",
+  "groups": [
+   "bandfull"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_glute_bridge",
+  "name": "Band-Glute-Bridge",
+  "groups": [
+   "bandfull"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_woodchopper",
+  "name": "Band-Woodchopper",
+  "groups": [
+   "bandfull"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ },
+ {
+  "key": "band_pallof_press",
+  "name": "Band-Pallof-Press",
+  "groups": [
+   "bandfull"
+  ],
+  "codes": [
+   "BD"
+  ],
+  "gear": {
+   "need": [
+    "BD"
+   ],
+   "any": [],
+   "bodyweight": false
+  }
+ }
+]

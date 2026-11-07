@@ -11,9 +11,13 @@
 //      MIN_THR. Zwei Wechsel sind eine Wiederholung. Gezählt wird die Achse mit der meisten Bewegung.
 //      Gezählt wird auch kurz vor dem Satzbeginn mit, damit die erste Bewegung nicht fehlt; nach einer
 //      Sekunde Ruhe außerhalb eines Satzes beginnt die Zählung neu.
+//   5. Merkmale des Satzes (features()), mit denen die Übung erkannt wird (Recognizer.mc): Sekunden je Wiederholung,
+//      Größe der Bewegung, Anteil der Bewegung in Richtung der Schwerkraft und die Richtung der Schwerkraft am Handgelenk.
+//      Sie hängen nicht davon ab, wie die Uhr am Arm sitzt, nur davon, welche Bahn die Hand nimmt.
 // Alle Schwellen sind Schätzwerte und werden mit echten Daten abgestimmt (diag() liefert die Messwerte dazu).
 
 import Toybox.Lang;
+import Toybox.Math;
 
 (:strength)
 class RepCounter {
@@ -35,6 +39,7 @@ class RepCounter {
     var lastReps as Number = 0;
     var lastSeconds as Number = 0;
     var lastDiag as Array<Number> = [0, 0, 0, 0, 0, 0] as Array<Number>;
+    var lastFeat as Array<Number> = [0, 0, 0, 100, 100, 100] as Array<Number>;
 
     private var _fs as Float = 25.0;
     private var _lp as Float = 0.3;
@@ -54,6 +59,11 @@ class RepCounter {
     private var _pol as Array<Number> = [0, 0, 0] as Array<Number>;
     private var _flips as Array<Number> = [0, 0, 0] as Array<Number>;
     private var _since as Array<Number> = [0, 0, 0] as Array<Number>;
+    // Merkmale: Messpunkte, Summe der geglätteten Beschleunigung (Lage), Bewegung entlang der Schwerkraft und quer dazu
+    private var _n as Number = 0;
+    private var _gs as Array<Float> = [0.0, 0.0, 0.0] as Array<Float>;
+    private var _vSum as Float = 0.0;
+    private var _pSum as Float = 0.0;
     private var _energy as Float = 0.0;
     private var _quiet as Number = 0;
     private var _activeN as Number = 0;
@@ -99,6 +109,7 @@ class RepCounter {
         var d2 = axis(2, fz);
         var e = d0.abs() + d1.abs() + d2.abs();
         _energy += _smoothE * (e - _energy);
+        feature(d0, d1, d2);
         flip(0, d0);
         flip(1, d1);
         flip(2, d2);
@@ -116,6 +127,7 @@ class RepCounter {
                 lastReps = reps();
                 lastSeconds = (activeSeconds() - QUIET_S).toNumber();
                 lastDiag = diag();
+                lastFeat = featuresAt(QUIET_S);
             }
         } else if (_energy > ON_MG) {
             active = true;
@@ -167,7 +179,27 @@ class RepCounter {
             _pol[k] = 0;
             _load[k] = 0.0;
             _amp[k] = 0.0;
+            _gs[k] = 0.0;
         }
+        _n = 0;
+        _vSum = 0.0;
+        _pSum = 0.0;
+    }
+
+    // Die Bewegung d (dieser Messpunkt) zerlegen: Anteil entlang der Schwerkraft (die Richtung der langsamen Mittelung) und quer dazu.
+    private function feature(d0 as Float, d1 as Float, d2 as Float) as Void {
+        _n += 1;
+        for (var k = 0; k < 3; k++) {
+            _gs[k] += _s[k];
+        }
+        var gm = Math.sqrt(_m[0] * _m[0] + _m[1] * _m[1] + _m[2] * _m[2]).toFloat();
+        if (gm < 100.0) {
+            return;
+        }
+        var dv = (d0 * _m[0] + d1 * _m[1] + d2 * _m[2]) / gm;
+        var rest = d0 * d0 + d1 * d1 + d2 * d2 - dv * dv;
+        _vSum += dv.abs();
+        _pSum += rest > 0.0 ? Math.sqrt(rest).toFloat() : 0.0;
     }
 
     // Die Achse mit der meisten Bewegung
@@ -205,6 +237,35 @@ class RepCounter {
         _quiet = 0;
         active = false;
         finished = false;
+    }
+
+    // Merkmale des (laufenden oder gerade beendeten) Satzes, alle ganzzahlig:
+    //   0 Zehntelsekunden je Wiederholung   1 mittlere Bewegung der Hauptachse (milli-g)   2 Anteil entlang der Schwerkraft (%)
+    //   3 bis 5 Richtung der Schwerkraft am Handgelenk (je Achse 0 bis 200, 100 = waagerecht)
+    function features() as Array<Number> {
+        return featuresAt(_quiet / _fs);
+    }
+
+    // Wie features(); quietS = die Sekunden Ruhe am Ende, die nicht zum Satz gehören
+    private function featuresAt(quietS as Float) as Array<Number> {
+        var r = reps();
+        if (r < 1 || _n < 1) {
+            return [0, 0, 0, 100, 100, 100] as Array<Number>;
+        }
+        var b = busiest();
+        var gm = Math.sqrt(_gs[0] * _gs[0] + _gs[1] * _gs[1] + _gs[2] * _gs[2]).toFloat();
+        if (gm < 1.0) {
+            gm = 1.0;
+        }
+        var tot = _vSum + _pSum;
+        return [
+            (10.0 * (activeSeconds() - quietS) / r + 0.5).toNumber(),
+            (_load[b] / _n + 0.5).toNumber(),
+            tot > 0.0 ? (100.0 * _vSum / tot + 0.5).toNumber() : 0,
+            (100.0 + 100.0 * _gs[0] / gm + 0.5).toNumber(),
+            (100.0 + 100.0 * _gs[1] / gm + 0.5).toNumber(),
+            (100.0 + 100.0 * _gs[2] / gm + 0.5).toNumber()
+        ] as Array<Number>;
     }
 
     // Messwerte zur Abstimmung: Wechsel je Achse, gewählte Achse, größte Energie, Satzdauer in Sekunden

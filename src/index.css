@@ -2,28 +2,140 @@
 
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* narrow, slanted figures for the big numbers (kilometres, countdown, scores) */
+  --font-display: 'Roboto Condensed', 'Arial Narrow', 'Inter', sans-serif;
   --color-ink: #0b1220;
   --color-ink-soft: #1c2740;
   --color-brand: #f97316;
-  --color-brand-dark: #ea580c;
-  --color-brand-soft: #fff1e6;
+  --color-brand-dark: #fb923c;
+  --color-brand-soft: rgb(249 115 22 / 0.16);
   --color-lime: #a3e635;
+  /* solid dark surface for sheets, menus and tooltips that sit on top of the glass cards */
+  --color-surface: #161922;
 }
 
+/*
+ * Dark theme: night background with a blue-to-orange glow, glass cards, white text.
+ * The slate scale the whole app is written in is turned around, so every page follows without touching it.
+ */
 :root {
-  color-scheme: light;
+  color-scheme: dark;
+  --color-slate-50: rgb(255 255 255 / 0.05);
+  --color-slate-100: rgb(255 255 255 / 0.08);
+  --color-slate-200: rgb(255 255 255 / 0.12);
+  --color-slate-300: rgb(255 255 255 / 0.22);
+  --color-slate-400: #8e99ad;
+  --color-slate-500: #a4aec0;
+  --color-slate-600: #bcc4d3;
+  --color-slate-700: #d3d9e5;
+  --color-slate-800: #e8ecf3;
+  --color-slate-900: #ffffff;
 }
 
 html,
 body {
-  background: #f5f6f8;
-  color: #0f172a;
+  background-color: #0c0d12;
+  color: #ffffff;
   -webkit-font-smoothing: antialiased;
 }
 
-body {
-  min-height: 100dvh;
+/* Scrolling works, but the bars never show; sideways the page never moves. */
+html {
+  overflow-x: clip;
+  overscroll-behavior-x: none;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+
+* {
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+body {
+  overflow-x: clip;
+  min-height: 100dvh;
+  background-image:
+    radial-gradient(120% 420px at 12% 0%, rgb(48 118 196 / 0.7), transparent 70%),
+    radial-gradient(100% 460px at 100% 120px, rgb(232 100 26 / 0.62), transparent 72%);
+  background-repeat: no-repeat;
+}
+
+h1,
+h2 {
+  letter-spacing: -0.01em;
+}
+
+.bg-white {
+  background-color: rgb(255 255 255 / 0.06);
+}
+
+/* light text on the dark header and glass: the scale step is also used for borders, so the text keeps its own colour */
+.text-slate-300 {
+  color: #c3cbd8;
+}
+.text-slate-200 {
+  color: #dde2eb;
+}
+
+/* the family colours (badges, notices, tags) become tinted glass with light text */
+.text-red-600,.text-red-700,.text-red-800,.text-red-900 { color: var(--color-red-300); }
+.bg-red-50 { background-color: color-mix(in oklab, var(--color-red-500) 12%, transparent); }
+.bg-red-100 { background-color: color-mix(in oklab, var(--color-red-500) 18%, transparent); }
+.ring-red-200, .border-red-200 { --tw-ring-color: color-mix(in oklab, var(--color-red-500) 32%, transparent); border-color: color-mix(in oklab, var(--color-red-500) 32%, transparent); }
+.text-amber-600,.text-amber-700,.text-amber-800,.text-amber-900 { color: var(--color-amber-300); }
+.bg-amber-50 { background-color: color-mix(in oklab, var(--color-amber-500) 12%, transparent); }
+.bg-amber-100 { background-color: color-mix(in oklab, var(--color-amber-500) 18%, transparent); }
+.ring-amber-200, .border-amber-200 { --tw-ring-color: color-mix(in oklab, var(--color-amber-500) 32%, transparent); border-color: color-mix(in oklab, var(--color-amber-500) 32%, transparent); }
+.text-orange-600,.text-orange-700,.text-orange-800,.text-orange-900 { color: var(--color-orange-300); }
+.bg-orange-50 { background-color: color-mix(in oklab, var(--color-orange-500) 12%, transparent); }
+.bg-orange-100 { background-color: color-mix(in oklab, var(--color-orange-500) 18%, transparent); }
+.ring-orange-200, .border-orange-200 { --tw-ring-color: color-mix(in oklab, var(--color-orange-500) 32%, transparent); border-color: color-mix(in oklab, var(--color-orange-500) 32%, transparent); }
+.text-yellow-600,.text-yellow-700,.text-yellow-800,.text-yellow-900 { color: var(--color-yellow-300); }
+.bg-yellow-50 { background-color: color-mix(in oklab, var(--color-yellow-500) 12%, transparent); }
+.bg-yellow-100 { background-color: color-mix(in oklab, var(--color-yellow-500) 18%, transparent); }
+.ring-yellow-200, .border-yellow-200 { --tw-ring-color: color-mix(in oklab, var(--color-yellow-500) 32%, transparent); border-color: color-mix(in oklab, var(--color-yellow-500) 32%, transparent); }
+.text-lime-600,.text-lime-700,.text-lime-800,.text-lime-900 { color: var(--color-lime-300); }
+.bg-lime-50 { background-color: color-mix(in oklab, var(--color-lime-500) 12%, transparent); }
+.bg-lime-100 { background-color: color-mix(in oklab, var(--color-lime-500) 18%, transparent); }
+.ring-lime-200, .border-lime-200 { --tw-ring-color: color-mix(in oklab, var(--color-lime-500) 32%, transparent); border-color: color-mix(in oklab, var(--color-lime-500) 32%, transparent); }
+.text-emerald-600,.text-emerald-700,.text-emerald-800,.text-emerald-900 { color: var(--color-emerald-300); }
+.bg-emerald-50 { background-color: color-mix(in oklab, var(--color-emerald-500) 12%, transparent); }
+.bg-emerald-100 { background-color: color-mix(in oklab, var(--color-emerald-500) 18%, transparent); }
+.ring-emerald-200, .border-emerald-200 { --tw-ring-color: color-mix(in oklab, var(--color-emerald-500) 32%, transparent); border-color: color-mix(in oklab, var(--color-emerald-500) 32%, transparent); }
+.text-green-600,.text-green-700,.text-green-800,.text-green-900 { color: var(--color-green-300); }
+.bg-green-50 { background-color: color-mix(in oklab, var(--color-green-500) 12%, transparent); }
+.bg-green-100 { background-color: color-mix(in oklab, var(--color-green-500) 18%, transparent); }
+.ring-green-200, .border-green-200 { --tw-ring-color: color-mix(in oklab, var(--color-green-500) 32%, transparent); border-color: color-mix(in oklab, var(--color-green-500) 32%, transparent); }
+.text-teal-600,.text-teal-700,.text-teal-800,.text-teal-900 { color: var(--color-teal-300); }
+.bg-teal-50 { background-color: color-mix(in oklab, var(--color-teal-500) 12%, transparent); }
+.bg-teal-100 { background-color: color-mix(in oklab, var(--color-teal-500) 18%, transparent); }
+.ring-teal-200, .border-teal-200 { --tw-ring-color: color-mix(in oklab, var(--color-teal-500) 32%, transparent); border-color: color-mix(in oklab, var(--color-teal-500) 32%, transparent); }
+.text-sky-600,.text-sky-700,.text-sky-800,.text-sky-900 { color: var(--color-sky-300); }
+.bg-sky-50 { background-color: color-mix(in oklab, var(--color-sky-500) 12%, transparent); }
+.bg-sky-100 { background-color: color-mix(in oklab, var(--color-sky-500) 18%, transparent); }
+.ring-sky-200, .border-sky-200 { --tw-ring-color: color-mix(in oklab, var(--color-sky-500) 32%, transparent); border-color: color-mix(in oklab, var(--color-sky-500) 32%, transparent); }
+.text-blue-600,.text-blue-700,.text-blue-800,.text-blue-900 { color: var(--color-blue-300); }
+.bg-blue-50 { background-color: color-mix(in oklab, var(--color-blue-500) 12%, transparent); }
+.bg-blue-100 { background-color: color-mix(in oklab, var(--color-blue-500) 18%, transparent); }
+.ring-blue-200, .border-blue-200 { --tw-ring-color: color-mix(in oklab, var(--color-blue-500) 32%, transparent); border-color: color-mix(in oklab, var(--color-blue-500) 32%, transparent); }
+.text-violet-600,.text-violet-700,.text-violet-800,.text-violet-900 { color: var(--color-violet-300); }
+.bg-violet-50 { background-color: color-mix(in oklab, var(--color-violet-500) 12%, transparent); }
+.bg-violet-100 { background-color: color-mix(in oklab, var(--color-violet-500) 18%, transparent); }
+.ring-violet-200, .border-violet-200 { --tw-ring-color: color-mix(in oklab, var(--color-violet-500) 32%, transparent); border-color: color-mix(in oklab, var(--color-violet-500) 32%, transparent); }
+.text-purple-600,.text-purple-700,.text-purple-800,.text-purple-900 { color: var(--color-purple-300); }
+.bg-purple-50 { background-color: color-mix(in oklab, var(--color-purple-500) 12%, transparent); }
+.bg-purple-100 { background-color: color-mix(in oklab, var(--color-purple-500) 18%, transparent); }
+.ring-purple-200, .border-purple-200 { --tw-ring-color: color-mix(in oklab, var(--color-purple-500) 32%, transparent); border-color: color-mix(in oklab, var(--color-purple-500) 32%, transparent); }
+.text-pink-600,.text-pink-700,.text-pink-800,.text-pink-900 { color: var(--color-pink-300); }
+.bg-pink-50 { background-color: color-mix(in oklab, var(--color-pink-500) 12%, transparent); }
+.bg-pink-100 { background-color: color-mix(in oklab, var(--color-pink-500) 18%, transparent); }
+.ring-pink-200, .border-pink-200 { --tw-ring-color: color-mix(in oklab, var(--color-pink-500) 32%, transparent); border-color: color-mix(in oklab, var(--color-pink-500) 32%, transparent); }
 
 /* Native date inputs: consistent height on iOS */
 input[type='date'] {

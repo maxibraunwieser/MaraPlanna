@@ -1,8 +1,24 @@
 // Defaults + normalisation of questionnaire answers (older saves used a single
 // "strength" block; plans created with them must keep working).
 
-import type { DayTemplate, Equipment, ExtraSession, OnboardingAnswers, StrengthFocus, Weekday } from './types';
+import type { DayTemplate, Equipment, ExtraSession, OnboardingAnswers, SetupExtras, StrengthFocus, Weekday } from './types';
 import { addDays, todayISO, weekdayOf } from './planner/dates';
+
+export function defaultSetup(): SetupExtras {
+  return {
+    name: '', gender: null, runsWanted: null, experience: null, birthDate: null, heightCm: null, weightKg: null, heightUnit: 'm', weightUnit: 'kg', injuryAreas: [], restingHr: null, hrSource: { rest: null, max: null },
+    hrSyncedAt: null, racesDone: [], easyPaceS: null, intensity: 'mixed', surface: null, runsNow: 3, secondaryGoal: null,
+    unavailableDays: [], preferredTime: null, garmin: null, fromGarmin: [],
+    consent: { health: false, analytics: false, at: null }, bodyFatPct: null, dailyActivity: null, sleep: null,
+    primary: null, runPct: 50, hasRace: null, timeUnknown: false, strengthGoals: [], strengthNote: '',
+    hasGarmin: null, garminModel: '', garminScopes: ['activities', 'heart', 'sleep', 'weight', 'status'], garminPush: false,
+    runStarted: null, peakKm: null, vo2max: null, surfaces: [], intervals: null, refRace: null, refNone: false,
+    strengthXp: null, locations: [], strengthNow: null, strengthWanted: null, lifts: {}, skills: {}, excluded: [], excludedNote: '', favorites: [], favoritesNote: '', trainStyle: null, liftControl: null,
+    totalSessions: null, daysAvail: [0, 1, 2, 3, 4, 5, 6], minutesPerDay: Array<number | null>(7).fill(null), restDays: [], longRunAny: false, runDays: [], runDaysMode: 'auto', doubles: null, doubleOrder: null, breaks: [],
+    injuriesNow: null, injuryDetail: {}, injuriesPast: [], injuriesPastNote: '', parq: {}, pregnancy: null,
+    motivation: [], structure: null, autoAdapt: true, notifications: { reminder: false, review: false, time: '08:00' },
+  };
+}
 
 export function defaultAnswers(): OnboardingAnswers {
   const in18 = addDays(todayISO(), 18 * 7);
@@ -65,6 +81,19 @@ export function normalizeAnswers(raw: Legacy | null | undefined): OnboardingAnsw
     a.equipment = s.equipment;
   }
   delete a.strength;
+  // Setup answers added later: older saves get the defaults.
+  const base = defaultSetup();
+  const rs = raw?.setup;
+  a.setup = {
+    ...base,
+    ...(rs ?? {}),
+    hrSource: { ...base.hrSource, ...(rs?.hrSource ?? {}) },
+    consent: { ...base.consent, ...(rs?.consent ?? {}) },
+    notifications: { ...base.notifications, ...(rs?.notifications ?? {}) },
+    minutesPerDay: Array.isArray(rs?.minutesPerDay) && rs.minutesPerDay.length === 7 ? rs.minutesPerDay : base.minutesPerDay,
+    // Saved before the planner could pick the run days: days that were named stay the person's choice.
+    runDaysMode: rs?.runDaysMode ?? (rs?.runDays?.length ? 'manual' : 'auto'),
+  };
 
   if (a.scheduleMode === 'custom' && a.customWeek?.length === 7) {
     const runDays = templateRunDays(a.customWeek);

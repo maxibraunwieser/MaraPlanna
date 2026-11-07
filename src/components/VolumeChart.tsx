@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import type { Units } from '../lib/types';
-import { toUnit } from '../lib/format';
+import { fmtNum, toUnit } from '../lib/format';
+import { tr } from '../lib/i18n';
 
 // Palette validated with the dataviz validator (light surface): all checks pass.
 const PLANNED = '#6b8fd6';
-const ACTUAL = '#ea580c';
+const ACTUAL = '#f97316';
 
 export interface VolumePoint {
   label: string;
@@ -14,7 +15,7 @@ export interface VolumePoint {
   current: boolean;
 }
 
-export function VolumeChart({ data, units }: { data: VolumePoint[]; units: Units }) {
+export function VolumeChart({ data, units, plannedOnly = false }: { data: VolumePoint[]; units: Units; plannedOnly?: boolean }) {
   const [hover, setHover] = useState<number | null>(null);
   const W = 640;
   const H = 200;
@@ -45,18 +46,20 @@ export function VolumeChart({ data, units }: { data: VolumePoint[]; units: Units
     <div>
       <div className="mb-2 flex items-center gap-4 text-xs text-slate-600">
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-sm" style={{ background: PLANNED }} /> Planned
+          <span className="h-2.5 w-2.5 rounded-sm" style={{ background: PLANNED }} /> {tr('vol.planned')}
         </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-sm" style={{ background: ACTUAL }} /> Actual
-        </span>
-        <span className="ml-auto text-slate-400">{units} / week</span>
+        {!plannedOnly && (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm" style={{ background: ACTUAL }} /> {tr('vol.actual')}
+          </span>
+        )}
+        <span className="ml-auto text-slate-400">{tr('vol.perWeek', { units })}</span>
       </div>
       <div className="relative">
-        <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Weekly running volume, planned versus actual">
+        <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label={tr('vol.aria')}>
           {ticks.map((t) => (
             <g key={t}>
-              <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke={t === 0 ? '#cbd5e1' : '#eef1f5'} strokeWidth={1} />
+              <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke={t === 0 ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)'} strokeWidth={1} />
               <text x={pad.l - 6} y={y(t) + 3} textAnchor="end" fontSize="10" fill="#94a3b8">
                 {t}
               </text>
@@ -66,15 +69,16 @@ export function VolumeChart({ data, units }: { data: VolumePoint[]; units: Units
             const x0 = pad.l + i * slot + (slot - (barW * 2 + 2)) / 2;
             return (
               <g key={i}>
-                {d.current && <rect x={pad.l + i * slot + 1} y={pad.t} width={slot - 2} height={innerH} rx={6} fill="#fff1e6" />}
-                {hover === i && !d.current && <rect x={pad.l + i * slot + 1} y={pad.t} width={slot - 2} height={innerH} rx={6} fill="#f1f5f9" />}
+                {d.current && <rect x={pad.l + i * slot + 1} y={pad.t} width={slot - 2} height={innerH} rx={6} fill="rgba(249,115,22,0.16)" />}
+                {hover === i && !d.current && <rect x={pad.l + i * slot + 1} y={pad.t} width={slot - 2} height={innerH} rx={6} fill="rgba(255,255,255,0.06)" />}
                 {bar(x0, toUnit(d.plannedKm, units), PLANNED)}
                 {d.actualKm !== null && bar(x0 + barW + 2, toUnit(d.actualKm, units), ACTUAL)}
-                <text x={pad.l + i * slot + slot / 2} y={H - 18} textAnchor="middle" fontSize="10" fill={d.current ? '#0f172a' : '#64748b'} fontWeight={d.current ? 700 : 400}>
+                <text x={pad.l + i * slot + slot / 2} y={H - 18} textAnchor="middle" fontSize="10" fill={d.current ? '#ffffff' : '#a4aec0'} fontWeight={d.current ? 700 : 400}>
                   {d.label}
                 </text>
                 <text x={pad.l + i * slot + slot / 2} y={H - 6} textAnchor="middle" fontSize="9" fill="#94a3b8">
-                  {d.current ? 'now' : d.sublabel}
+                  {/* Long plans have too little room for a date under every bar. */}
+                  {d.current ? tr('common.now') : data.length > 14 && i % 4 !== 0 ? '' : d.sublabel}
                 </text>
                 <rect
                   x={pad.l + i * slot}
@@ -92,18 +96,20 @@ export function VolumeChart({ data, units }: { data: VolumePoint[]; units: Units
         </svg>
         {h && hover !== null && (
           <div
-            className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 rounded-lg bg-white px-3 py-2 text-xs shadow-lg ring-1 ring-slate-200"
+            className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 rounded-lg bg-surface px-3 py-2 text-xs shadow-lg ring-1 ring-slate-200"
             style={{ left: `${((pad.l + hover * slot + slot / 2) / W) * 100}%` }}
           >
             <div className="font-semibold text-slate-900">
               {h.label} · {h.sublabel}
             </div>
             <div className="mt-1 flex items-center gap-1.5 text-slate-600">
-              <span className="h-2 w-2 rounded-sm" style={{ background: PLANNED }} /> Planned {toUnit(h.plannedKm, units).toFixed(1)}
+              <span className="h-2 w-2 rounded-sm" style={{ background: PLANNED }} /> {tr('vol.plannedValue', { v: fmtNum(toUnit(h.plannedKm, units)) })}
             </div>
-            <div className="flex items-center gap-1.5 text-slate-600">
-              <span className="h-2 w-2 rounded-sm" style={{ background: ACTUAL }} /> Actual {h.actualKm === null ? '–' : toUnit(h.actualKm, units).toFixed(1)}
-            </div>
+            {!plannedOnly && (
+              <div className="flex items-center gap-1.5 text-slate-600">
+                <span className="h-2 w-2 rounded-sm" style={{ background: ACTUAL }} /> {tr('vol.actualValue', { v: h.actualKm === null ? '–' : fmtNum(toUnit(h.actualKm, units)) })}
+              </div>
+            )}
           </div>
         )}
       </div>

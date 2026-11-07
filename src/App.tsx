@@ -6,7 +6,8 @@ import { supabaseConfigured } from './lib/supabase';
 import { Spinner, ToastProvider } from './components/ui';
 import { AppLayout } from './components/Layout';
 import { ForgotPassword, Login, NotConfigured, Register, ResetPassword } from './pages/Auth';
-import { Onboarding } from './pages/Onboarding';
+import { Onboarding } from './pages/onboarding/index';
+import { Privacy } from './pages/Privacy';
 import { ConnectGarmin } from './pages/ConnectGarmin';
 import { CreatePlan } from './pages/CreatePlan';
 import { Dashboard } from './pages/Dashboard';
@@ -16,6 +17,8 @@ import { Settings } from './pages/Settings';
 import { Strength } from './pages/Strength';
 import { Analysis } from './pages/Analysis';
 import { Progress } from './pages/Progress';
+import { Food } from './pages/Food';
+import { I18nProvider, useI18n } from './lib/i18n';
 
 function FullPageSpinner() {
   return (
@@ -54,6 +57,16 @@ function RequireOnboarding() {
 }
 
 export default function App() {
+  return (
+    <I18nProvider>
+      <AppRoutes />
+    </I18nProvider>
+  );
+}
+
+function AppRoutes() {
+  // Reading the language here makes the whole tree render again when it changes (formatters read the active language).
+  useI18n();
   if (!supabaseConfigured) return <NotConfigured />;
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
@@ -64,6 +77,7 @@ export default function App() {
             <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/privacy" element={<Privacy />} />
             <Route element={<Protected />}>
               <Route path="/onboarding" element={<Onboarding />} />
               <Route element={<RequireOnboarding />}>
@@ -72,6 +86,10 @@ export default function App() {
                 <Route path="/plan/new" element={<CreatePlan />} />
                 <Route path="/strength" element={<Strength />} />
                 <Route path="/progress" element={<Progress />} />
+                <Route path="/progress/forecast" element={<Progress forecast />} />
+                <Route path="/food" element={<Food />} />
+                <Route path="/food/plan" element={<Food />} />
+                <Route path="/food/recipes" element={<Food />} />
                 <Route path="/activities" element={<Activities />} />
                 <Route path="/connect" element={<ConnectGarmin />} />
                 <Route path="/settings" element={<Settings />} />

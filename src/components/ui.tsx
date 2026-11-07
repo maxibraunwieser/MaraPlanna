@@ -5,12 +5,14 @@ import {
   useEffect,
   useState,
   type ButtonHTMLAttributes,
+  type HTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react';
 import { X, Loader2, CheckCircle2, AlertTriangle, Info } from 'lucide-react';
+import { tr } from '../lib/i18n';
 
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ');
 
@@ -36,10 +38,10 @@ export function Button({ variant = 'primary', size = 'md', loading, icon, classN
         size === 'md' && 'px-4 py-2.5 text-sm',
         size === 'lg' && 'px-6 py-3 text-base',
         variant === 'primary' && 'bg-brand text-white shadow-sm hover:bg-brand-dark',
-        variant === 'secondary' && 'bg-white text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50',
+        variant === 'secondary' && 'bg-white text-slate-800 ring-1 ring-white/20 hover:bg-white/10',
         variant === 'ghost' && 'text-slate-600 hover:bg-slate-100',
         variant === 'danger' && 'bg-red-600 text-white hover:bg-red-700',
-        variant === 'dark' && 'bg-ink text-white hover:bg-ink-soft',
+        variant === 'dark' && 'bg-white/15 text-white ring-1 ring-white/20 hover:bg-white/25',
         className,
       )}
     >
@@ -53,18 +55,18 @@ export function Button({ variant = 'primary', size = 'md', loading, icon, classN
 // Layout primitives
 // ---------------------------------------------------------------------------
 
-export function Card({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={cx('rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/80', className)}>{children}</div>;
+export function Card({ className, children, ...rest }: { className?: string; children: ReactNode } & HTMLAttributes<HTMLDivElement>) {
+  return <div className={cx('rounded-3xl bg-white p-5 shadow-lg shadow-black/10 ring-1 ring-white/10', className)} {...rest}>{children}</div>;
 }
 
 export function CardTitle({ children, action, icon }: { children: ReactNode; action?: ReactNode; icon?: ReactNode }) {
   return (
-    <div className="mb-4 flex items-center justify-between gap-3">
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
       <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
         {icon}
         {children}
       </h2>
-      {action}
+      {action && <div className="shrink-0 [&_button]:whitespace-nowrap">{action}</div>}
     </div>
   );
 }
@@ -73,7 +75,7 @@ export function PageHeader({ title, subtitle, actions }: { title: ReactNode; sub
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{title}</h1>
+        <h1 className="font-display text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
@@ -187,7 +189,7 @@ export function Toggle({ checked, onChange, label, hint }: { checked: boolean; o
         {hint && <span className="mt-0.5 block text-xs text-slate-500">{hint}</span>}
       </span>
       <span className={cx('relative mt-0.5 inline-flex h-6 w-11 shrink-0 rounded-full transition', checked ? 'bg-brand' : 'bg-slate-300')}>
-        <span className={cx('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition', checked ? 'left-5.5' : 'left-0.5')} />
+        <span className={cx('absolute top-0.5 h-5 w-5 rounded-full bg-[#fff] shadow transition', checked ? 'left-5.5' : 'left-0.5')} />
       </span>
     </button>
   );
@@ -197,29 +199,35 @@ export function Toggle({ checked, onChange, label, hint }: { checked: boolean; o
 // Modal
 // ---------------------------------------------------------------------------
 
-export function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: ReactNode; children: ReactNode }) {
+/** Open dialogs, the top one last: Escape closes only that one (a picture opened inside an editor closes alone). */
+const openModals: symbol[] = [];
+
+export function Modal({ open, onClose, title, children, wide = false }: { open: boolean; onClose: () => void; title: ReactNode; children: ReactNode; wide?: boolean }) {
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const id = Symbol('modal');
+    openModals.push(id);
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && openModals[openModals.length - 1] === id && onClose();
     window.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
     return () => {
       window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
+      openModals.splice(openModals.indexOf(id), 1);
+      if (!openModals.length) document.body.style.overflow = '';
     };
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-0 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
       <div
-        className="max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 shadow-xl sm:max-w-lg sm:rounded-3xl sm:p-6"
+        className={cx('max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl bg-surface p-5 shadow-xl ring-1 ring-white/10 sm:rounded-3xl sm:p-6', wide ? 'sm:max-w-2xl' : 'sm:max-w-lg')}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
       >
         <div className="mb-4 flex items-start justify-between gap-4">
           <div className="text-lg font-semibold text-slate-900">{title}</div>
-          <button onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Close">
+          <button onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={tr('common.close')}>
             <X className="h-5 w-5" />
           </button>
         </div>

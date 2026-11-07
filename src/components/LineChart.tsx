@@ -83,7 +83,7 @@ export function LineChart({
         )}
         {ticks.map((t) => (
           <g key={t}>
-            <line x1={pad.l} x2={W - pad.r} y1={sy(t)} y2={sy(t)} stroke="#eef1f5" />
+            <line x1={pad.l} x2={W - pad.r} y1={sy(t)} y2={sy(t)} stroke="rgba(255,255,255,0.08)" />
             <text x={pad.l - 6} y={sy(t) + 3} textAnchor="end" fontSize="10" fill="#94a3b8">
               {formatY(t)}
             </text>
@@ -105,7 +105,7 @@ export function LineChart({
       </svg>
       {h && (
         <div
-          className="pointer-events-none absolute top-5 z-10 -translate-x-1/2 rounded-lg bg-white px-2.5 py-1.5 text-xs shadow-lg ring-1 ring-slate-200"
+          className="pointer-events-none absolute top-5 z-10 -translate-x-1/2 rounded-lg bg-surface px-2.5 py-1.5 text-xs shadow-lg ring-1 ring-slate-200"
           style={{ left: `${(sx(h.x) / W) * 100}%` }}
         >
           <span className="font-semibold text-slate-900">{formatY(h.y)}</span>

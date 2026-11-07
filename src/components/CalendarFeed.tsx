@@ -3,12 +3,14 @@ import { CalendarPlus, Copy, ExternalLink } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { appUrl } from '../lib/supabase';
 import { fmtRelative } from '../lib/format';
+import { useI18n } from '../lib/i18n';
 import * as api from '../lib/api';
 import { Button, Notice, Spinner, useToast } from './ui';
 
-/** Subscribe the plan in Apple / Google / Outlook calendar. */
+/** Subscribe the plan in Apple / Google / Outlook calendar. The feed is written in the language of the page when the link is shown. */
 export function CalendarSubscribe() {
   const { user } = useAuth();
+  const { t, lang } = useI18n();
   const toast = useToast();
   const [feed, setFeed] = useState<api.CalendarFeed | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +32,7 @@ export function CalendarSubscribe() {
     try {
       setFeed(await api.createCalendarFeed(user.id, appUrl('plan')));
       setError(null);
-      toast('Calendar link ready – now add it to your calendar.', 'success');
+      toast(t('cal.ready'), 'success');
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -38,14 +40,14 @@ export function CalendarSubscribe() {
     }
   };
   const renew = () => {
-    if (confirm('Create a new link? Calendars subscribed to the old link stop updating – you would subscribe again with the new one.')) void create();
+    if (confirm(t('cal.renewConfirm'))) void create();
   };
   const turnOff = async () => {
-    if (!confirm('Turn off the calendar feed? Subscribed calendars stop updating (remove the calendar there too).')) return;
+    if (!confirm(t('cal.offConfirm'))) return;
     try {
       await api.deleteCalendarFeed(user.id);
       setFeed(null);
-      toast('Calendar feed turned off.', 'info');
+      toast(t('cal.off'), 'info');
     } catch (e) {
       toast((e as Error).message, 'error');
     }
@@ -55,25 +57,23 @@ export function CalendarSubscribe() {
   if (!feed) {
     return (
       <div className="space-y-3">
-        <p className="text-sm text-slate-600">
-          Every session – with distance, paces and steps – appears in your phone's calendar and updates by itself when the plan changes.
-        </p>
+        <p className="text-sm text-slate-600">{t('cal.create.text')}</p>
         <Button loading={busy} icon={<CalendarPlus className="h-4 w-4" />} onClick={create}>
-          Create calendar link
+          {t('cal.create')}
         </Button>
       </div>
     );
   }
 
-  const url = api.calendarFeedUrl(feed.token);
+  const url = api.calendarFeedUrl(feed.token, lang);
   const webcal = url.replace(/^https?:/, 'webcal:');
-  const google = `https://www.google.com/calendar/render?cid=${webcal}`;
+  const google = `https://www.google.com/calendar/render?cid=${encodeURIComponent(webcal)}`;
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(url);
-      toast('Link copied.', 'success');
+      toast(t('cal.copied'), 'success');
     } catch {
-      prompt('Copy this link:', url);
+      prompt(t('cal.copyPrompt'), url);
     }
   };
 
@@ -81,35 +81,30 @@ export function CalendarSubscribe() {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
         <a href={webcal}>
-          <Button icon={<CalendarPlus className="h-4 w-4" />}>Apple Calendar</Button>
+          <Button icon={<CalendarPlus className="h-4 w-4" />}>{t('cal.apple')}</Button>
         </a>
         <a href={google} target="_blank" rel="noreferrer">
-          <Button variant="secondary" icon={<ExternalLink className="h-4 w-4" />}>Google Calendar</Button>
+          <Button variant="secondary" icon={<ExternalLink className="h-4 w-4" />}>{t('cal.google')}</Button>
         </a>
         <Button variant="secondary" icon={<Copy className="h-4 w-4" />} onClick={copy}>
-          Copy link
+          {t('cal.copy')}
         </Button>
       </div>
       <ul className="space-y-1.5 text-sm text-slate-600">
-        <li>
-          <b className="text-slate-800">iPhone / Mac:</b> tap <i>Apple Calendar</i> → <i>Subscribe</i>. Updates about every hour.
-        </li>
-        <li>
-          <b className="text-slate-800">Google:</b> opens Google Calendar in the browser → <i>Add</i>; it then shows in the Google Calendar app too. Google refreshes subscriptions only every 8–24 hours.
-        </li>
-        <li>
-          <b className="text-slate-800">Outlook:</b> <i>Add calendar → Subscribe from web</i> and paste the link.
-        </li>
+        <li><b className="text-slate-800">{t('cal.ios.pre')}</b>{t('cal.ios.text')}</li>
+        <li><b className="text-slate-800">{t('cal.google.pre')}</b>{t('cal.google.text')}</li>
+        <li><b className="text-slate-800">{t('cal.outlook.pre')}</b>{t('cal.outlook.text')}</li>
       </ul>
       <p className="text-xs text-slate-500">
-        {feed.last_fetched_at ? `Last fetched by a calendar app ${fmtRelative(feed.last_fetched_at)}.` : 'Not fetched by a calendar app yet.'} Keep the link private – anyone who has it can see your plan.
+        {feed.last_fetched_at ? t('cal.fetched', { when: fmtRelative(feed.last_fetched_at) }) : t('cal.notFetched')}
+        {t('cal.private')}
       </p>
       <div className="flex flex-wrap gap-3 text-sm">
         <button className="font-medium text-slate-600 hover:text-slate-900 hover:underline" onClick={renew} disabled={busy}>
-          New link
+          {t('cal.new')}
         </button>
         <button className="font-medium text-red-600 hover:underline" onClick={turnOff}>
-          Turn off
+          {t('cal.turnOff')}
         </button>
       </div>
     </div>

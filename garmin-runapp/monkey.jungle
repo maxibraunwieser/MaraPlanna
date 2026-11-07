@@ -1,12 +1,12 @@
 project.manifest = manifest.xml
-base.excludeAnnotations = demo;nostrength
+base.excludeAnnotations = demo;nostrength;nodetails
 # Uhren mit 128 KB Speicher bekommen kein Krafttraining (bleiben beim Laufen), siehe source/strength/StrengthEntry.mc
-enduro.excludeAnnotations = demo;strength
-fenix6.excludeAnnotations = demo;strength
-fenix6s.excludeAnnotations = demo;strength
-fr245.excludeAnnotations = demo;strength
-fr55.excludeAnnotations = demo;strength
-venusq.excludeAnnotations = demo;strength
+enduro.excludeAnnotations = demo;strength;details
+fenix6.excludeAnnotations = demo;strength;details
+fenix6s.excludeAnnotations = demo;strength;details
+fr245.excludeAnnotations = demo;strength;details
+fr55.excludeAnnotations = demo;strength;details
+venusq.excludeAnnotations = demo;strength;details
 
 # --- launcher icons per watch (tools/launcher-icons.ps1) ---
 approachs50.resourcePath = $(approachs50.resourcePath);resources-launcher/56x56

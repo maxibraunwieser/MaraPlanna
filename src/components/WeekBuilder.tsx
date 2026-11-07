@@ -1,24 +1,25 @@
 import { useState } from 'react';
 import { Minus, Plus, Trash2 } from 'lucide-react';
-import type { DayTemplate, Equipment, ExtraSession, ExtraType, RunSlot } from '../lib/types';
+import type { DayTemplate, ExtraSession, ExtraType, RunSlot } from '../lib/types';
 import { EXTRA_INFO } from '../lib/planner/extras';
 import { checkTemplate } from '../lib/answers';
-import { Button, cx, Field, Input, Notice, Segmented, Toggle } from './ui';
+import { Button, cx, Input, Notice, Toggle } from './ui';
+import { tr } from '../lib/i18n';
 import { KIND_STYLE } from './Workout';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const PRESET_TYPES: ExtraType[] = ['lower', 'upper', 'full', 'core', 'plyo', 'mobility', 'bike', 'swim'];
 
-export const extraLabel = (e: ExtraSession) => (e.type === 'custom' ? e.name || 'Own workout' : EXTRA_INFO[e.type].label);
+export const extraLabel = (e: ExtraSession) => (e.type === 'custom' ? e.name || tr('ex.custom') : EXTRA_INFO[e.type].label);
 
 function Stepper({ value, onChange, min = 1, max = 4 }: { value: number; onChange: (v: number) => void; min?: number; max?: number }) {
   return (
     <div className="inline-flex items-center gap-1 rounded-lg bg-white ring-1 ring-slate-300">
-      <button type="button" className="p-1.5 text-slate-500 hover:text-slate-900 disabled:opacity-30" disabled={value <= min} onClick={() => onChange(value - 1)} aria-label="Fewer">
+      <button type="button" className="p-1.5 text-slate-500 hover:text-slate-900 disabled:opacity-30" disabled={value <= min} onClick={() => onChange(value - 1)} aria-label={tr('wb.fewer')}>
         <Minus className="h-3.5 w-3.5" />
       </button>
-      <span className="w-16 whitespace-nowrap text-center text-xs font-semibold">{value}× / week</span>
-      <button type="button" className="p-1.5 text-slate-500 hover:text-slate-900 disabled:opacity-30" disabled={value >= max} onClick={() => onChange(value + 1)} aria-label="More">
+      <span className="min-w-16 whitespace-nowrap px-1 text-center text-xs font-semibold">{tr('wb.perWeek', { n: value })}</span>
+      <button type="button" className="p-1.5 text-slate-500 hover:text-slate-900 disabled:opacity-30" disabled={value >= max} onClick={() => onChange(value + 1)} aria-label={tr('wb.more')}>
         <Plus className="h-3.5 w-3.5" />
       </button>
     </div>
@@ -26,17 +27,7 @@ function Stepper({ value, onChange, min = 1, max = 4 }: { value: number; onChang
 }
 
 /** Multi-select of non-running sessions with a frequency for each. */
-export function ExtrasPicker({
-  extras,
-  equipment,
-  onChange,
-  onEquipment,
-}: {
-  extras: ExtraSession[];
-  equipment: Equipment;
-  onChange: (e: ExtraSession[]) => void;
-  onEquipment: (e: Equipment) => void;
-}) {
+export function ExtrasPicker({ extras, onChange, hide = [] }: { extras: ExtraSession[]; onChange: (e: ExtraSession[]) => void; hide?: ExtraType[] }) {
   const [name, setName] = useState('');
   const [minutes, setMinutes] = useState('45');
   const [hard, setHard] = useState(false);
@@ -47,12 +38,11 @@ export function ExtrasPicker({
   };
   const update = (id: string, perWeek: number) => onChange(extras.map((e) => (e.id === id ? { ...e, perWeek } : e)));
   const customs = extras.filter((e) => e.type === 'custom');
-  const needsEquipment = extras.some((e) => e.type === 'upper' || e.type === 'lower' || e.type === 'full' || e.type === 'core');
 
   return (
     <div className="space-y-5">
       <div className="grid gap-2 sm:grid-cols-2">
-        {PRESET_TYPES.map((t) => {
+        {PRESET_TYPES.filter((t) => !hide.includes(t)).map((t) => {
           const e = byType(t);
           const info = EXTRA_INFO[t];
           return (
@@ -83,25 +73,25 @@ export function ExtrasPicker({
       </div>
 
       <div className="rounded-xl bg-slate-50 p-3">
-        <div className="mb-2 text-sm font-semibold text-slate-800">Your own workouts</div>
+        <div className="mb-2 text-sm font-semibold text-slate-800">{tr('wb.own')}</div>
         {customs.map((c) => (
           <div key={c.id} className="mb-2 flex flex-wrap items-center gap-2 rounded-lg bg-white p-2 ring-1 ring-slate-200">
             <span className="flex-1 text-sm font-medium">
-              {c.name} <span className="text-xs text-slate-500">· {c.minutes} min · {c.hard ? 'hard' : 'easy'}</span>
+              {c.name} <span className="text-xs text-slate-500">· {c.minutes} {tr('common.min')} · {c.hard ? tr('wb.hard') : tr('wb.easy')}</span>
             </span>
             <Stepper value={c.perWeek} onChange={(v) => update(c.id, v)} />
-            <button type="button" onClick={() => onChange(extras.filter((e) => e.id !== c.id))} className="p-1.5 text-slate-400 hover:text-red-600" aria-label="Remove">
+            <button type="button" onClick={() => onChange(extras.filter((e) => e.id !== c.id))} className="p-1.5 text-slate-400 hover:text-red-600" aria-label={tr('common.remove')}>
               <Trash2 className="h-4 w-4" />
             </button>
           </div>
         ))}
         <div className="grid gap-2 sm:grid-cols-[1fr_90px]">
-          <Input placeholder="e.g. Climbing, Football, Pilates" value={name} onChange={(e) => setName(e.target.value)} />
-          <Input type="number" min={10} max={240} value={minutes} onChange={(e) => setMinutes(e.target.value)} aria-label="Minutes" />
+          <Input placeholder={tr('wb.ownPh')} value={name} onChange={(e) => setName(e.target.value)} />
+          <Input type="number" min={10} max={240} value={minutes} onChange={(e) => setMinutes(e.target.value)} aria-label={tr('wb.minutes')} />
         </div>
         <div className="mt-2 flex items-center justify-between gap-3">
           <div className="flex-1">
-            <Toggle checked={hard} onChange={setHard} label="Hard on the legs" hint="Kept away from long runs and key sessions" />
+            <Toggle checked={hard} onChange={setHard} label={tr('wb.hardLegs')} hint={tr('wb.hardLegsHint')} />
           </div>
           <Button
             size="sm"
@@ -113,24 +103,11 @@ export function ExtrasPicker({
             }}
             icon={<Plus className="h-4 w-4" />}
           >
-            Add
+            {tr('common.add')}
           </Button>
         </div>
       </div>
 
-      {needsEquipment && (
-        <Field label="Equipment for strength & core">
-          <Segmented
-            value={equipment}
-            onChange={onEquipment}
-            options={[
-              { value: 'bodyweight', label: 'Bodyweight' },
-              { value: 'dumbbells', label: 'Dumbbells' },
-              { value: 'gym', label: 'Full gym' },
-            ]}
-          />
-        </Field>
-      )}
     </div>
   );
 }

@@ -65,15 +65,14 @@ class SummaryView extends WatchUi.View {
     function onUpdate(dc as Graphics.Dc) as Void {
         Draw.plain(dc);
         var h = dc.getHeight();
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
-        dc.clear();
+        Draw.background(dc, true);
         var page = _ids[_at];
         var fhX = dc.getFontHeight(Graphics.FONT_XTINY);
         var fhS = dc.getFontHeight(Graphics.FONT_SMALL);
         if (page == ROUTE) {
             Draw.lineAlt(dc, h * HEADER_Y, Graphics.FONT_XTINY, Draw.GREEN, ["GESPEICHERT", "Gespeichert", "OK"] as Array<String>);
         } else {
-            Draw.lineAlt(dc, h * HEADER_Y, Graphics.FONT_XTINY, Draw.GRAY, [TITLES[page], SHORT[page]] as Array<String>);
+            Draw.lineAlt(dc, h * HEADER_Y, Graphics.FONT_XTINY, Draw.ORANGE, [TITLES[page], SHORT[page]] as Array<String>);
         }
         var top = h * HEADER_Y + fhX / 2.0 + 3;
         var bottom = h * FOOTER_Y - fhS / 2.0 - 2;

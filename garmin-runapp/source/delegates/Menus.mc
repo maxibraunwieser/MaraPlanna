@@ -1,8 +1,11 @@
-// Menüs, die der Startbildschirm öffnet:
-//   Hauptmenü      Training · Diese Woche · Trainingsplan · Einstellungen
-//   Training       heutige Einheit, Lauftypen (Easy, Long, …), Freier Lauf → Startbildschirm mit GPS;
-//                  dazu Kraft (heutige Einheit, freies Training) → StrengthEntry
-//   Einstellungen  Datenseiten, Einheiten, km-Zusammenfassung, Pace-Alarm, Töne, Wetter, MaraPlanna trennen
+// Menüs, die der Startbildschirm öffnet (alle als Karten wie in der MaraPlanna-App, siehe CardMenu):
+//   Hauptmenü      Training · Absolviert · Trainingsplan · Einstellungen
+//   Training       drei Reiter: Heute (die Einheiten von heute, direkt wählbar: der Lauf und/oder die Krafteinheiten),
+//                  Laufen (alle Lauftypen, Freier Lauf), Kraft (alle Krafteinheiten, freies Training) → Startbildschirm bzw. Kraft
+//   Absolviert     Wochenkilometer, darunter die vergangenen Einheiten; Tippen zeigt die Details (SessionMenus)
+//   Trainingsplan  Einheiten dieser und der nächsten Woche; Tippen zeigt die Schritte (SessionMenus)
+//   Einstellungen  Datenseiten, Einheiten, km-Zusammenfassung, Pace-Alarm, Töne, Vibration, Wechsel-Countdown, Wetter,
+//                  MaraPlanna trennen
 // Alle Untertitel kommen aus den aktuellen Daten, nichts ist fest eingetragen.
 
 import Toybox.Application;
@@ -17,12 +20,13 @@ module MainMenu {
     function show() as Void {
         var feed = WeekPlan.feed();
         var today = WeekPlan.today();
-        var menu = new WatchUi.Menu2({ :title => text(Rez.Strings.AppName) });
-        menu.addItem(new WatchUi.MenuItem(text(Rez.Strings.MenuTrain), trainInfo(feed), :train, null));
-        menu.addItem(new WatchUi.MenuItem(text(Rez.Strings.MenuWeek), weekInfo(feed, today), :week, null));
-        menu.addItem(new WatchUi.MenuItem(text(Rez.Strings.MenuPlan), planInfo(feed, today), :plan, null));
-        menu.addItem(new WatchUi.MenuItem(text(Rez.Strings.MenuSettings), null, :settings, null));
-        WatchUi.pushView(menu, new MainMenuDelegate(), WatchUi.SLIDE_UP);
+        var items = [
+            new CardItem(:train, text(Rez.Strings.MenuTrain), trainInfo(feed), Draw.ORANGE),
+            new CardItem(:week, text(Rez.Strings.MenuWeek), weekInfo(feed, today), Draw.GREEN),
+            new CardItem(:plan, text(Rez.Strings.MenuPlan), planInfo(feed, today), Draw.BLUE),
+            new CardItem(:settings, text(Rez.Strings.MenuSettings), null, Draw.GRAY)
+        ] as Array<CardItem>;
+        Cards.show(text(Rez.Strings.AppName), items, new MainMenuDelegate(), WatchUi.SLIDE_UP);
     }
 
     // Titel der heutigen Einheit, sonst ein Hinweis auf die freie Wahl.
@@ -55,34 +59,55 @@ module MainMenu {
     }
 }
 
-class MainMenuDelegate extends WatchUi.Menu2InputDelegate {
+class MainMenuDelegate extends CardMenuListener {
     function initialize() {
-        Menu2InputDelegate.initialize();
+        CardMenuListener.initialize();
     }
 
-    function onSelect(item as WatchUi.MenuItem) as Void {
-        var id = item.getId();
+    function onPick(menu as CardMenu, item as CardItem) as Void {
+        var id = item.id;
         if (id == :train) {
             TrainMenu.show();
         } else if (id == :week) {
-            WatchUi.pushView(new WeekView(), new WeekDelegate(), WatchUi.SLIDE_LEFT);
+            PlanEntry.showDone();
         } else if (id == :plan) {
-            var sync = getApp().sync;
-            if (sync != null && !Demo.active()) {
-                (sync as Sync).refreshIfStale();
-            }
-            WatchUi.pushView(new PlanView(), new PlanDelegate(), WatchUi.SLIDE_LEFT);
+            PlanEntry.openPlan();
         } else if (id == :settings) {
             SettingsMenu.show();
         }
     }
 
-    function onBack() as Void {
+    function onClose(menu as CardMenu) as Void {
         WatchUi.popView(WatchUi.SLIDE_DOWN);
     }
 }
 
 module TrainMenu {
+    // Farbe des Streifens je Lauftyp (Index wie Pace.ZONES: frei, easy, long, recovery, marathon, threshold, interval, repetition)
+    const ZONE_TONES = [Draw.GRAY, Draw.GREEN, Draw.BLUE, Draw.GREEN, Draw.ORANGE, Draw.ORANGE, Draw.RED, Draw.RED] as Array<Number>;
+
+    // Die heutige Lauf-Einheit als Karte (Titel, Strecke und Dauer)
+    function todayRun(workout as Workout, feed as Dictionary?, miles as Boolean) as CardItem {
+        var minutes = (workout.plannedTotal() / 60.0 + 0.5).toNumber();
+        var info = Pace.distance1(workout.plannedMeters(), miles) + (miles ? " mi" : " km") + " · " + minutes + " min";
+        if (WeekPlan.allDone(WeekPlan.sessions(feed, WeekPlan.today()))) {
+            info = MainMenu.text(Rez.Strings.TrainDone) + " · " + info;
+        }
+        return new CardItem(Choices.TODAY, workout.title, info, Draw.ORANGE);
+    }
+
+    // Alle Lauftypen mit bekannter Pace und der freie Lauf
+    function runItems(zones as PaceZones?, miles as Boolean) as Array<CardItem> {
+        var out = [] as Array<CardItem>;
+        var list = Choices.list(zones, null);
+        for (var i = 0; i < list.size(); i++) {
+            var id = list[i];
+            var range = id > 0 && zones != null ? Pace.formatRange((zones as PaceZones).range(id), miles) + (miles ? " /mi" : " /km") : null;
+            out.add(new CardItem(id, StartView.zoneName(id), range, ZONE_TONES[id]));
+        }
+        return out;
+    }
+
     function show() as Void {
         var app = getApp();
         var feed = WeekPlan.feed();
@@ -92,45 +117,43 @@ module TrainMenu {
             (workout as Workout).bindZones(zones as PaceZones);
         }
         var miles = zones != null && (zones as PaceZones).miles;
-        var menu = new WatchUi.Menu2({ :title => MainMenu.text(Rez.Strings.MenuTrain) });
-        var list = Choices.list(zones, workout);
-        for (var i = 0; i < list.size(); i++) {
-            var id = list[i];
-            if (id == Choices.TODAY) {
-                var wk = workout as Workout;
-                var minutes = (wk.plannedTotal() / 60.0 + 0.5).toNumber();
-                var info = MainMenu.text(Rez.Strings.TrainToday) + " · " + Pace.distance1(wk.plannedMeters(), miles) + (miles ? " mi" : " km") + " · " + minutes + " min";
-                if (WeekPlan.allDone(WeekPlan.sessions(feed, WeekPlan.today()))) {
-                    info = MainMenu.text(Rez.Strings.TrainDone) + " · " + info;
-                }
-                menu.addItem(new WatchUi.MenuItem(wk.title, info, id, null));
-            } else {
-                var range = id > 0 && zones != null ? Pace.formatRange((zones as PaceZones).range(id), miles) + (miles ? " /mi" : " /km") : null;
-                menu.addItem(new WatchUi.MenuItem(StartView.zoneName(id), range, id, null));
-            }
+
+        // Heute: die geplanten Einheiten von heute, gewählt wird direkt die, die gemacht wird
+        var today = [] as Array<CardItem>;
+        if (workout != null) {
+            today.add(todayRun(workout as Workout, feed, miles));
         }
-        StrengthEntry.addItems(menu, feed);
-        WatchUi.pushView(menu, new TrainMenuDelegate(), WatchUi.SLIDE_LEFT);
+        StrengthEntry.todayItems(feed, today);
+        if (today.size() == 0) {
+            var none = new CardItem(:none, MainMenu.text(Rez.Strings.TodayNone), MainMenu.text(Rez.Strings.TodayNoneHint), Draw.GRAY);
+            none.enabled = false;
+            today.add(none);
+        }
+
+        var tabs = [MainMenu.text(Rez.Strings.TabToday), MainMenu.text(Rez.Strings.TabRun)] as Array<String>;
+        var pages = [today, runItems(zones, miles)] as Array<Array<CardItem>>;
+        var strength = StrengthEntry.items(feed);
+        if (strength.size() > 0) {
+            tabs.add(MainMenu.text(Rez.Strings.StrengthName));
+            pages.add(strength);
+        }
+        Cards.showTabs(MainMenu.text(Rez.Strings.MenuTrain), tabs, pages, new TrainMenuDelegate(), WatchUi.SLIDE_LEFT);
     }
 }
 
-class TrainMenuDelegate extends WatchUi.Menu2InputDelegate {
+class TrainMenuDelegate extends CardMenuListener {
     function initialize() {
-        Menu2InputDelegate.initialize();
+        CardMenuListener.initialize();
     }
 
-    // Gewählte Einheit → Startbildschirm (GPS-Suche, START beginnt den Lauf).
-    function onSelect(item as WatchUi.MenuItem) as Void {
-        if (StrengthEntry.handles(item.getId())) {
-            StrengthEntry.open(item.getId(), WeekPlan.feed());
+    // Gewählte Einheit → Startbildschirm (GPS-Suche, START beginnt den Lauf) bzw. das Krafttraining.
+    function onPick(menu as CardMenu, item as CardItem) as Void {
+        if (StrengthEntry.handles(item.id)) {
+            StrengthEntry.open(item.id, WeekPlan.feed());
             return;
         }
-        var view = new StartView(item.getId() as Number);
+        var view = new StartView(item.id as Number);
         WatchUi.pushView(view, new StartDelegate(view), WatchUi.SLIDE_LEFT);
-    }
-
-    function onBack() as Void {
-        WatchUi.popView(WatchUi.SLIDE_RIGHT);
     }
 }
 
@@ -157,29 +180,36 @@ module SettingsMenu {
         return Demo.active() || (sync != null && (sync as Sync).paired()) ? MainMenu.text(Rez.Strings.Linked) : MainMenu.text(Rez.Strings.NotLinked);
     }
 
+    function toggle(id as Symbol, title as String, on as Boolean) as CardItem {
+        var item = new CardItem(id, title, null, Draw.GRAY);
+        item.toggle = on ? 1 : 0;
+        return item;
+    }
+
     function show() as Void {
-        var menu = new WatchUi.Menu2({ :title => MainMenu.text(Rez.Strings.MenuSettings) });
-        var onOff = { :enabled => MainMenu.text(Rez.Strings.On), :disabled => MainMenu.text(Rez.Strings.Off) };
-        menu.addItem(new WatchUi.MenuItem(MainMenu.text(Rez.Strings.Pages), MainMenu.text(Rez.Strings.PagesInfo), :pages, null));
-        menu.addItem(new WatchUi.MenuItem(MainMenu.text(Rez.Strings.SetUnits), unitsText(), :units, null));
-        menu.addItem(new WatchUi.MenuItem(MainMenu.text(Rez.Strings.SetSmooth), smoothText(), :smooth, null));
-        menu.addItem(new WatchUi.ToggleMenuItem(MainMenu.text(Rez.Strings.SetKm), onOff, :km, Prefs.kmSummary(), null));
-        menu.addItem(new WatchUi.ToggleMenuItem(MainMenu.text(Rez.Strings.SetPaceAlert), onOff, :pace, Prefs.paceAlert(), null));
-        menu.addItem(new WatchUi.ToggleMenuItem(MainMenu.text(Rez.Strings.SetTones), onOff, :tones, Prefs.tones(), null));
-        menu.addItem(new WatchUi.ToggleMenuItem(MainMenu.text(Rez.Strings.SetVibration), onOff, :vibe, Prefs.vibration(), null));
-        menu.addItem(new WatchUi.ToggleMenuItem(MainMenu.text(Rez.Strings.SetWeather), onOff, :weather, Prefs.weather(), null));
-        menu.addItem(new WatchUi.MenuItem(MainMenu.text(Rez.Strings.SetUnlink), linkText(), :unlink, null));
-        WatchUi.pushView(menu, new SettingsMenuDelegate(), WatchUi.SLIDE_LEFT);
+        var items = [
+            new CardItem(:pages, MainMenu.text(Rez.Strings.Pages), MainMenu.text(Rez.Strings.PagesInfo), Draw.BLUE),
+            new CardItem(:units, MainMenu.text(Rez.Strings.SetUnits), unitsText(), Draw.BLUE),
+            new CardItem(:smooth, MainMenu.text(Rez.Strings.SetSmooth), smoothText(), Draw.BLUE),
+            toggle(:km, MainMenu.text(Rez.Strings.SetKm), Prefs.kmSummary()),
+            toggle(:pace, MainMenu.text(Rez.Strings.SetPaceAlert), Prefs.paceAlert()),
+            toggle(:tones, MainMenu.text(Rez.Strings.SetTones), Prefs.tones()),
+            toggle(:vibe, MainMenu.text(Rez.Strings.SetVibration), Prefs.vibration()),
+            toggle(:countdown, MainMenu.text(Rez.Strings.SetCountdown), Prefs.countdown()),
+            toggle(:weather, MainMenu.text(Rez.Strings.SetWeather), Prefs.weather()),
+            new CardItem(:unlink, MainMenu.text(Rez.Strings.SetUnlink), linkText(), Draw.RED)
+        ] as Array<CardItem>;
+        Cards.show(MainMenu.text(Rez.Strings.MenuSettings), items, new SettingsMenuDelegate(), WatchUi.SLIDE_LEFT);
     }
 }
 
-class SettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
+class SettingsMenuDelegate extends CardMenuListener {
     function initialize() {
-        Menu2InputDelegate.initialize();
+        CardMenuListener.initialize();
     }
 
-    function onSelect(item as WatchUi.MenuItem) as Void {
-        var id = item.getId();
+    function onPick(menu as CardMenu, item as CardItem) as Void {
+        var id = item.id;
         if (id == :pages) {
             PagesMenu.show();
         } else if (id == :units) {
@@ -189,11 +219,11 @@ class SettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
             if (zones != null) {
                 (zones as PaceZones).load();
             }
-            item.setSubLabel(SettingsMenu.unitsText());
+            item.sub = SettingsMenu.unitsText();
             WatchUi.requestUpdate();
         } else if (id == :smooth) {
             Prefs.set("smooth", (Prefs.smooth() + 1) % Prefs.SMOOTH_COUNT);
-            item.setSubLabel(SettingsMenu.smoothText());
+            item.sub = SettingsMenu.smoothText();
             WatchUi.requestUpdate();
         } else if (id == :unlink) {
             var sync = getApp().sync;
@@ -201,22 +231,19 @@ class SettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
                 WatchUi.pushView(new WatchUi.Confirmation(MainMenu.text(Rez.Strings.UnlinkConfirm)), new UnlinkDelegate(item), WatchUi.SLIDE_IMMEDIATE);
             }
         } else {
-            var toggle = item as WatchUi.ToggleMenuItem;
-            var key = id == :km ? "km" : (id == :pace ? "pace" : (id == :tones ? "tones" : (id == :vibe ? "vibe" : "weather")));
-            Prefs.set(key, toggle.isEnabled());
+            item.toggle = item.toggle == 1 ? 0 : 1;
+            var key = id == :km ? "km" : (id == :pace ? "pace" : (id == :tones ? "tones" : (id == :vibe ? "vibe" : (id == :countdown ? "countdown" : "weather"))));
+            Prefs.set(key, item.toggle == 1);
+            WatchUi.requestUpdate();
         }
-    }
-
-    function onBack() as Void {
-        WatchUi.popView(WatchUi.SLIDE_RIGHT);
     }
 }
 
 // Von MaraPlanna trennen: Kopplung und geladene Daten löschen; die Uhr holt sich sofort einen neuen Code.
 class UnlinkDelegate extends WatchUi.ConfirmationDelegate {
-    private var _item as WatchUi.MenuItem;
+    private var _item as CardItem;
 
-    function initialize(item as WatchUi.MenuItem) {
+    function initialize(item as CardItem) {
         ConfirmationDelegate.initialize();
         _item = item;
     }
@@ -226,6 +253,8 @@ class UnlinkDelegate extends WatchUi.ConfirmationDelegate {
             Application.Storage.deleteValue("secret");
             Application.Storage.deleteValue("code");
             Application.Storage.deleteValue("run");
+            Application.Storage.deleteValue("plan");
+            Application.Storage.deleteValue("weeks");
             Application.Storage.deleteValue("synced");
             var app = getApp();
             if (app.zones != null) {
@@ -234,7 +263,7 @@ class UnlinkDelegate extends WatchUi.ConfirmationDelegate {
             if (app.sync != null && !Demo.active()) {
                 (app.sync as Sync).refresh();
             }
-            _item.setSubLabel(SettingsMenu.linkText());
+            _item.sub = SettingsMenu.linkText();
             app.onFeedChanged();
         }
         return true;

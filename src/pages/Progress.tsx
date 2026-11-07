@@ -9,7 +9,8 @@ import { useActivityDetails } from '../lib/details';
 import { addDays, mondayOf, weekdayOf } from '../lib/planner/dates';
 import { isRunWorkout } from '../lib/planner/adapt';
 import type { Activity } from '../lib/types';
-import { fmtDate, fmtDistance, fmtDuration, fmtPace } from '../lib/format';
+import { fmtDate, fmtDistance, fmtDuration, fmtNum, fmtPace, localTitle } from '../lib/format';
+import { useI18n, tr, type MsgKey } from '../lib/i18n';
 import { Badge, Card, CardTitle, cx, PageHeader, Spinner } from '../components/ui';
 import { KIND_STYLE } from '../components/Workout';
 import { ProjectionChart, hm } from '../components/ProjectionChart';
@@ -17,7 +18,7 @@ import { ProjectionChart, hm } from '../components/ProjectionChart';
 const PHASE_TONE = { base: 'green', build: 'blue', peak: 'orange', taper: 'violet' } as const;
 
 /** "−4 min" / "+2 min" for a change in seconds (negative = faster). */
-const delta = (s: number | null) => (s === null || Math.abs(s) < 30 ? null : `${s < 0 ? '−' : '+'}${Math.round(Math.abs(s) / 60)} min`);
+const delta = (s: number | null) => (s === null || Math.abs(s) < 30 ? null : `${s < 0 ? '−' : '+'}${Math.round(Math.abs(s) / 60)} ${tr('common.min')}`);
 
 function Stat({ label, value, sub, change, good }: { label: string; value: string; sub: ReactNode; change?: string | null; good?: boolean }) {
   return (
@@ -34,40 +35,41 @@ function Stat({ label, value, sub, change, good }: { label: string; value: strin
 
 function ProjectionCard() {
   const { plan, activities, today, units } = useData();
+  const { t } = useI18n();
   const h = useMemo(() => (plan ? projectionHistory(plan, activities, today) : null), [plan, activities, today]);
   if (!plan || !h) return null;
+  // The training-based projection (Tanda) is a marathon model.
+  if (plan.fitness.raceDistanceM !== undefined && plan.fitness.raceDistanceM !== 42_195) return null;
   const goal = h.goalS;
-  const assessment = { realistic: 'on track', ambitious: 'ambitious', very_ambitious: 'a big stretch', none: '' }[plan.fitness.goalAssessment];
+  const assessment = t(`proj.a.${plan.fitness.goalAssessment}` as MsgKey);
   return (
     <Card>
-      <CardTitle icon={<TrendingUp className="h-5 w-5 text-brand" />}>Marathon projection</CardTitle>
+      <CardTitle icon={<TrendingUp className="h-5 w-5 text-brand" />}>{t('proj.title')}</CardTitle>
       <div className="mb-4 grid gap-2 sm:grid-cols-3">
         <Stat
-          label="Training-based"
+          label={t('proj.training')}
           value={h.current.tandaS ? hm(h.current.tandaS) : '–'}
-          change={delta(h.tandaChangeS) && `${delta(h.tandaChangeS)} since plan start`}
+          change={delta(h.tandaChangeS) && t('proj.since', { delta: delta(h.tandaChangeS)! })}
           good={(h.tandaChangeS ?? 0) < 0}
-          sub={h.current.tandaS ? 'From your last 8 weeks of running' : 'Needs 8 weeks of runs with Garmin or FIT data'}
+          sub={h.current.tandaS ? t('proj.training.sub') : t('proj.training.need')}
         />
         <Stat
-          label="Race-day projection"
+          label={t('proj.raceDay')}
           value={hm(h.current.planS)}
-          change={delta(h.planChangeS) && `${delta(h.planChangeS)} since plan start`}
+          change={delta(h.planChangeS) && t('proj.since', { delta: delta(h.planChangeS)! })}
           good={h.planChangeS < 0}
-          sub="Fitness (VDOT) plus the training still ahead"
+          sub={t('proj.raceDay.sub')}
         />
-        <Stat label="Goal" value={goal ? hm(goal) : 'Finish'} sub={goal ? `Currently ${assessment}` : 'No time goal set'} />
+        <Stat label={t('proj.goal')} value={goal ? hm(goal) : t('proj.finish')} sub={goal ? t('proj.now', { assessment }) : t('proj.noGoal')} />
       </div>
       <ProjectionChart points={h.points} goalS={goal} planStart={h.planStart} />
       {h.drivers && (h.tandaChangeS ?? 0) > 30 && h.drivers.kmNow > h.drivers.kmStart && h.drivers.paceNow > h.drivers.paceStart + 3 && (
         <p className="mt-3 rounded-xl bg-sky-50 px-3 py-2 text-xs text-sky-900 ring-1 ring-sky-200">
-          Why the training-based estimate looks slower: your weekly volume went up ({fmtDistance(h.drivers.kmStart, units, 0)} → {fmtDistance(h.drivers.kmNow, units, 0)} per week), but your average
-          training pace got slower ({fmtPace(h.drivers.paceStart, units)} → {fmtPace(h.drivers.paceNow, units)}) because easy runs are now really easy. Tanda's formula rewards a fast average pace, so
-          it underrates well-run easy days – it catches up as your easy pace gets faster at the same effort.
+          {t('proj.why', { kmStart: fmtDistance(h.drivers.kmStart, units, 0), kmNow: fmtDistance(h.drivers.kmNow, units, 0), paceStart: fmtPace(h.drivers.paceStart, units), paceNow: fmtPace(h.drivers.paceNow, units) })}
         </p>
       )}
       <p className="mt-3 text-xs text-slate-500">
-        The training-based estimate (Tanda 2011) moves every week with your volume and average pace. The race-day projection is the number on your dashboard; it changes when your runs show a change in fitness.
+        {t('proj.note')}
       </p>
     </Card>
   );
@@ -97,40 +99,42 @@ const scoreTone = (s: number) => (s >= 85 ? 'bg-emerald-100 text-emerald-800' : 
 
 function ItemRow({ item }: { item: ReportItem }) {
   const { units, today } = useData();
+  const { t } = useI18n();
   const { workout: w, activity: a } = item;
   const kind = w?.kind ?? 'easy';
   const moving = a ? (a.moving_s ?? a.duration_s ?? 0) : 0;
   const status = !w
-    ? 'Extra run'
+    ? t('rep.item.extra')
     : w.status === 'skipped'
       ? w.status_source === 'auto'
-        ? 'Replaced'
-        : 'Skipped'
+        ? t('rep.item.replaced')
+        : t('st.skipped')
       : w.status === 'missed'
-        ? 'Missed'
+        ? t('st.missed')
         : w.status === 'planned'
           ? w.date < today
-            ? 'Not done'
-            : 'Planned'
+            ? t('rep.item.notDone')
+            : t('rep.item.planned')
           : null;
+  const bad = !!w && (w.status === 'missed' || (w.status === 'planned' && w.date < today));
   const actual = a
     ? [a.distance_m ? fmtDistance(a.distance_m / 1000, units) : null, a.distance_m && moving ? fmtPace(moving / (a.distance_m / 1000), units) : moving ? fmtDuration(moving) : null, a.avg_hr ? `♥ ${a.avg_hr}` : null]
         .filter(Boolean)
         .join(' · ')
     : null;
   const body = (
-    <div className={cx('flex items-center gap-3 py-2.5', (w?.status === 'skipped' || w?.status === 'missed') && 'opacity-60')}>
+    <div className={cx('flex items-center gap-3 rounded-xl bg-slate-50 px-3 ring-1 ring-slate-200 py-2.5', (w?.status === 'skipped' || w?.status === 'missed') && 'opacity-60')}>
       <div className="w-11 shrink-0 text-xs leading-tight text-slate-500">
         <div className="font-semibold text-slate-700">{fmtDate(item.date, { weekday: 'short' })}</div>
         {fmtDate(item.date, { day: 'numeric', month: 'short' })}
       </div>
       <span className={cx('h-2.5 w-2.5 shrink-0 rounded-full', KIND_STYLE[kind].dot)} />
       <div className="min-w-0 flex-1">
-        <div className={cx('truncate text-sm font-medium text-slate-900', w?.status === 'skipped' && 'line-through')}>{w?.title ?? a?.name ?? 'Run'}</div>
+        <div className={cx('truncate text-sm font-medium text-slate-900', w?.status === 'skipped' && 'line-through')}>{w ? localTitle(w.title) : (a?.name ?? t('sport.run'))}</div>
         <div className="truncate text-xs text-slate-500">
-          {actual ?? (w?.distance_km ? fmtDistance(w.distance_km, units) : w?.duration_min ? `${w.duration_min} min` : '')}
-          {status && <span className={cx(actual || w?.distance_km || w?.duration_min ? 'ml-1.5' : '', status === 'Missed' || status === 'Not done' ? 'text-red-600' : '')}>{actual || w?.distance_km || w?.duration_min ? '· ' : ''}{status}</span>}
-          {item.tooFast && <span className="ml-1.5 text-amber-600">· too fast for easy</span>}
+          {actual ?? (w?.distance_km ? fmtDistance(w.distance_km, units) : w?.duration_min ? `${w.duration_min} ${t('common.min')}` : '')}
+          {status && <span className={cx(actual || w?.distance_km || w?.duration_min ? 'ml-1.5' : '', bad ? 'text-red-600' : '')}>{actual || w?.distance_km || w?.duration_min ? '· ' : ''}{status}</span>}
+          {item.tooFast && <span className="ml-1.5 text-amber-600">{t('rep.item.tooFast')}</span>}
         </div>
       </div>
       {item.score !== null && <span className={cx('rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums', scoreTone(item.score))}>{item.score}</span>}
@@ -171,54 +175,55 @@ function Marker({ label, now, prev, unit, digits = 0, higherIsBetter }: { label:
       <div className="text-xs text-slate-500">{label}</div>
       <div className="mt-0.5 flex items-baseline gap-1.5">
         <span className="font-semibold tabular-nums text-slate-900">
-          {now.toFixed(digits)} {unit}
+          {fmtNum(now, digits)} {unit}
         </span>
-        {show && <span className={cx('text-xs font-semibold', better ? 'text-emerald-600' : 'text-amber-600')}>{d! > 0 ? '▲' : '▼'} {Math.abs(d!).toFixed(digits)}</span>}
+        {show && <span className={cx('text-xs font-semibold', better ? 'text-emerald-600' : 'text-amber-600')}>{d! > 0 ? '▲' : '▼'} {fmtNum(Math.abs(d!), digits)}</span>}
       </div>
-      <div className="text-[11px] text-slate-400">avg · vs. week before</div>
+      <div className="text-[11px] text-slate-400">{tr('rep.avgVsPrev')}</div>
     </div>
   );
 }
 
 function ReportBody({ r }: { r: WeekReport }) {
   const { units } = useData();
+  const { t } = useI18n();
   const so = r.state === 'current';
   const ref = so ? r.plannedToDateKm : r.plannedKm;
   const keyText = r.key.planned ? `${r.key.done} / ${r.key.planned}` : '–';
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        <Kpi label={so ? 'Distance so far' : 'Distance'} value={fmtDistance(r.doneKm, units)} sub={`of ${fmtDistance(ref, units)}${so ? ' due' : ' planned'}`} pct={r.pct} />
-        <Kpi label="Sessions" value={`${r.sessions.done} / ${r.sessions.planned}`} sub={so ? 'up to today' : 'done'} />
-        <Kpi label="Key sessions" value={keyText} sub={r.key.missed.length ? `${r.key.missed.length} missed` : 'done'} />
-        <Kpi label="Long run" value={r.long.doneKm !== null ? fmtDistance(r.long.doneKm, units) : r.long.workout ? '–' : 'none'} sub={r.long.workout ? `planned ${fmtDistance(r.long.workout.distance_km, units)}` : ''} />
-        <Kpi label="Time trained" value={r.movingS ? fmtDuration(r.movingS).replace(/:\d\d$/, ' h') : '–'} sub="all sessions" />
-        <Kpi label="Execution" value={r.avgScore ?? '–'} sub="avg score of runs" />
+        <Kpi label={so ? t('rep.distanceSoFar') : t('rep.distance')} value={fmtDistance(r.doneKm, units)} sub={t(so ? 'rep.ofDue' : 'rep.ofPlanned', { x: fmtDistance(ref, units) })} pct={r.pct} />
+        <Kpi label={t('rep.sessions')} value={`${r.sessions.done} / ${r.sessions.planned}`} sub={so ? t('rep.upToToday') : t('rep.done')} />
+        <Kpi label={t('rep.keySessions')} value={keyText} sub={r.key.missed.length ? t('rep.missed', { n: r.key.missed.length }) : t('rep.done')} />
+        <Kpi label={t('rep.long')} value={r.long.doneKm !== null ? fmtDistance(r.long.doneKm, units) : r.long.workout ? '–' : t('rep.none')} sub={r.long.workout ? t('rep.planned', { x: fmtDistance(r.long.workout.distance_km, units) }) : ''} />
+        <Kpi label={t('rep.time')} value={r.movingS ? fmtDuration(r.movingS).replace(/:\d\d$/, ' h') : '–'} sub={t('rep.allSessions')} />
+        <Kpi label={t('rep.execution')} value={r.avgScore ?? '–'} sub={t('rep.avgScore')} />
       </div>
 
       {r.notes.length > 0 && (
         <div className="rounded-xl bg-brand-soft/50 p-4">
-          <div className="mb-2 text-sm font-semibold text-slate-900">Coach notes</div>
+          <div className="mb-2 text-sm font-semibold text-slate-900">{t('rep.notes')}</div>
           <Notes notes={r.notes} />
         </div>
       )}
 
       <div>
-        <div className="mb-1 text-sm font-semibold text-slate-900">Day by day</div>
+        <div className="mb-1 text-sm font-semibold text-slate-900">{t('rep.dayByDay')}</div>
         {r.items.length ? (
-          <div className="divide-y divide-slate-100">{r.items.map((it) => <ItemRow key={(it.workout?.id ?? '') + (it.activity?.id ?? '')} item={it} />)}</div>
+          <div className="space-y-2">{r.items.map((it) => <ItemRow key={(it.workout?.id ?? '') + (it.activity?.id ?? '')} item={it} />)}</div>
         ) : (
-          <p className="text-sm text-slate-500">No sessions this week.</p>
+          <p className="text-sm text-slate-500">{t('rep.noSessions')}</p>
         )}
       </div>
 
       {(r.wellness.restingHr.now !== null || r.wellness.hrv.now !== null || r.wellness.sleepH.now !== null) && (
         <div>
-          <div className="mb-2 text-sm font-semibold text-slate-900">Recovery</div>
+          <div className="mb-2 text-sm font-semibold text-slate-900">{t('rep.recovery')}</div>
           <div className="grid grid-cols-3 gap-2">
-            <Marker label="Resting HR" unit="bpm" now={r.wellness.restingHr.now} prev={r.wellness.restingHr.prev} higherIsBetter={false} />
-            <Marker label="HRV" unit="ms" now={r.wellness.hrv.now} prev={r.wellness.hrv.prev} higherIsBetter />
-            <Marker label="Sleep" unit="h" digits={1} now={r.wellness.sleepH.now} prev={r.wellness.sleepH.prev} higherIsBetter />
+            <Marker label={t('rd.resting')} unit="bpm" now={r.wellness.restingHr.now} prev={r.wellness.restingHr.prev} higherIsBetter={false} />
+            <Marker label={t('rd.hrv')} unit="ms" now={r.wellness.hrv.now} prev={r.wellness.hrv.prev} higherIsBetter />
+            <Marker label={t('rd.sleep')} unit="h" digits={1} now={r.wellness.sleepH.now} prev={r.wellness.sleepH.prev} higherIsBetter />
           </div>
         </div>
       )}
@@ -226,26 +231,26 @@ function ReportBody({ r }: { r: WeekReport }) {
       {r.next && (r.next.week || r.next.long || r.next.key.length > 0) && (
         <div className="rounded-xl ring-1 ring-slate-200 p-4">
           <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
-            Next week
-            {r.next.week && <Badge tone={PHASE_TONE[r.next.week.phase]} className="capitalize">{r.next.week.phase}</Badge>}
-            {r.next.week?.recovery && <Badge>Recovery week</Badge>}
-            <span className="ml-auto font-normal text-slate-500">{fmtDistance(r.next.plannedKm, units, 0)} planned</span>
+            {t('rep.nextWeek')}
+            {r.next.week && <Badge tone={PHASE_TONE[r.next.week.phase]}>{t(`phase.${r.next.week.phase}` as MsgKey)}</Badge>}
+            {r.next.week?.recovery && <Badge>{t('plan.recoveryWeek')}</Badge>}
+            <span className="ml-auto font-normal text-slate-500">{t('rep.nextPlanned', { km: fmtDistance(r.next.plannedKm, units, 0) })}</span>
           </div>
           <ul className="mt-2 space-y-1 text-sm text-slate-700">
             {r.next.key.map((w) => (
               <li key={w.id} className="flex gap-2">
                 <span className="w-16 shrink-0 text-slate-500">{fmtDate(w.date, { weekday: 'short', day: 'numeric' })}</span>
-                {w.title}
+                {localTitle(w.title)}
               </li>
             ))}
             {r.next.long && (
               <li className="flex gap-2">
                 <span className="w-16 shrink-0 text-slate-500">{fmtDate(r.next.long.date, { weekday: 'short', day: 'numeric' })}</span>
-                {r.next.long.title} · {fmtDistance(r.next.long.distance_km, units)}
+                {localTitle(r.next.long.title)} · {fmtDistance(r.next.long.distance_km, units)}
               </li>
             )}
           </ul>
-          {r.next.week?.recovery && <p className="mt-2 text-xs text-slate-500">Lighter week: volume drops so your body can absorb the training.</p>}
+          {r.next.week?.recovery && <p className="mt-2 text-xs text-slate-500">{t('rep.lighter')}</p>}
         </div>
       )}
     </div>
@@ -262,6 +267,7 @@ export const defaultReportWeek = (today: string) => (weekdayOf(today) <= 1 ? add
 
 function WeeklyReportCard() {
   const { plan, workouts, activities, metrics, units, today, connection } = useData();
+  const { t } = useI18n();
   const [params, setParams] = useSearchParams();
   const thisMonday = mondayOf(today);
   const weeks = useMemo(() => (plan ? plan.weeks.map((w) => w.startDate).filter((d) => d <= thisMonday) : []), [plan, thisMonday]);
@@ -281,8 +287,8 @@ function WeeklyReportCard() {
   if (!report) {
     return (
       <Card>
-        <CardTitle icon={<ClipboardCheck className="h-5 w-5 text-brand" />}>Weekly report</CardTitle>
-        <Spinner label="Loading lap data…" />
+        <CardTitle icon={<ClipboardCheck className="h-5 w-5 text-brand" />}>{t('rep.title')}</CardTitle>
+        <Spinner label={t('rep.loading')} />
       </Card>
     );
   }
@@ -292,26 +298,26 @@ function WeeklyReportCard() {
     p.set('week', d);
     return p;
   }, { replace: true });
-  const label = start === thisMonday ? 'This week' : start === addDays(thisMonday, -7) ? 'Last week' : null;
+  const label = start === thisMonday ? t('rep.thisWeek') : start === addDays(thisMonday, -7) ? t('rep.lastWeek') : null;
   return (
     <Card>
-      <CardTitle icon={<ClipboardCheck className="h-5 w-5 text-brand" />}>Weekly report</CardTitle>
+      <CardTitle icon={<ClipboardCheck className="h-5 w-5 text-brand" />}>{t('rep.title')}</CardTitle>
       <div className="mb-4 flex items-center gap-2">
-        <button className="rounded-lg p-2 text-slate-500 ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-30" disabled={i <= 0} onClick={() => go(weeks[i - 1])} aria-label="Previous week">
+        <button className="rounded-lg p-2 text-slate-500 ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-30" disabled={i <= 0} onClick={() => go(weeks[i - 1])} aria-label={t('rep.prev')}>
           <ChevronLeft className="h-4 w-4" />
         </button>
         <div className="min-w-0 flex-1 text-center">
           <div className="flex flex-wrap items-center justify-center gap-2 font-semibold text-slate-900">
-            Week {report.week?.week ?? '–'}
-            {report.week && <Badge tone={PHASE_TONE[report.week.phase]} className="capitalize">{report.week.phase}</Badge>}
+            {t('common.week', { n: report.week?.week ?? '–' })}
+            {report.week && <Badge tone={PHASE_TONE[report.week.phase]}>{t(`phase.${report.week.phase}` as MsgKey)}</Badge>}
             {label && <Badge tone="orange">{label}</Badge>}
           </div>
           <div className="text-xs text-slate-500">
             {fmtDate(report.start, { day: 'numeric', month: 'short' })} – {fmtDate(report.end, { day: 'numeric', month: 'short' })}
-            {report.state === 'current' ? ' · in progress' : ''}
+            {report.state === 'current' ? t('rep.inProgress') : ''}
           </div>
         </div>
-        <button className="rounded-lg p-2 text-slate-500 ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-30" disabled={i >= weeks.length - 1} onClick={() => go(weeks[i + 1])} aria-label="Next week">
+        <button className="rounded-lg p-2 text-slate-500 ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-30" disabled={i >= weeks.length - 1} onClick={() => go(weeks[i + 1])} aria-label={t('rep.next')}>
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
@@ -320,22 +326,22 @@ function WeeklyReportCard() {
   );
 }
 
-export function Progress() {
+export function Progress({ forecast = false }: { forecast?: boolean }) {
   const { loading, plan } = useData();
+  const { t } = useI18n();
   if (loading) return <Spinner />;
   if (!plan) {
     return (
       <Card className="text-center">
-        <p className="text-slate-600">No plan yet.</p>
-        <Link to="/plan/new" className="mt-3 inline-block font-semibold text-brand">Create your plan →</Link>
+        <p className="text-slate-600">{t('plan.none')}</p>
+        <Link to="/plan/new" className="mt-3 inline-block font-semibold text-brand">{t('plan.create')}</Link>
       </Card>
     );
   }
   return (
     <div className="space-y-5">
-      <PageHeader title="Progress" subtitle="How your marathon fitness develops – and how each week went." />
-      <WeeklyReportCard />
-      <ProjectionCard />
+      <PageHeader title={t('pg.title')} subtitle={t('pg.sub')} />
+      {forecast ? <ProjectionCard /> : <WeeklyReportCard />}
     </div>
   );
 }
@@ -343,6 +349,7 @@ export function Progress() {
 /** Dashboard teaser for last week's report, shown early in the week. */
 export function ReportTeaser() {
   const { plan, workouts, activities, metrics, units, today, connection } = useData();
+  const { t } = useI18n();
   const start = addDays(mondayOf(today), -7);
   const show = !!plan && weekdayOf(today) <= 2 && plan.weeks.some((w) => w.startDate === start);
   const weekRuns = useMemo(() => (show ? runsOfWeek(activities, start) : []), [activities, start, show]);
@@ -361,29 +368,29 @@ export function ReportTeaser() {
         icon={<ClipboardCheck className="h-5 w-5 text-brand" />}
         action={
           <Link to={`/progress?week=${start}`} className="text-sm font-semibold text-brand hover:underline">
-            Open report →
+            {t('rep.open')}
           </Link>
         }
       >
-        Week {report.week?.week} in review
+        {t('rep.review', { n: report.week?.week ?? '–' })}
       </CardTitle>
       <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
         {runsPlanned && (
           <span>
-            <b className="tabular-nums">{fmtDistance(report.doneKm, units)}</b> <span className="text-slate-500">of {fmtDistance(report.plannedKm, units)}</span>
+            <b className="tabular-nums">{fmtDistance(report.doneKm, units)}</b> <span className="text-slate-500">{t('rep.ofPlanned', { x: fmtDistance(report.plannedKm, units) })}</span>
           </span>
         )}
         <span>
-          <b className="tabular-nums">{report.sessions.done}/{report.sessions.planned}</b> <span className="text-slate-500">sessions</span>
+          <b className="tabular-nums">{report.sessions.done}/{report.sessions.planned}</b> <span className="text-slate-500">{t('rep.sessionsWord')}</span>
         </span>
         {report.key.planned > 0 && (
           <span>
-            <b className="tabular-nums">{report.key.done}/{report.key.planned}</b> <span className="text-slate-500">key sessions</span>
+            <b className="tabular-nums">{report.key.done}/{report.key.planned}</b> <span className="text-slate-500">{t('rep.keyWord')}</span>
           </span>
         )}
         {report.avgScore !== null && (
           <span>
-            <b className="tabular-nums">{report.avgScore}</b> <span className="text-slate-500">avg execution</span>
+            <b className="tabular-nums">{report.avgScore}</b> <span className="text-slate-500">{t('rep.avgExec')}</span>
           </span>
         )}
       </div>

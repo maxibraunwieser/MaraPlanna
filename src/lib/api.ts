@@ -3,6 +3,8 @@
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { normalizeAnswers } from './answers';
+import { currentLang, tr } from './i18n';
+import { serverText } from '../../supabase/functions/_shared/content';
 import type {
   Activity,
   ActivityDetails,
@@ -20,8 +22,10 @@ import type {
   WorkoutDraft,
 } from './types';
 import type { AdaptResult, WorkoutPatch } from './planner/adapt';
-import { exerciseById, sessionOrder, type StrengthPrefs } from '../../supabase/functions/_shared/strength.ts';
+import { exerciseById, sessionOrder, type Routine, type StrengthPrefs } from '../../supabase/functions/_shared/strength.ts';
+import type { StrengthSetInsert } from './strengthLog';
 import type { GeneratedPlan } from './planner/generate';
+import { isRaceGoal } from './planner/goals';
 import { generateWeeks } from './planner/generate';
 
 function check<T>(res: { data: T; error: { message: string } | null }): T {
@@ -55,7 +59,7 @@ export async function fetchActivePlan(userId: string): Promise<TrainingPlan | nu
 /** Laps + stream for one activity; fetched from Garmin on first use. */
 export async function fetchActivityDetails(activity: Activity): Promise<ActivityDetails | null> {
   const { data, error } = await supabase.from('activities').select('details').eq('id', activity.id).maybeSingle();
-  if (error) throw new Error(error.message.includes('details') ? 'Database update needed – run the latest migration (see README).' : error.message);
+  if (error) throw new Error(error.message.includes('details') ? tr('api.migration') : error.message);
   if (data?.details) return data.details as ActivityDetails;
   if (activity.source !== 'garmin') return null;
   const res = await invokeGarmin<{ details: ActivityDetails | null }>({ action: 'details', activityId: activity.id });
@@ -67,7 +71,7 @@ export async function fetchStoredDetails(ids: string[]): Promise<Map<string, Act
   const out = new Map<string, ActivityDetails>();
   if (!ids.length) return out;
   const { data, error } = await supabase.from('activities').select('id, details').in('id', ids).not('details', 'is', null);
-  if (error) throw new Error(error.message.includes('details') ? 'Database update needed – run the latest migration (see README).' : error.message);
+  if (error) throw new Error(error.message.includes('details') ? tr('api.migration') : error.message);
   for (const row of (data ?? []) as { id: string; details: ActivityDetails }[]) out.set(row.id, row.details);
   return out;
 }
@@ -110,8 +114,23 @@ export async function saveProfile(userId: string, patch: Partial<Profile>) {
   check(await supabase.from('profiles').upsert({ id: userId, ...patch, updated_at: new Date().toISOString() }));
 }
 
-export async function saveOnboarding(userId: string, answers: OnboardingAnswers) {
-  await saveProfile(userId, { onboarding: answers, onboarding_completed_at: new Date().toISOString(), units: answers.units });
+/**
+ * The unfinished setup, saved while the person fills it in. Needs the column from
+ * supabase/migrations/20261106000000_onboarding_draft.sql; without it this returns false and the browser copy is all there is.
+ */
+export async function saveOnboardingDraft(userId: string, draft: unknown): Promise<boolean> {
+  const { error } = await supabase.from('profiles').upsert({ id: userId, onboarding_draft: draft, updated_at: new Date().toISOString() });
+  return !error;
+}
+
+export async function saveOnboarding(userId: string, answers: OnboardingAnswers, strength?: StrengthPrefs) {
+  await saveProfile(userId, {
+    ...(answers.setup?.name.trim() ? { display_name: answers.setup.name.trim() } : {}),
+    onboarding: answers,
+    onboarding_completed_at: new Date().toISOString(),
+    units: answers.units,
+    ...(strength ? { strength } : {}),
+  });
 }
 
 const workoutRows = (drafts: WorkoutDraft[], planId: string, userId: string) =>
@@ -142,7 +161,8 @@ export async function createPlan(userId: string, answers: OnboardingAnswers, gen
       plan_id: plan.id,
       user_id: userId,
       kind: 'created',
-      message: `Plan created: ${generated.weeks.length} weeks to ${answers.raceName || 'race day'}.`,
+      // Stored in English, translated when shown (supabase/functions/_shared/content.ts).
+      message: isRaceGoal(answers.goal) ? `Plan created: ${generated.weeks.length} weeks to ${answers.raceName || 'race day'}.` : `Plan created: ${generated.weeks.length} weeks.`,
     }),
   );
   return plan;
@@ -169,7 +189,7 @@ export async function logAdjustment(plan: TrainingPlan, kind: string, message: s
 }
 
 /** Persist the outcome of adaptPlan(). Returns true if anything changed. */
-export async function persistAdaptation(plan: TrainingPlan, result: AdaptResult): Promise<boolean> {
+export async function persistAdaptation(plan: TrainingPlan, result: AdaptResult, routines?: Routine[]): Promise<boolean> {
   const { patches, replan, fitness, messages } = result;
   for (const batch of chunks(patches, 20)) await Promise.all(batch.map((p) => updateWorkout(p.id, p.patch)));
 
@@ -182,6 +202,7 @@ export async function persistAdaptation(plan: TrainingPlan, result: AdaptResult)
       firstDate: replan.fromDate,
       startKm: replan.startKm,
       startLongKm: replan.startLongKm,
+      routines,
     });
     check(
       await supabase.from('planned_workouts').delete().eq('plan_id', plan.id).in('status', ['planned', 'skipped']).gte('date', replan.fromDate),
@@ -246,8 +267,7 @@ export interface CalendarFeed {
   last_fetched_at: string | null;
 }
 
-const CALENDAR_MIGRATION = 'Database update needed: run supabase/migrations/20261029000000_calendar_feeds.sql in the Supabase SQL Editor.';
-const calendarError = (message: string) => (/calendar_feeds|schema cache|does not exist/.test(message) ? CALENDAR_MIGRATION : message);
+const calendarError = (message: string) => (/calendar_feeds|schema cache|does not exist/.test(message) ? tr('api.migrationCal') : message);
 
 export async function fetchCalendarFeed(userId: string): Promise<CalendarFeed | null> {
   const { data, error } = await supabase.from('calendar_feeds').select('*').eq('user_id', userId).maybeSingle();
@@ -272,7 +292,7 @@ export async function deleteCalendarFeed(userId: string) {
   if (error) throw new Error(calendarError(error.message));
 }
 
-export const calendarFeedUrl = (token: string) => `${String(import.meta.env.VITE_SUPABASE_URL ?? '').replace(/\/$/, '')}/functions/v1/calendar/${token}.ics`;
+export const calendarFeedUrl = (token: string, lang: 'en' | 'de' = 'en') => `${String(import.meta.env.VITE_SUPABASE_URL ?? '').replace(/\/$/, '')}/functions/v1/calendar/${token}.ics${lang === 'de' ? '?lang=de' : ''}`;
 
 // ---------------------------------------------------------------------------
 // Garmin Edge Function
@@ -286,16 +306,27 @@ export interface SyncResult {
   warnings: string[];
 }
 
+/** Deletes the account of the signed-in person with all their data (the Edge Function removes the account; the tables cascade). */
+export async function deleteAccount(): Promise<void> {
+  const { error } = await supabase.functions.invoke('delete-account', { body: { confirm: 'DELETE' } });
+  if (!error) return;
+  if (error instanceof FunctionsHttpError) {
+    const payload = await error.context.json().catch(() => null);
+    throw new Error(serverText(payload?.error ?? tr('api.deleteFailed', { status: error.context.status }), currentLang()));
+  }
+  throw new Error(error.message.includes('Failed to send') || error.message.includes('fetch') ? tr('api.deleteUnreachable') : error.message);
+}
+
 export async function invokeGarmin<T = SyncResult>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke('garmin', { body });
   if (error) {
     if (error instanceof FunctionsHttpError) {
       const payload = await error.context.json().catch(() => null);
-      throw new Error(payload?.error ?? `Garmin sync failed (${error.context.status})`);
+      throw new Error(serverText(payload?.error ?? tr('api.garminFailed', { status: error.context.status }), currentLang()));
     }
     throw new Error(
       error.message.includes('Failed to send') || error.message.includes('fetch')
-        ? 'Could not reach the MaraPlanna Garmin function. Is it deployed?'
+        ? tr('api.garminUnreachable')
         : error.message,
     );
   }
@@ -318,9 +349,9 @@ async function invokeWatch<T>(body: Record<string, unknown>): Promise<T> {
   if (error) {
     if (error instanceof FunctionsHttpError) {
       const payload = await error.context.json().catch(() => null);
-      throw new Error(payload?.error ?? `Watch request failed (${error.context.status})`);
+      throw new Error(serverText(payload?.error ?? tr('api.watchFailed', { status: error.context.status }), currentLang()));
     }
-    throw new Error(error.message.includes('fetch') ? 'Could not reach the MaraPlanna watch function. Is it deployed?' : error.message);
+    throw new Error(error.message.includes('fetch') ? tr('api.watchUnreachable') : error.message);
   }
   return data as T;
 }
@@ -338,8 +369,41 @@ export async function saveStrengthPrefs(userId: string, prefs: StrengthPrefs) {
   await saveProfile(userId, { strength: prefs });
 }
 
+/** All recorded sets since a date (the database returns at most 1000 rows per request, so this pages through them). */
 export async function fetchStrengthSets(userId: string, since: string): Promise<StrengthSetRow[]> {
-  return check(await supabase.from('strength_sets').select('*').eq('user_id', userId).gte('local_date', since).order('local_date', { ascending: false }).order('idx').limit(1000)) as StrengthSetRow[];
+  const out: StrengthSetRow[] = [];
+  for (let from = 0; from < 10000; from += 1000) {
+    const page = check(
+      await supabase
+        .from('strength_sets')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('local_date', since)
+        .order('local_date', { ascending: false })
+        .order('session_key', { ascending: false })
+        .order('idx')
+        .range(from, from + 999),
+    ) as StrengthSetRow[];
+    out.push(...page);
+    if (page.length < 1000) break;
+  }
+  return out;
+}
+
+/** Save the sets of a workout done on the website; the planned session (if any) counts as completed. */
+export async function logStrengthSession(userId: string, rows: StrengthSetInsert[], workoutId: string | null) {
+  if (!rows.length) return;
+  check(await supabase.from('strength_sets').upsert(rows.map((r) => ({ ...r, user_id: userId })), { onConflict: 'user_id,session_key,idx' }));
+  if (workoutId) await updateWorkout(workoutId, { status: 'completed', status_source: 'user' });
+}
+
+export async function deleteStrengthSession(userId: string, sessionKey: string) {
+  check(await supabase.from('strength_sets').delete().eq('user_id', userId).eq('session_key', sessionKey));
+}
+
+/** New exercises (and a new duration) for sessions that have not happened yet. */
+export async function updateWorkoutSteps(id: string, steps: Step[], durationMin: number | null) {
+  check(await supabase.from('planned_workouts').update({ steps, duration_min: durationMin }).eq('id', id));
 }
 
 /** A short strength session for today in the active plan, built from the user's exercises, so the watch has something to run. */
@@ -348,10 +412,10 @@ export async function createTestStrengthWorkout(userId: string, plan: TrainingPl
     const e = exerciseById(id);
     return e ? [e] : [];
   });
-  if (!picked.length) throw new Error('Choose at least one exercise and save first.');
+  if (!picked.length) throw new Error(tr('api.pickExercise'));
   // Week and phase of the plan at that date (the closest session on or before it, else the first one).
   const ref = [...workouts].filter((w) => w.date <= date).sort((a, b) => b.date.localeCompare(a.date))[0] ?? workouts[0];
-  if (!ref) throw new Error('Your plan has no sessions yet.');
+  if (!ref) throw new Error(tr('api.noSessions'));
   check(await supabase.from('planned_workouts').delete().eq('plan_id', plan.id).eq('date', date).like('title', 'Strength test%'));
   const steps: Step[] = picked.map((e) => ({ type: 'exercise', id: e.id, name: e.en, sets: e.sets, reps: String(e.reps) }));
   check(

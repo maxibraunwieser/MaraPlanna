@@ -3,8 +3,12 @@
 // like one made by hand.
 
 import type { CoachAction, PlanChanges } from '../../supabase/functions/_shared/coachTools.ts';
+import { coachLine } from '../../supabase/functions/_shared/content';
+import { currentLang, tr, type MsgKey } from './i18n';
+import { localTitle } from './format';
 import * as api from './api';
 import { normalizeAnswers } from './answers';
+import { normalizePrefs } from '../../supabase/functions/_shared/strength.ts';
 import type { Activity, OnboardingAnswers, PlannedWorkout, Profile, TrainingPlan, Weekday } from './types';
 import { addDays, daysBetween, mondayOf, weekdayOf } from './planner/dates';
 import { canMove, inBounds, moveBounds, movePatches } from './planner/move';
@@ -75,27 +79,27 @@ export function staleReason(a: CoachAction, ctx: ActionContext): string | null {
   switch (a.tool) {
     case 'move_workout': {
       const w = byId(ctx.workouts, a.workoutId);
-      if (!w) return 'That session is no longer in your plan.';
-      if (!canMove(w)) return `"${w.title}" is already ${w.status} and can't be moved.`;
-      if (!inBounds(a.date, moveBounds(ctx.today, ctx.plan.race_date))) return 'That day is no longer possible.';
+      if (!w) return tr('ca.gone');
+      if (!canMove(w)) return tr('ca.cantMove', { title: localTitle(w.title), status: tr(`ca.status.${w.status}` as MsgKey) });
+      if (!inBounds(a.date, moveBounds(ctx.today, ctx.plan.race_date))) return tr('ca.dayGone');
       return null;
     }
     case 'skip_workouts': {
       const open = a.workoutIds.map((id) => byId(ctx.workouts, id)).filter((w) => w && w.status === 'planned' && w.date >= ctx.today);
-      return open.length ? null : 'Those sessions are no longer open.';
+      return open.length ? null : tr('ca.skipGone');
     }
     case 'scale_workouts': {
       const open = a.items.filter((i) => {
         const w = byId(ctx.workouts, i.workoutId);
         return w && w.status === 'planned' && w.date >= ctx.today && scaleWorkout(w, i.factor, ctx.plan.fitness.paces);
       });
-      return open.length ? null : 'Those sessions are no longer open or would not change.';
+      return open.length ? null : tr('ca.scaleGone');
     }
     case 'edit_workouts':
       // Only remembering "no strides" needs no open session.
-      return a.edits.length === 0 || editable(a, ctx).length ? null : 'Those sessions are no longer open or already look like that.';
+      return a.edits.length === 0 || editable(a, ctx).length ? null : tr('ca.editGone');
     case 'change_plan':
-      return replanStart(ctx.plan, ctx.activities, ctx.today).tooLate ? 'Too close to the race to rebuild the plan.' : null;
+      return replanStart(ctx.plan, ctx.activities, ctx.today).tooLate ? tr('ca.tooLate') : null;
   }
 }
 
@@ -104,20 +108,20 @@ export function previewAction(a: CoachAction, ctx: ActionContext): string[] {
   if (a.tool === 'edit_workouts') {
     const rows = editable(a, ctx);
     const shown = rows.slice(0, 6).map(({ w, result }) => {
-      const now = result.title !== w.title ? ` (now "${result.title}")` : '';
-      return `${w.title} on ${w.date}: ${w.distance_km ?? '?'} km → ${result.distance_km} km${now}`;
+      const now = result.title !== w.title ? tr('ca.now', { title: localTitle(result.title) }) : '';
+      return tr('ca.line', { title: localTitle(w.title), date: w.date, a: w.distance_km ?? '?', b: result.distance_km ?? '?', now });
     });
-    const more = rows.length > 6 ? [`… and ${rows.length - 6} more sessions like these`] : [];
-    const remember = a.summary.split('\n').filter((l) => /^(From now on|Easy runs may)/.test(l));
+    const more = rows.length > 6 ? [tr('ca.more', { n: rows.length - 6 })] : [];
+    const remember = a.summary.split('\n').filter((l) => /^(From now on|Easy runs may)/.test(l)).map((l) => coachLine(l, currentLang()));
     return [...shown, ...more, ...remember];
   }
-  if (a.tool !== 'scale_workouts') return a.summary.split('\n');
+  if (a.tool !== 'scale_workouts') return a.summary.split('\n').map((l) => coachLine(l, currentLang()));
   return a.items.map((i) => {
     const w = byId(ctx.workouts, i.workoutId);
-    if (!w) return 'A session is no longer in your plan.';
+    if (!w) return tr('ca.oneGone');
     const s = scaleWorkout(w, i.factor, ctx.plan.fitness.paces);
-    if (!s) return `"${w.title}": no change possible`;
-    return `${w.title} on ${w.date}: ${w.distance_km ?? '?'} km → ${s.distance_km} km${s.title !== w.title ? ` (now "${s.title}")` : ''}`;
+    if (!s) return tr('ca.noChange', { title: localTitle(w.title) });
+    return tr('ca.line', { title: localTitle(w.title), date: w.date, a: w.distance_km ?? '?', b: s.distance_km ?? '?', now: s.title !== w.title ? tr('ca.now', { title: localTitle(s.title) }) : '' });
   });
 }
 
@@ -170,6 +174,7 @@ export async function applyAction(a: CoachAction, ctx: ActionContext): Promise<v
         fitness: { ...plan.fitness, lastReplanAt: today },
         messages: [{ kind: 'coach', message: `Plan rebuilt from ${start.fromDate} at your coach's suggestion (about ${start.startKm} km/week to start).` }],
       },
+      normalizePrefs(ctx.profile?.strength).routines,
     );
     return;
   }

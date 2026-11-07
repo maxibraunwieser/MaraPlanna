@@ -6,8 +6,12 @@ import Toybox.Lang;
 import Toybox.System;
 
 module Alert {
+    function canVibrate() as Boolean {
+        return Prefs.vibration() && (Attention has :vibrate) && System.getDeviceSettings().vibrateOn;
+    }
+
     function vibrate(ms as Number) as Void {
-        if (Prefs.vibration() && (Attention has :vibrate) && System.getDeviceSettings().vibrateOn) {
+        if (canVibrate()) {
             Attention.vibrate([new Attention.VibeProfile(80, ms)]);
         }
     }
@@ -31,6 +35,16 @@ module Alert {
     function lap() as Void {
         tone(Attention.TONE_LAP);
         vibrate(250);
+    }
+
+    // Ein Takt des Countdowns vor einem Schrittwechsel: kurz, aber im Laufen gut zu spüren (volle Stärke).
+    // Ist die Vibration aus oder nicht vorhanden, gibt es stattdessen einen kurzen Ton, damit der Countdown nicht verloren geht.
+    function countdown() as Void {
+        if (canVibrate()) {
+            Attention.vibrate([new Attention.VibeProfile(100, 130)]);
+        } else {
+            tone(Attention.TONE_KEY);
+        }
     }
 
     function saved() as Void {

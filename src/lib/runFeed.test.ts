@@ -130,7 +130,8 @@ describe('run app feed', () => {
     });
 
     it('marks completed, partial and skipped sessions', () => {
-      const base = fortnight.filter((w) => w.date === start);
+      // The first session of the fortnight (Monday is often the free day now).
+      const base = fortnight.slice(0, 1);
       const rows = runDays([{ ...base[0], status: 'completed' }, { ...base[0], status: 'partial' }, { ...base[0], status: 'skipped' }, { ...base[0], status: 'planned' }], start);
       expect(rows.map((r) => r.s)).toEqual(['c', 'c', 'x', 'p']);
     });

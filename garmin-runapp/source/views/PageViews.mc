@@ -113,14 +113,14 @@ module PageViews {
 
         var fhX = dc.getFontHeight(Graphics.FONT_XTINY);
         var heroBottom = top + (bottom - top) * 0.52;
+        var midX = dc.getWidth() / 2.0;
         var r = Draw.rows(top, heroBottom - 2, [fhX, 0] as Array<Number>, gapOf(top, bottom));
         Draw.line(dc, r[0], Graphics.FONT_XTINY, Draw.GRAY, miles ? "JETZT /mi" : "JETZT /km");
         Draw.fitLine(dc, r[1], r[2].toNumber(), BIG, paceColor(c.hint), Pace.format(c.pace, miles));
 
-        // Trennlinien wie auf der Übersicht
-        var midX = dc.getWidth() / 2.0;
+        // dünne Trennlinien zwischen den drei Werten
         var lineW = Draw.widthAt(dc, heroBottom, 0) * 0.9;
-        dc.setColor(Draw.GRID, Graphics.COLOR_TRANSPARENT);
+        dc.setColor(Draw.EDGE, Graphics.COLOR_TRANSPARENT);
         dc.setPenWidth(1);
         dc.drawLine(midX - lineW / 2, heroBottom, midX + lineW / 2, heroBottom);
         dc.drawLine(midX, heroBottom + 4, midX, bottom - 4);

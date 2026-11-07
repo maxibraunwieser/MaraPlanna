@@ -4,7 +4,7 @@
 
 import type { CalPaces, CalStep, CalUnits, CalWorkout, CalZone } from './calendar.ts';
 import { addDays, daysBetween, glyphs, mondayOf } from './watchFeed.ts';
-import { buildStrengthFeed, type StrengthFeed, type StrengthFeedInput } from './strength.ts';
+import { strengthLite, type StrengthFeedInput, type StrengthLite } from './strength.ts';
 
 /** Single target paces get ± this many seconds per km. */
 export const PACE_TOLERANCE_S = 5;
@@ -53,7 +53,8 @@ export interface RunFeed {
   /** The goal race, if the plan has one. */
   race: { date: string; name?: string } | null;
   /** Strength training: the user's settings, exercise list and today's session. Missing in old feeds. */
-  strength?: StrengthFeed;
+  /** Only whether strength is set up and the watch settings: the sessions of the day are their own request (GET /watch/strength). */
+  strength?: StrengthLite;
 }
 
 const MARATHON_M = 42195;
@@ -116,7 +117,7 @@ export interface RunFeedInput {
   raceDate?: string | null;
   raceName?: string | null;
   /** Strength settings and history; without it the feed has no strength part. */
-  strength?: { prefs: StrengthFeedInput['prefs']; lastKg: StrengthFeedInput['lastKg'] };
+  strength?: { prefs: StrengthFeedInput['prefs'] };
 }
 
 /** Sessions of the two weeks as compact rows; skipped ones stay in (the watch shows them struck out). */
@@ -173,6 +174,6 @@ export function buildRunFeed(input: RunFeedInput): RunFeed {
     week,
     days: start ? runDays(input.workouts, start) : [],
     race: input.raceDate ? { date: input.raceDate, ...(raceName ? { name: raceName } : {}) } : null,
-    ...(input.strength ? { strength: buildStrengthFeed({ prefs: input.strength.prefs, lastKg: input.strength.lastKg, workouts: todays }) } : {}),
+    ...(input.strength ? { strength: strengthLite(input.strength.prefs) } : {}),
   };
 }

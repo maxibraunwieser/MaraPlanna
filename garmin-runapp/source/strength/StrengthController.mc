@@ -7,9 +7,11 @@
 //   PAUSED   Aufzeichnung angehalten (Menü)
 //   DONE     gespeichert, Zusammenfassung
 //
-// Die Übung eines Satzes ist in dieser Version die nächste geplante (oder bei freiem Training die vorige);
-// geändert wird sie auf der Bestätigungskarte. Eine Erkennung der Übung aus der Bewegung kommt dazu, sobald
-// ein Modell vorhanden ist: Sie ersetzt nur die Vorbelegung in endSet().
+// Die Übung eines Satzes erkennt die Uhr aus den Übungen der gewählten Einheit (Recognizer.mc): Reihenfolge des Plans, was die
+// Übungen dieser Person am Handgelenk bisher ergeben haben (vom Server) und was in dieser Einheit schon bestätigt wurde.
+// Stimmt die Erkennung mit dem Plan überein und ist sie sicher, schließt sich der Satz von selbst; sonst bleibt die Karte stehen
+// und zeigt die erkannte Übung (AUF/AB wählt eine andere). Gezählt wird aus der Bewegung (CountMode.AUTO), bei Maschinen und Übungen
+// am Boden fragt die Uhr immer nach (ASSIST: START beginnt und beendet den Satz von Hand), ein Halten (Plank) läuft mit der Zeit.
 //
 // Sensoren laufen nur während des Krafttrainings (nicht beim Laufen und nicht im Menü): Beschleunigung und,
 // wo die Uhr es hat, Gyroskop, ein Mal pro Sekunde geliefert. Es werden keine Töne gespielt (Vibration),
@@ -33,6 +35,8 @@ module Str {
     const CONFIRM = 3;
     const PAUSED = 4;
     const DONE = 5;
+    // Halten mit Zeit (Plank): der Zähler läuft, START beendet
+    const HOLD = 6;
 }
 
 (:strength)
@@ -46,9 +50,12 @@ class LoggedSet {
     // Sekunden seit Trainingsbeginn und Dauer des Satzes
     var t as Number;
     var dur as Number;
+    // Die zwölf Messwerte des Satzes (sechs vom Zähler, sechs Merkmale), mit denen er hochgeladen wird
     var diag as Array<Number>;
+    // Die sechs Merkmale allein (für das, was in dieser Einheit schon bestätigt wurde)
+    var feat as Array<Number>;
 
-    function initialize(id as String, name as String, reps as Number, kg as Float, src as String, t as Number, dur as Number, diag as Array<Number>) {
+    function initialize(id as String, name as String, reps as Number, kg as Float, src as String, t as Number, dur as Number, diag as Array<Number>, feat as Array<Number>) {
         self.id = id;
         self.name = name;
         self.reps = reps;
@@ -57,6 +64,7 @@ class LoggedSet {
         self.t = t;
         self.dur = dur;
         self.diag = diag;
+        self.feat = feat;
     }
 }
 
@@ -115,8 +123,21 @@ class StrengthController {
     private var _pendingDur as Number = 0;
     private var _pendingT as Number = 0;
     private var _pendingDiag as Array<Number> = [0, 0, 0, 0, 0, 0] as Array<Number>;
-    private var _guess as Number = 0;
+    // Erkennung des beendeten Satzes: erkannte Übung (Index in plan.options), erwartete laut Plan, Sicherheit, darf sich selbst schließen
+    private var _recIdx as Number = 0;
+    private var _expIdx as Number = 0;
+    private var _conf as Float = 0.0;
+    private var _autoOk as Boolean = false;
+    private var _pendingFeat as Array<Number> = [0, 0, 0, 100, 100, 100] as Array<Number>;
+    // Der Satz wurde von Hand begonnen (Maschine, Übung am Boden)
+    private var _manual as Boolean = false;
+    // Halten: Beginn (ms), Ziel (s), Index der Übung
+    private var _holdStartMs as Number = 0;
+    private var _holdIdx as Number = 0;
     private var _lastOpt as Number = 0;
+    // Laufende Erkennung während eines Satzes (Index in plan.options, -1 = noch nichts, Sicherheit)
+    var liveIdx as Number = -1;
+    var liveConf as Float = 0.0;
 
     function initialize(plan as StrengthPlan) {
         self.plan = plan;
@@ -127,7 +148,7 @@ class StrengthController {
     }
 
     function recording() as Boolean {
-        return state == Str.REST || state == Str.SET || state == Str.CONFIRM || state == Str.PAUSED;
+        return state == Str.REST || state == Str.SET || state == Str.CONFIRM || state == Str.PAUSED || state == Str.HOLD;
     }
 
     // ---------------------------------------------------------------- Beginn und Ende
@@ -281,11 +302,22 @@ class StrengthController {
     // ---------------------------------------------------------------- Takt
 
     function tick() as Void {
+        if (state == Str.REST && (counter.active || counter.finished) && nextMode() == CountMode.TIME) {
+            // Vor einem Halten zählt nur START: Bewegung davor (Hinlegen, Zurechtrücken) ist kein Satz
+            counter.nextSet();
+        }
         if (state == Str.REST || state == Str.SET) {
             if (counter.finished) {
                 endSet();
             } else if (state == Str.REST && counter.active && counter.activeSeconds() >= 1.0) {
                 state = Str.SET;
+            }
+        }
+        if (state == Str.SET) {
+            liveGuess();
+        } else if (state == Str.HOLD) {
+            if (holdElapsedS() >= holdTargetS()) {
+                endHold();
             }
         }
         if (state == Str.REST && restUntil > 0 && !_restAlerted && System.getTimer() >= restUntil) {
@@ -301,19 +333,171 @@ class StrengthController {
         WatchUi.requestUpdate();
     }
 
+    // Die Figur der nächsten geplanten Übung, solange man pausiert (sonst null)
+    // Vorerst keine Figur auf der Uhr: immer null (der Pausenbildschirm zeigt dann nur Übung, Satz und Zähler).
+    function currentMove() as FigureMove? {
+        return null;
+    }
+
+    // Darf die Karte sich selbst schließen: eingeschaltet, nicht beim Anpassen, und die Erkennung ist sicher und passt zum Plan.
     function autoOn() as Boolean {
-        return plan.auto && !editing;
+        return plan.auto && !editing && _autoOk;
+    }
+
+    // Die Karte zeigt eine Übung, die die Uhr erkannt hat und die nicht die vom Plan erwartete ist
+    function recognized() as Boolean {
+        return state == Str.CONFIRM && !editing && optIdx == _recIdx && _recIdx != _expIdx;
+    }
+
+    // Zählart der Übung, die als Nächstes dran ist (CountMode.AUTO ohne Plan)
+    function nextMode() as Number {
+        var n = nextPlanned();
+        return n < 0 ? CountMode.AUTO : plan.items[n].mode;
+    }
+
+    // ---------------------------------------------------------------- Erkennung
+
+    // Die Kandidaten für einen Satz: alle Übungen der Auswahl (die geplanten zuerst), mit Vorwissen und dem, was sie bisher ergeben haben.
+    function candidates() as Array<Cand> {
+        var out = [] as Array<Cand>;
+        var next = nextPlanned();
+        var lastId = sets.size() > 0 ? sets[sets.size() - 1].id : "";
+        var lastName = sets.size() > 0 ? sets[sets.size() - 1].name : "";
+        for (var i = 0; i < plan.options.size(); i++) {
+            var o = plan.options[i];
+            var open = -1;
+            if (i < plan.items.size()) {
+                open = plan.items[i].sets - doneSets(i);
+                if (open < 0) {
+                    open = 0;
+                }
+            }
+            var last = o.id.length() > 0 ? o.id.equals(lastId) : (lastName.length() > 0 && o.name.equals(lastName));
+            var rows = [] as Array<Array<Number>>;
+            for (var k = 0; k < sets.size(); k++) {
+                var s = sets[k];
+                if (o.id.length() > 0 ? o.id.equals(s.id) : o.name.equals(s.name)) {
+                    rows.add(s.feat);
+                }
+            }
+            out.add(new Cand(open, i == next, last, o.mode, plan.sigOf(o.id), Recognizer.summarize(rows)));
+        }
+        return out;
+    }
+
+    // Die Übung, die der Plan als Nächstes erwartet (Index in plan.options); ohne Plan die des letzten Satzes
+    private function expectedIdx() as Number {
+        var n = nextPlanned();
+        return n >= 0 ? n : guessLast();
+    }
+
+    private function guessLast() as Number {
+        return _lastOpt < plan.options.size() ? _lastOpt : 0;
+    }
+
+    // Während des Satzes: was die Bewegung bisher sagt (ab zwei Wiederholungen)
+    private function liveGuess() as Void {
+        if (_manual || counter.reps() < 2 || plan.options.size() == 0) {
+            liveIdx = -1;
+            return;
+        }
+        var sc = Recognizer.scores(candidates(), counter.features(), true);
+        var pr = Recognizer.probabilities(sc);
+        liveIdx = Recognizer.best(sc);
+        liveConf = pr[liveIdx];
+    }
+
+    // ---------------------------------------------------------------- Halten (Plank)
+
+    function holdElapsedS() as Number {
+        return (System.getTimer() - _holdStartMs) / 1000;
+    }
+
+    // Die Übung, die gerade gehalten wird (Index in plan.options)
+    function holdIdx() as Number {
+        return _holdIdx;
+    }
+
+    function holdTargetS() as Number {
+        var h = plan.options[_holdIdx].hold;
+        return h < 5 ? 30 : h;
+    }
+
+    private function startHold(idx as Number) as Void {
+        _holdIdx = idx;
+        _holdStartMs = System.getTimer();
+        restUntil = 0;
+        state = Str.HOLD;
+        Alert.vibrate(200);
+    }
+
+    // Die Zeit ist um (oder von Hand beendet): die Karte mit den gehaltenen Sekunden
+    private function endHold() as Void {
+        var secs = holdElapsedS();
+        var target = holdTargetS();
+        if (secs > target) {
+            secs = target;
+        }
+        var now = (System.getTimer() - _startMs) / 1000;
+        _pendingDur = secs < 1 ? 1 : secs;
+        _pendingT = now - _pendingDur < 0 ? 0 : now - _pendingDur;
+        _pendingDiag = [0, 0, 0, 0, 0, secs, 0, 0, 0, 0, 0, 0] as Array<Number>;
+        _pendingFeat = [0, 0, 0, 100, 100, 100] as Array<Number>;
+        cReps = secs;
+        _recIdx = _holdIdx;
+        _expIdx = _holdIdx;
+        _conf = 1.0;
+        _autoOk = secs >= target;
+        optIdx = _holdIdx;
+        cKg = defaultKg(plan.options[optIdx]);
+        editing = false;
+        field = 0;
+        autoLeft = AUTO_S;
+        state = Str.CONFIRM;
+        Alert.vibrate(300);
+    }
+
+    // Satz von Hand beginnen: bei Maschinen und Übungen am Boden bewegt sich das Handgelenk zu wenig, damit die Uhr den Beginn merkt.
+    private function startManualSet() as Void {
+        counter.nextSet();
+        _manual = true;
+        liveIdx = -1;
+        state = Str.SET;
+        Alert.vibrate(150);
+    }
+
+    // Das Menü (Pause, Speichern, Verwerfen): Menütaste, und START, wenn START etwas anderes tut
+    function openMenu() as Void {
+        if (state == Str.REST || state == Str.HOLD || state == Str.SET) {
+            pause();
+            StrengthMenu.show();
+        }
     }
 
     // ---------------------------------------------------------------- Sätze
 
-    // Ein Satz ist zu Ende (erkannt oder von Hand beendet): Karte zum Bestätigen.
+    // Ein Satz ist zu Ende (erkannt oder von Hand beendet): Karte zum Bestätigen. Die Übung erkennt die Uhr aus den Übungen der
+    // Einheit; nur wenn sie sicher ist und zum Plan passt (und die Übung zählbar ist), schließt sich die Karte selbst.
     private function endSet() as Void {
         var reps = counter.lastReps;
         var secs = counter.lastSeconds;
         var diag = counter.lastDiag;
+        var feat = counter.lastFeat;
+        var manual = _manual;
+        _manual = false;
+        liveIdx = -1;
         counter.nextSet();
-        if (reps < MIN_REPS) {
+        var exp = expectedIdx();
+        var rec = exp;
+        var conf = 1.0;
+        if (!manual) {
+            var sc = Recognizer.scores(candidates(), feat, true);
+            var pr = Recognizer.probabilities(sc);
+            rec = Recognizer.best(sc);
+            conf = pr[rec];
+        }
+        var mode = plan.options[rec].mode;
+        if (reps < MIN_REPS && !(manual && plan.options[rec].reps > 0)) {
             // zu kurz für einen Satz: eine Bewegung, zurück in die Pause
             state = Str.REST;
             return;
@@ -321,25 +505,21 @@ class StrengthController {
         var now = (System.getTimer() - _startMs) / 1000;
         _pendingDur = secs < 1 ? 1 : secs;
         _pendingT = now - _pendingDur - 2 < 0 ? 0 : now - _pendingDur - 2;
-        _pendingDiag = diag;
-        cReps = reps;
-        _guess = guessIndex();
-        optIdx = _guess;
+        _pendingFeat = feat;
+        _pendingDiag = [diag[0], diag[1], diag[2], diag[3], diag[4], diag[5], feat[0], feat[1], feat[2], feat[3], feat[4], feat[5]] as Array<Number>;
+        // Bei Maschinen und am Boden zählt die Uhr nur mit; kam nichts zusammen, gilt das Ziel des Plans.
+        cReps = reps < MIN_REPS ? plan.options[rec].reps : reps;
+        _recIdx = rec;
+        _expIdx = exp;
+        _conf = conf;
+        _autoOk = !manual && mode == CountMode.AUTO && rec == exp && conf >= Recognizer.SURE;
+        optIdx = rec;
         cKg = defaultKg(plan.options[optIdx]);
         editing = false;
         field = 0;
         autoLeft = AUTO_S;
         state = Str.CONFIRM;
         Alert.vibrate(150);
-    }
-
-    // Die Vorbelegung: die nächste geplante Übung; ohne Plan (oder wenn alles erledigt ist) die vorige.
-    private function guessIndex() as Number {
-        var n = nextPlanned();
-        if (n >= 0) {
-            return n;
-        }
-        return _lastOpt < plan.options.size() ? _lastOpt : 0;
     }
 
     // Index der ersten geplanten Übung mit offenen Sätzen, -1 wenn alles erledigt oder nichts geplant ist
@@ -380,8 +560,9 @@ class StrengthController {
 
     private function commit() as Void {
         var e = plan.options[optIdx];
-        var src = plan.planned() && optIdx == _guess ? "plan" : "pick";
-        var s = new LoggedSet(e.id, e.name, cReps, cKg, src, _pendingT, _pendingDur, _pendingDiag);
+        // plan = die Übung, die der Plan erwartet; auto = die Uhr hat eine andere erkannt und es blieb dabei; pick = von Hand geändert
+        var src = optIdx == _recIdx ? (optIdx == _expIdx ? "plan" : "auto") : "pick";
+        var s = new LoggedSet(e.id, e.name, cReps, cKg, src, _pendingT, _pendingDur, _pendingDiag, _pendingFeat);
         sets.add(s);
         _lastOpt = optIdx;
         if (_fit != null && _session != null) {
@@ -403,8 +584,18 @@ class StrengthController {
         if (state == Str.READY) {
             begin();
         } else if (state == Str.REST) {
-            pause();
-            StrengthMenu.show();
+            // Ein Halten oder eine Maschine: START beginnt den Satz (das Menü bleibt auf der Menütaste); sonst öffnet START das Menü.
+            var n = nextPlanned();
+            var mode = n < 0 ? CountMode.AUTO : plan.items[n].mode;
+            if (n >= 0 && mode == CountMode.TIME) {
+                startHold(n);
+            } else if (n >= 0 && mode == CountMode.ASSIST) {
+                startManualSet();
+            } else {
+                openMenu();
+            }
+        } else if (state == Str.HOLD) {
+            endHold();
         } else if (state == Str.SET) {
             // Von Hand beenden, falls die Uhr das Ende nicht gemerkt hat.
             counter.lastReps = counter.reps();
@@ -432,6 +623,11 @@ class StrengthController {
             skipExercise();
         } else if (state == Str.SET) {
             counter.nextSet();
+            _manual = false;
+            liveIdx = -1;
+            state = Str.REST;
+        } else if (state == Str.HOLD) {
+            // Halten abbrechen
             state = Str.REST;
         } else if (state == Str.CONFIRM) {
             // Satz verwerfen
@@ -485,7 +681,8 @@ class StrengthController {
         if (state == Str.PAUSED || !recording()) {
             return;
         }
-        _beforePause = state;
+        // Ein Halten läuft nach der Pause neu an (die Zeit zählt nicht mit)
+        _beforePause = state == Str.HOLD ? Str.REST : state;
         state = Str.PAUSED;
         if (_session != null) {
             (_session as ActivityRecording.Session).stop();
@@ -500,6 +697,7 @@ class StrengthController {
             (_session as ActivityRecording.Session).start();
         }
         counter.nextSet();
+        _manual = false;
         state = _beforePause == Str.SET ? Str.REST : _beforePause;
         WatchUi.requestUpdate();
     }
