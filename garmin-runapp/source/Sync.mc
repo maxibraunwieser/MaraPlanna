@@ -43,12 +43,24 @@ class Sync {
         return _busy;
     }
 
-    // Daten nachladen, wenn der letzte Abgleich länger als STALE_S her ist (oder noch nie war).
+    // Daten nachladen, wenn der letzte Abgleich länger als STALE_S her ist (oder noch nie war), oder wenn Daten fehlen, die
+    // diese Version der App braucht (nach einem Update der App gilt der alte Stand sonst noch bis zu STALE_S als frisch).
     function refreshIfStale() as Void {
         var age = WeekPlan.syncedMinutes();
-        if (age == null || age * 60 >= STALE_S) {
+        if (age == null || age * 60 >= STALE_S || missingData()) {
             refresh();
         }
+    }
+
+    // Die Liste der Workouts der Website (seit dieser Version Teil des Kraft-Feeds) fehlt noch
+    (:strength)
+    private function missingData() as Boolean {
+        return Application.Storage.getValue("str") != null && Application.Storage.getValue("wom") == null;
+    }
+
+    (:nostrength)
+    private function missingData() as Boolean {
+        return false;
     }
 
     // Einmal laden; solange nicht gekoppelt, alle 20 s nachsehen, ob der Code eingegeben wurde.
@@ -239,6 +251,12 @@ class Sync {
     (:strength)
     function onStrengthFeed(code as Number, data as Dictionary or String or Null) as Void {
         _loadingStrength = false;
+        // Was beim Laden schiefging (der Reiter Kraft zeigt es), damit ein alter Stand nicht still bleibt
+        if (code != 200) {
+            Application.Storage.setValue("strErr", code);
+        } else {
+            Application.Storage.deleteValue("strErr");
+        }
         if (code == 200 && data instanceof Dictionary && data.hasKey("ready")) {
             var an = data.get("an");
             data.remove("an");

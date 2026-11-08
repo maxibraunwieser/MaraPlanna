@@ -2,6 +2,7 @@
 // Kraft-Paket (monkey.jungle: excludeAnnotations); dort bleiben diese Funktionen leer und das Menü zeigt keinen
 // Kraft-Eintrag. Alle anderen Teile der App rufen Kraft nur über dieses Modul auf.
 
+import Toybox.Application;
 import Toybox.Lang;
 import Toybox.WatchUi;
 
@@ -59,6 +60,13 @@ module StrengthEntry {
             return out;
         }
         todayItems(feed, out);
+        // Die Kraftdaten ließen sich beim letzten Abgleich nicht laden: der Fehler steht da (Offline-Codes wie auf der Planseite)
+        var err = Application.Storage.getValue("strErr");
+        if (err instanceof Number) {
+            var bad = new CardItem(:none, "Kraftdaten nicht geladen", "Fehler " + err + " · START auf Trainingsplan", Draw.GRAY);
+            bad.enabled = false;
+            out.add(bad);
+        }
         // Alle Workouts der Website (eins, das heute geplant ist, steht schon oben bei heute)
         var wo = StrengthPlan.workouts(feed);
         for (var i = 0; i < wo.size() && i < WO_IDS.size(); i++) {

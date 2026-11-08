@@ -659,7 +659,9 @@ export const strengthLite = (prefs: StrengthPrefs): StrengthLite => ({
 
 /** The sessions of today and their figures are a separate request; the figures are the biggest part and have a size limit (a value on the watch holds 8 KB). */
 export const FIGURES_MAX_BYTES = 6500;
-export function capFigures(feed: StrengthFeed, maxBytes = FIGURES_MAX_BYTES): StrengthFeed {
+// The figures make room for the workouts, so the whole answer stays as small as before they were added (the watch drops an
+// answer that is too big for its memory and keeps the old one).
+export function capFigures(feed: StrengthFeed, maxBytes = Math.max(2500, FIGURES_MAX_BYTES - JSON.stringify(feed.wo ?? []).length)): StrengthFeed {
   if (!feed.an) return feed;
   const an: Record<string, Move2> = {};
   let size = 2;
