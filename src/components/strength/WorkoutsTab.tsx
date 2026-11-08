@@ -193,29 +193,34 @@ export function WorkoutsTab({ ctx }: { ctx: StrengthCtx }) {
             const plan = mine ? scheduleText(r) : null;
             return (
               <Card key={r.id} className="flex flex-col" data-testid={'routine-' + r.id}>
-                <button type="button" onClick={() => setOpenRoutine(open ? null : r.id)} aria-expanded={open} className="mb-2 flex w-full items-start gap-3 text-left">
-                  <MuscleMap load={load} className="w-16 shrink-0" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-base font-semibold text-slate-900">{nameOf(r)}</span>
-                    {!open && r.exercises.length > 0 && <span className="mt-0.5 line-clamp-2 block text-xs text-slate-500">{nameLine(r.exercises)}</span>}
-                  </span>
+                <button type="button" onClick={() => setOpenRoutine(open ? null : r.id)} aria-expanded={open} className="mb-1 flex w-full items-start gap-2 text-left">
+                  <span className="min-w-0 flex-1 text-base font-semibold text-slate-900">{nameOf(r)}</span>
                   <Badge tone={r.by === 'own' ? 'blue' : 'violet'} className="shrink-0">{mine ? t('ow.badge') : r.by === 'own' ? t('wt.own') : t('wt.suggested')}</Badge>
                   <Chevron open={open} />
                 </button>
-                <p className="mb-2 text-xs text-slate-500">
-                  {plan ? plan + ' · ' : ''}
-                  {when.length ? t('wt.nextDates', { dates: when.map((w) => fmtDate(w.date, { weekday: 'short', day: 'numeric', month: 'short' })).join(' · ') }) : t('wt.notOnCalendar')}
-                  {' · '}{t('wt.about', { min: routineMinutes(r) })}
-                </p>
-                <div className="flex-1 space-y-3">
-                  {open && <MuscleLegend load={load} />}
-                  {!r.exercises.length ? <p className="py-3 text-sm text-slate-500">{t('wt.emptyAdd')}</p> : open ? <ExerciseList exercises={r.exercises} unit={unit} last={last} /> : null}
+                {/* Left: exercises, dates and buttons; right: the body with the muscles of the workout. */}
+                <div className="flex flex-1 gap-3">
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    {!open && r.exercises.length > 0 && <span className="line-clamp-3 text-xs text-slate-500">{nameLine(r.exercises)}</span>}
+                    <p className="mt-2 text-xs text-slate-500">
+                      {plan ? plan + ' · ' : ''}
+                      {when.length ? t('wt.nextDates', { dates: when.map((w) => fmtDate(w.date, { weekday: 'short', day: 'numeric', month: 'short' })).join(' · ') }) : t('wt.notOnCalendar')}
+                      {' · '}{t('wt.about', { min: routineMinutes(r) })}
+                    </p>
+                    <div className="mt-auto flex flex-wrap gap-2 pt-3">
+                      <Button size="sm" disabled={!r.exercises.length} icon={<Play className="h-4 w-4" />} onClick={() => startRoutine(r)}>{t('wt.startNow')}</Button>
+                      <Button size="sm" variant="secondary" icon={<Pencil className="h-4 w-4" />} onClick={() => (mine ? setOwn(r) : setEditing(r))}>{t('wt.edit')}</Button>
+                      <Button size="sm" variant="ghost" icon={<Trash2 className="h-4 w-4" />} aria-label={t('dw.aria', { name: nameOf(r) })} onClick={() => setDeleting(r)}><span className="sr-only sm:not-sr-only">{t('dw.button')}</span></Button>
+                    </div>
+                  </div>
+                  <MuscleMap load={load} className="w-28 shrink-0 self-center sm:w-32" />
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button size="sm" disabled={!r.exercises.length} icon={<Play className="h-4 w-4" />} onClick={() => startRoutine(r)}>{t('wt.startNow')}</Button>
-                  <Button size="sm" variant="secondary" icon={<Pencil className="h-4 w-4" />} onClick={() => (mine ? setOwn(r) : setEditing(r))}>{t('wt.edit')}</Button>
-                  <Button size="sm" variant="ghost" icon={<Trash2 className="h-4 w-4" />} aria-label={t('dw.aria', { name: nameOf(r) })} onClick={() => setDeleting(r)}>{t('dw.button')}</Button>
-                </div>
+                {(open || !r.exercises.length) && (
+                  <div className="mt-4 space-y-3">
+                    {open && <MuscleLegend load={load} />}
+                    {!r.exercises.length ? <p className="text-sm text-slate-500">{t('wt.emptyAdd')}</p> : <ExerciseList exercises={r.exercises} unit={unit} last={last} />}
+                  </div>
+                )}
               </Card>
             );
           })}
