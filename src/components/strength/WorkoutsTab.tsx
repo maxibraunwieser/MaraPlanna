@@ -12,7 +12,6 @@ import { Badge, Button, Card, CardTitle, Modal, Notice, useToast } from '../ui';
 import { ExerciseThumb } from './ExerciseImage';
 import { workoutMuscles } from '../../lib/exerciseInfo';
 import { routineIdOf, sessionsOf } from '../../lib/strengthSchedule';
-import { weekdayNames } from '../../lib/i18n/dates';
 import { MuscleLegend, MuscleMap } from './MuscleMap';
 import { DeleteWorkoutDialog, MoveDialog, OwnWorkoutDialog } from './WorkoutDialogs';
 import { Logger } from './Logger';
@@ -84,13 +83,6 @@ export function WorkoutsTab({ ctx }: { ctx: StrengthCtx }) {
     if (!id) return false;
     return !isOwnRoutine(id) || prefs.routines.find((r) => r.id === id)?.schedule?.mode === 'series';
   };
-  const scheduleText = (r: Routine) => {
-    const s = r.schedule;
-    if (!s) return null;
-    if (s.mode === 'once') return t('ow.onceOn', { date: fmtDate(s.date, { weekday: 'short', day: 'numeric', month: 'short' }) });
-    const names = weekdayNames(lang);
-    return t('ow.seriesOn', { days: s.days.map((d) => names[d]).join(', '), until: s.until ? fmtDate(s.until, { day: 'numeric', month: 'short' }) : t('ow.planEnd') });
-  };
   const withoutRoutine = STRENGTH_TYPES.filter((t) => !prefs.routines.some((r) => r.id === t) && workouts.some((w) => w.kind === routineKind(t)));
 
   const startSession = (w: PlannedWorkout) => setLogging({ title: localTitle(w.title), date: w.date <= today ? w.date : today, workout: w, exercises: stepsToExercises(w.steps) });
@@ -132,8 +124,8 @@ export function WorkoutsTab({ ctx }: { ctx: StrengthCtx }) {
     <div className="space-y-5">
       {next ? (
         <section className="overflow-hidden rounded-2xl bg-ink text-white shadow-sm">
-          <div className="grid gap-5 p-5 sm:grid-cols-[1fr_auto] sm:p-6">
-            <div>
+          <div className="grid gap-5 p-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:p-6">
+            <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-lime">
                 <CalendarDays className="h-4 w-4" /> {t('wt.next', { day: dayLabel(next.date, today) })}
               </div>
@@ -160,10 +152,10 @@ export function WorkoutsTab({ ctx }: { ctx: StrengthCtx }) {
                 </ul>
               )}
             </div>
-            <div className="flex gap-2 sm:flex-col sm:justify-end">
-              <Button size="lg" icon={<Play className="h-5 w-5" />} onClick={() => startSession(next)}>{t('wt.start')}</Button>
-              <Button variant="secondary" icon={<Pencil className="h-4 w-4" />} onClick={() => setEditingSession({ w: next, r: { id: '', exercises: stepsToExercises(next.steps), by: 'own', updatedAt: null } })}>{t('wt.editSession')}</Button>
-              <Button variant="secondary" icon={<CalendarClock className="h-4 w-4" />} onClick={() => setMoving(next)}>{t('smv.button')}</Button>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-col sm:justify-end">
+              <Button size="lg" className="col-span-2 w-full" icon={<Play className="h-5 w-5" />} onClick={() => startSession(next)}>{t('wt.start')}</Button>
+              <Button variant="secondary" className="w-full" icon={<Pencil className="h-4 w-4" />} onClick={() => setEditingSession({ w: next, r: { id: '', exercises: stepsToExercises(next.steps), by: 'own', updatedAt: null } })}>{t('wt.edit')}</Button>
+              <Button variant="secondary" className="w-full" icon={<CalendarClock className="h-4 w-4" />} onClick={() => setMoving(next)}>{t('smv.button')}</Button>
             </div>
           </div>
         </section>
@@ -187,10 +179,8 @@ export function WorkoutsTab({ ctx }: { ctx: StrengthCtx }) {
         <div className="grid gap-4 md:grid-cols-2">
           {routines.map((r) => {
             const mine = isOwnRoutine(r.id);
-            const when = plannedOf(r.id).slice(0, 3);
             const load = workoutMuscles(r.exercises);
             const open = openRoutine === r.id;
-            const plan = mine ? scheduleText(r) : null;
             return (
               <Card key={r.id} className="flex flex-col" data-testid={'routine-' + r.id}>
                 <button type="button" onClick={() => setOpenRoutine(open ? null : r.id)} aria-expanded={open} className="mb-1 flex w-full items-start gap-2 text-left">
@@ -202,11 +192,7 @@ export function WorkoutsTab({ ctx }: { ctx: StrengthCtx }) {
                 <div className="flex flex-1 gap-3">
                   <div className="flex min-w-0 flex-1 flex-col">
                     {!open && r.exercises.length > 0 && <span className="line-clamp-3 text-xs text-slate-500">{nameLine(r.exercises)}</span>}
-                    <p className="mt-2 text-xs text-slate-500">
-                      {plan ? plan + ' · ' : ''}
-                      {when.length ? t('wt.nextDates', { dates: when.map((w) => fmtDate(w.date, { weekday: 'short', day: 'numeric', month: 'short' })).join(' · ') }) : t('wt.notOnCalendar')}
-                      {' · '}{t('wt.about', { min: routineMinutes(r) })}
-                    </p>
+                    <p className="mt-2 text-xs text-slate-500">{t('wt.about', { min: routineMinutes(r) })}</p>
                     <div className="mt-auto flex flex-wrap gap-2 pt-3">
                       <Button size="sm" disabled={!r.exercises.length} icon={<Play className="h-4 w-4" />} onClick={() => startRoutine(r)}>{t('wt.startNow')}</Button>
                       <Button size="sm" variant="secondary" icon={<Pencil className="h-4 w-4" />} onClick={() => (mine ? setOwn(r) : setEditing(r))}>{t('wt.edit')}</Button>
@@ -239,16 +225,18 @@ export function WorkoutsTab({ ctx }: { ctx: StrengthCtx }) {
           <CardTitle icon={<CalendarDays className="h-5 w-5 text-brand" />}>{t('wt.coming')}</CardTitle>
           <ul className="space-y-2">
             {upcoming.map((w) => (
-              <li key={w.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-slate-50 px-3 ring-1 ring-slate-200 py-2.5">
-                <div className="w-28 shrink-0 text-sm font-semibold text-slate-800">{dayLabel(w.date, today)}</div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium text-slate-900">{localTitle(w.title)}</div>
-                  <div className="truncate text-xs text-slate-500">{stepsToExercises(w.steps).map((x) => exName(x.name)).join(' · ')}</div>
+              <li key={w.id} className="flex flex-col gap-2 rounded-xl bg-slate-50 px-3 py-2.5 ring-1 ring-slate-200 sm:flex-row sm:items-center sm:gap-4">
+                <div className="flex min-w-0 flex-1 items-baseline gap-3 sm:gap-4">
+                  <div className="w-24 shrink-0 text-sm font-semibold text-slate-800 sm:w-28">{dayLabel(w.date, today)}</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-slate-900">{localTitle(w.title)}</div>
+                    <div className="truncate text-xs text-slate-500">{stepsToExercises(w.steps).map((x) => exName(x.name)).join(' · ')}</div>
+                  </div>
                 </div>
-                <div className="flex gap-1.5">
-                  <Button size="sm" variant="ghost" onClick={() => setEditingSession({ w, r: { id: '', exercises: stepsToExercises(w.steps), by: 'own', updatedAt: null } })}>{t('wt.edit')}</Button>
-                  <Button size="sm" variant="ghost" icon={<CalendarClock className="h-4 w-4" />} aria-label={t('smv.aria', { name: localTitle(w.title) })} onClick={() => setMoving(w)}>{t('smv.button')}</Button>
-                  <Button size="sm" variant="secondary" onClick={() => startSession(w)}>{t('wt.log')}</Button>
+                <div className="grid grid-cols-3 gap-1.5 sm:flex sm:shrink-0">
+                  <Button size="sm" variant="ghost" className="w-full" onClick={() => setEditingSession({ w, r: { id: '', exercises: stepsToExercises(w.steps), by: 'own', updatedAt: null } })}>{t('wt.edit')}</Button>
+                  <Button size="sm" variant="ghost" className="w-full" icon={<CalendarClock className="h-4 w-4" />} aria-label={t('smv.aria', { name: localTitle(w.title) })} onClick={() => setMoving(w)}>{t('smv.button')}</Button>
+                  <Button size="sm" variant="secondary" className="w-full" onClick={() => startSession(w)}>{t('wt.log')}</Button>
                 </div>
               </li>
             ))}
