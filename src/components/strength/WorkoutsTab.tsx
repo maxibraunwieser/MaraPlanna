@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { CalendarDays, Clock, Dumbbell, Pencil, Play, Sparkles } from 'lucide-react';
+import { CalendarDays, ChevronDown, Clock, Dumbbell, Pencil, Play, Sparkles } from 'lucide-react';
 import type { Routine } from '../../../supabase/functions/_shared/strength';
 import { Link } from 'react-router-dom';
 import { STRENGTH_TYPES, TYPE_LABEL, isStrengthType, routineKind, routineMinutes, setupOf, type StrengthType } from '../../lib/strengthPlan';
@@ -29,6 +29,13 @@ function ExerciseList({ exercises, unit }: { exercises: { key?: string; name: st
   );
 }
 
+/** The exercise names in one small line, for a workout that is folded. */
+const nameLine = (exercises: { name: string }[]): string => exercises.map((x) => exName(x.name)).join(' · ');
+
+function Chevron({ open }: { open: boolean }) {
+  return <ChevronDown className={`h-5 w-5 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />;
+}
+
 /** The workouts, the next session and what is coming up. */
 export function WorkoutsTab({ ctx }: { ctx: StrengthCtx }) {
   const { prefs, unit, workouts, today, rows } = ctx;
@@ -38,6 +45,8 @@ export function WorkoutsTab({ ctx }: { ctx: StrengthCtx }) {
   const [editing, setEditing] = useState<Routine | null>(null);
   const [editingSession, setEditingSession] = useState<{ w: PlannedWorkout; r: Routine } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [openNext, setOpenNext] = useState(false);
+  const [openRoutine, setOpenRoutine] = useState<string | null>(null);
   const setup = setupOf(prefs);
 
   const sessions = useMemo(
@@ -93,20 +102,28 @@ export function WorkoutsTab({ ctx }: { ctx: StrengthCtx }) {
               <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-lime">
                 <CalendarDays className="h-4 w-4" /> {t('wt.next', { day: dayLabel(next.date, today) })}
               </div>
-              <h2 className="mt-1 text-2xl font-bold">{localTitle(next.title)}</h2>
+              <button type="button" onClick={() => setOpenNext((v) => !v)} aria-expanded={openNext} className="mt-1 flex w-full items-start justify-between gap-3 text-left">
+                <span className="min-w-0">
+                  <span className="block text-2xl font-bold">{localTitle(next.title)}</span>
+                  {!openNext && <span className="mt-1 line-clamp-2 block text-xs text-slate-300">{nameLine(stepsToExercises(next.steps))}</span>}
+                </span>
+                <ChevronDown className={`mt-1.5 h-5 w-5 shrink-0 text-slate-300 transition-transform ${openNext ? 'rotate-180' : ''}`} />
+              </button>
               <div className="mt-1 flex items-center gap-3 text-sm text-slate-300">
                 <span className="inline-flex items-center gap-1"><Clock className="h-4 w-4" /> {t('wt.about', { min: next.duration_min ?? routineMinutes({ id: '', exercises: stepsToExercises(next.steps), by: 'own', updatedAt: null }) })}</span>
                 <span>{t('wt.exercises', { n: next.steps.filter((s) => s.type === 'exercise').length })}</span>
               </div>
-              <ul className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
-                {stepsToExercises(next.steps).map((x, i) => (
-                  <li key={`${x.name}-${i}`} className="flex items-center gap-3 rounded-xl bg-white/10 px-3 py-2">
-                    <ExerciseThumb exercise={x} className="hidden sm:block" />
-                    <span className="min-w-0 flex-1 font-medium">{exName(x.name)}</span>
-                    <span className="shrink-0 tabular-nums text-slate-300">{rxText(x, unit)}</span>
-                  </li>
-                ))}
-              </ul>
+              {openNext && (
+                <ul className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+                  {stepsToExercises(next.steps).map((x, i) => (
+                    <li key={`${x.name}-${i}`} className="flex items-center gap-3 rounded-xl bg-white/10 px-3 py-2">
+                      <ExerciseThumb exercise={x} className="hidden sm:block" />
+                      <span className="min-w-0 flex-1 font-medium">{exName(x.name)}</span>
+                      <span className="shrink-0 tabular-nums text-slate-300">{rxText(x, unit)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
             <div className="flex gap-2 sm:flex-col sm:justify-end">
               <Button size="lg" icon={<Play className="h-5 w-5" />} onClick={() => startSession(next)}>{t('wt.start')}</Button>
@@ -134,16 +151,22 @@ export function WorkoutsTab({ ctx }: { ctx: StrengthCtx }) {
             const when = workouts.filter((w) => w.kind === routineKind(kind) && w.status === 'planned' && w.date >= today).slice(0, 3);
             return (
               <Card key={r.id} className="flex flex-col">
-                <div className="mb-2 flex items-center gap-2">
-                  <Dumbbell className="h-5 w-5 text-brand" />
-                  <h3 className="text-base font-semibold text-slate-900">{TYPE_LABEL[kind]}</h3>
-                  <Badge tone={r.by === 'own' ? 'blue' : 'violet'} className="ml-auto">{r.by === 'own' ? t('wt.own') : t('wt.suggested')}</Badge>
-                </div>
+                <button type="button" onClick={() => setOpenRoutine(openRoutine === r.id ? null : r.id)} aria-expanded={openRoutine === r.id} className="mb-2 flex w-full items-start gap-2 text-left">
+                  <Dumbbell className="mt-0.5 h-5 w-5 shrink-0 text-brand" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-base font-semibold text-slate-900">{TYPE_LABEL[kind]}</span>
+                    {openRoutine !== r.id && r.exercises.length > 0 && <span className="mt-0.5 line-clamp-2 block text-xs text-slate-500">{nameLine(r.exercises)}</span>}
+                  </span>
+                  <Badge tone={r.by === 'own' ? 'blue' : 'violet'} className="shrink-0">{r.by === 'own' ? t('wt.own') : t('wt.suggested')}</Badge>
+                  <Chevron open={openRoutine === r.id} />
+                </button>
                 <p className="mb-2 text-xs text-slate-500">
                   {when.length ? t('wt.nextDates', { dates: when.map((w) => fmtDate(w.date, { weekday: 'short', day: 'numeric', month: 'short' })).join(' · ') }) : t('wt.notOnCalendar')}
                   {' · '}{t('wt.about', { min: routineMinutes(r) })}
                 </p>
-                <div className="flex-1">{r.exercises.length ? <ExerciseList exercises={r.exercises} unit={unit} /> : <p className="py-3 text-sm text-slate-500">{t('wt.emptyAdd')}</p>}</div>
+                <div className="flex-1">
+                  {!r.exercises.length ? <p className="py-3 text-sm text-slate-500">{t('wt.emptyAdd')}</p> : openRoutine === r.id ? <ExerciseList exercises={r.exercises} unit={unit} /> : null}
+                </div>
                 <div className="mt-3 flex gap-2">
                   <Button size="sm" disabled={!r.exercises.length} icon={<Play className="h-4 w-4" />} onClick={() => startRoutine(r)}>{t('wt.startNow')}</Button>
                   <Button size="sm" variant="secondary" icon={<Pencil className="h-4 w-4" />} onClick={() => setEditing(r)}>{t('wt.edit')}</Button>

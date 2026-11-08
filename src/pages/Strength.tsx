@@ -105,7 +105,7 @@ export function Strength() {
               <h2 className="text-base font-semibold text-slate-900">{t('sg.setup.title')}</h2>
               <p className="mt-0.5 text-sm text-slate-600">{t('sg.setup.text')}</p>
             </div>
-            <Link to="/onboarding?edit=1"><Button icon={<Sparkles className="h-4 w-4" />}>{t('sg.setup.start')}</Button></Link>
+            <Link to={ctx.plan ? '/onboarding?edit=1&add=strength' : '/onboarding?edit=1'}><Button icon={<Sparkles className="h-4 w-4" />}>{t('sg.setup.start')}</Button></Link>
           </div>
         </Card>
       )}

@@ -14,7 +14,7 @@ export type ScreenId =
   | 'injuryNow' | 'injuryRegions' | 'injuryPast' | 'parq' | 'pregnancy'
   | 'goal' | 'weighting' | 'race' | 'raceDetails' | 'raceTime' | 'strengthGoals' | 'planLength'
   | 'hasGarmin' | 'garminConnect' | 'garminReview'
-  | 'motivation' | 'adapt' | 'prefs'
+  | 'motivation' | 'adapt'
   | 'runExperience' | 'runVolume' | 'runReference' | 'runHeart' | 'runDays' | 'runPlan'
   | 'strExperience' | 'strWhere' | 'strEquipment' | 'strFrequency' | 'double' | 'strWrist' | 'strengthPlan';
 
@@ -56,7 +56,6 @@ export const SCREENS: ScreenDef[] = [
   { id: 'garminReview', block: 'garmin' },
   { id: 'motivation', block: 'prefs', optional: true },
   { id: 'adapt', block: 'prefs', optional: true },
-  { id: 'prefs', block: 'prefs', optional: true },
   { id: 'runExperience', block: 'running' },
   { id: 'runVolume', block: 'running' },
   { id: 'runReference', block: 'running', optional: true },
@@ -75,7 +74,11 @@ export const SCREENS: ScreenDef[] = [
 export interface Ctx {
   a: OnboardingAnswers;
   strength: StrengthPrefs;
+  /** A running plan exists and stays as it is (strength is added later): the questions about the running are not asked. */
+  keepRuns?: boolean;
 }
+
+const RUN_SCREENS: ScreenId[] = ['race', 'raceDetails', 'raceTime', 'planLength', 'runExperience', 'runVolume', 'runReference', 'runHeart', 'runDays', 'runPlan'];
 
 /** A race with a date: the plan runs until race day and no plan length is asked. */
 export const hasRaceDate = (a: OnboardingAnswers): boolean => !!a.setup?.hasRace && !!a.goal && isRaceGoal(a.goal) && !a.planWeeks;
@@ -102,7 +105,7 @@ const VISIBLE: Partial<Record<ScreenId, (c: Ctx) => boolean>> = {
   pregnancy: (c) => c.a.setup?.gender !== 'male',
 };
 
-export const isVisible = (id: ScreenId, c: Ctx): boolean => VISIBLE[id]?.(c) ?? true;
+export const isVisible = (id: ScreenId, c: Ctx): boolean => !(c.keepRuns && RUN_SCREENS.includes(id)) && (VISIBLE[id]?.(c) ?? true);
 
 /** The screens this person sees, in order. */
 export const visibleScreens = (c: Ctx): ScreenDef[] => SCREENS.filter((s) => isVisible(s.id, c));

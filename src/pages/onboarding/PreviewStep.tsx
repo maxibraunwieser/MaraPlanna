@@ -35,12 +35,12 @@ const PHASE_COLOR = { base: 'bg-emerald-400', build: 'bg-sky-500', peak: 'bg-bra
 const PACE_ZONES: PaceZone[] = ['easy', 'long', 'marathon', 'threshold', 'interval'];
 const STAGES: MsgKey[] = ['preview.stage.1', 'preview.stage.2', 'preview.stage.3', 'preview.stage.4'];
 
-function Section({ icon, title, edit, onEdit, children, id }: { icon: ReactNode; title: ReactNode; edit: string; onEdit: () => void; children: ReactNode; id: string }) {
+function Section({ icon, title, edit, onEdit, children, id }: { icon: ReactNode; title: ReactNode; edit: string; onEdit?: () => void; children: ReactNode; id: string }) {
   return (
     <Card className="!p-5" >
       <div className="mb-4 flex items-center justify-between gap-3" data-section={id}>
         <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">{icon}{title}</h2>
-        <Button size="sm" variant="secondary" icon={<Pencil className="h-3.5 w-3.5" />} onClick={onEdit} aria-label={`${edit}: ${typeof title === 'string' ? title : id}`}>{edit}</Button>
+        {onEdit && <Button size="sm" variant="secondary" icon={<Pencil className="h-3.5 w-3.5" />} onClick={onEdit} aria-label={`${edit}: ${typeof title === 'string' ? title : id}`}>{edit}</Button>}
       </div>
       {children}
     </Card>
@@ -71,11 +71,13 @@ export interface PreviewProps {
   busy: boolean;
   editing: boolean;
   hasPlan: boolean;
+  /** Strength is being added to the running plan that is already there. */
+  addStrength?: boolean;
   onStart: (answers: OnboardingAnswers, prefs: StrengthPrefs | undefined, plan: GeneratedPlan) => void;
 }
 
 /** The last page: the generated plan, explained, with a way back to every answer. */
-export function PreviewStep({ s, busy, editing, hasPlan, onStart }: PreviewProps) {
+export function PreviewStep({ s, busy, editing, hasPlan, addStrength = false, onStart }: PreviewProps) {
   const { t, lang } = useI18n();
   const { activities, metrics, connection, today } = useData();
   const [stage, setStage] = useState(0);
@@ -146,7 +148,7 @@ export function PreviewStep({ s, busy, editing, hasPlan, onStart }: PreviewProps
         <div className="mt-0.5">{t('preview.ready.text')}</div>
       </Notice>
 
-      <Section id="goal" icon={<Target className="h-5 w-5 text-brand" />} title={t('preview.goal')} edit={t('nav.edit')} onEdit={edit('goal')}>
+      <Section id="goal" icon={<Target className="h-5 w-5 text-brand" />} title={t('preview.goal')} edit={t('nav.edit')} onEdit={addStrength ? undefined : edit('goal')}>
         <p className="text-sm text-slate-700">
           <span className="font-semibold text-slate-900">{goalName}</span>
           {race && !answers.planWeeks ? ` · ${dateLong(answers.raceDate, lang)}` : ` · ${t('goal.weeks', { n: plan.weeks.length })}`}
@@ -207,7 +209,7 @@ export function PreviewStep({ s, busy, editing, hasPlan, onStart }: PreviewProps
         </ul>
       </Section>
 
-      <Section id="numbers" icon={<HeartPulse className="h-5 w-5 text-brand" />} title={t('preview.numbers')} edit={t('nav.edit')} onEdit={edit('runExperience')}>
+      <Section id="numbers" icon={<HeartPulse className="h-5 w-5 text-brand" />} title={t('preview.numbers')} edit={t('nav.edit')} onEdit={addStrength ? undefined : edit('runExperience')}>
         <div className="grid gap-5 md:grid-cols-2">
           <div>
             <h3 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">{t('preview.hrZones')}{zones && <span className="font-normal normal-case text-slate-400">· {t(`zones.${zones.method}` as MsgKey)}</span>}</h3>
@@ -248,7 +250,10 @@ export function PreviewStep({ s, busy, editing, hasPlan, onStart }: PreviewProps
               return (
                 <details key={kind} className="group rounded-xl bg-slate-50 ring-1 ring-slate-200">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm">
-                    <span className="font-semibold text-slate-900">{r.name ?? `${t('workouts.strength')} ${'ABCD'[i]} – ${t(`kind.${kind}` as MsgKey)}`}</span>
+                    <span className="min-w-0">
+                      <span className="block font-semibold text-slate-900">{r.name ?? `${t('workouts.strength')} ${'ABCD'[i]} – ${t(`kind.${kind}` as MsgKey)}`}</span>
+                      <span className="mt-0.5 line-clamp-2 block text-xs font-normal text-slate-500 group-open:hidden">{r.exercises.map((x) => exName(x.name)).join(' · ')}</span>
+                    </span>
                     <span className="flex items-center gap-2 text-xs text-slate-500">{t('workouts.duration', { min: routineMinutes(r) })}{times > 1 ? ` · ${t('workouts.times', { n: times })}` : ''}<ChevronDown className="h-4 w-4 transition group-open:rotate-180" /></span>
                   </summary>
                   <ol className="divide-y divide-slate-100 px-4 pb-2 text-sm">
@@ -285,11 +290,11 @@ export function PreviewStep({ s, busy, editing, hasPlan, onStart }: PreviewProps
         </div>
       </Card>
 
-      {hasPlan && <Notice tone="warn">{t('preview.replace')}</Notice>}
+      {hasPlan && (addStrength ? <Notice tone="info">{t('preview.addStrength.note')}</Notice> : <Notice tone="warn">{t('preview.replace')}</Notice>)}
       <div className="flex flex-wrap justify-end gap-2 pt-2">
         <Button variant="secondary" size="lg" onClick={() => s.goTo(planScreen)}>{t('preview.adjust')}</Button>
         <Button size="lg" loading={busy} icon={<Rocket className="h-5 w-5" />} onClick={() => onStart(answers, prefs, plan)}>
-          {hasPlan ? t('preview.replaceStart') : editing ? t('preview.save') : t('preview.start')}
+          {addStrength ? t('preview.addStrength.start') : hasPlan ? t('preview.replaceStart') : editing ? t('preview.save') : t('preview.start')}
         </Button>
       </div>
     </div>

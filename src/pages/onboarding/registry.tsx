@@ -5,7 +5,7 @@ import type { ScreenId } from '../../lib/onboarding/screens';
 import type { StepApi } from './api';
 import { GarminConnectScreen, GarminReviewScreen, HasGarminScreen } from './GarminScreens';
 import { GoalScreen, PlanLengthScreen, RaceDetailsScreen, RaceScreen, RaceTimeScreen, StrengthGoalsScreen, WeightingScreen } from './GoalScreens';
-import { AdaptScreen, InjuryNowScreen, InjuryPastScreen, InjuryRegionsScreen, MotivationScreen, ParqScreen, PrefsScreen, PregnancyScreen } from './HealthScreens';
+import { AdaptScreen, InjuryNowScreen, InjuryPastScreen, InjuryRegionsScreen, MotivationScreen, ParqScreen, PregnancyScreen } from './HealthScreens';
 import { BodyScreen, ConsentScreen, GenderScreen, LifestyleScreen, NameScreen } from './PersonalScreens';
 import { RunDaysScreen, RunExperienceScreen, RunHeartScreen, RunReferenceScreen, RunVolumeScreen } from './RunScreens';
 import { StrEquipmentScreen, StrExperienceScreen, StrFrequencyScreen, StrWhereScreen, StrWristScreen } from './StrengthScreens';
@@ -47,7 +47,6 @@ export const SCREEN_COMPONENTS: Record<ScreenId, ComponentType<{ s: StepApi }>> 
   pregnancy: PregnancyScreen,
   motivation: MotivationScreen,
   adapt: AdaptScreen,
-  prefs: PrefsScreen,
   runDays: RunDaysScreen,
   runPlan: RunPlanScreen,
   strengthPlan: StrengthPlanScreen,

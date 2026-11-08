@@ -268,6 +268,7 @@ const MESSAGE_RULES: Rule[] = [
   rx('Plan created: (\\d+) weeks to race day\\.', (m) => `Plan erstellt: ${m[1]} Wochen bis zum Wettkampftag.`),
   rx('Plan created: (\\d+) weeks to (.+)\\.', (m) => `Plan erstellt: ${m[1]} Wochen bis ${m[2]}.`),
   rx('Plan created: (\\d+) weeks\\.', (m) => `Plan erstellt: ${m[1]} Wochen.`),
+  rx('Strength added: (\\d+) per week\\. Your running plan stays as it is\\.', (m) => `Kraft hinzugefügt: ${m[1]} pro Woche. Dein Laufplan bleibt unverändert.`),
   rx(`No runs logged for (\\d+) days\\. The plan restarts gently at about ${NUM} km/week( and paces were eased)?\\.`, (m) => `Seit ${m[1]} Tagen kein Lauf aufgezeichnet. Der Plan startet sanft neu bei etwa ${m[2]} km/Woche${m[3] ? ' und die Tempi wurden etwas gelockert' : ''}.`),
   rx(`You ran ${NUM} of ${NUM} planned km in the last 2 weeks\\. Upcoming weeks were rebuilt from your current level \\(~${NUM} km/week\\)\\.`, (m) => `Du bist ${m[1]} von ${m[2]} geplanten km der letzten 2 Wochen gelaufen. Die kommenden Wochen wurden von deinem aktuellen Niveau aus neu aufgebaut (~${m[3]} km/Woche).`),
   rx(`Your recent runs suggest your fitness (improved|dipped) \\(VDOT ${NUM} → ${NUM}\\)\\. Training paces were updated\\.`, (m) => `Deine letzten Läufe zeigen, dass deine Fitness ${m[1] === 'improved' ? 'gestiegen' : 'gesunken'} ist (VDOT ${m[2]} → ${m[3]}). Die Trainingstempi wurden angepasst.`),

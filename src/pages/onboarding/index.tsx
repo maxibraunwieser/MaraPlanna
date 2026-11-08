@@ -3,20 +3,20 @@
 // is the generated plan with an overview of every block. A changed answer flows through to the later screens.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, CloudCheck } from 'lucide-react';
 import type { StrengthPrefs } from '../../../supabase/functions/_shared/strength';
 import { CenteredPage } from '../../components/Layout';
 import { Button, Card, Notice, cx, useToast } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 import { useData } from '../../lib/data';
-import { createPlan, saveOnboarding, saveOnboardingDraft } from '../../lib/api';
+import { addStrengthToPlan, createPlan, saveOnboarding, saveOnboardingDraft } from '../../lib/api';
 import { useI18n, type MsgKey } from '../../lib/i18n';
 import { settle, type Model } from '../../lib/onboarding/apply';
 import {
   clearLocalDraft, hasProgress, loadLocalDraft, newest, parseDraft, saveLocalDraft, DRAFT_VERSION, type SetupDraft,
 } from '../../lib/onboarding/draft';
-import { blankStart, editStart } from '../../lib/onboarding/seed';
+import { blankStart, editStart, strengthStart } from '../../lib/onboarding/seed';
 import {
   SCREENS, firstOfBlock, nextScreen, positionInBlock, prevScreen, screenDef, visibleBlocks, visibleScreens, type BlockId, type ScreenId, type SetupStep,
 } from '../../lib/onboarding/screens';
@@ -40,16 +40,19 @@ function titles(id: ScreenId | null): [MsgKey, MsgKey] {
 
 export function Onboarding() {
   const { user } = useAuth();
-  const { profile, plan, connection, today, reload } = useData();
+  const { profile, plan, workouts, connection, today, reload } = useData();
   const { t } = useI18n();
   const navigate = useNavigate();
   const toast = useToast();
   const editing = !!profile?.onboarding_completed_at;
+  // Strength added later: the setup opens at the start with the saved answers filled in, and only the strength sessions join the running plan.
+  const [params] = useSearchParams();
+  const addStrength = editing && params.get('add') === 'strength' && !!plan;
 
   // Where the person starts: their saved answers (editing), the newer of the two drafts, or a blank start.
   const initial = useMemo(() => {
     if (editing && profile) {
-      const { answers, strength } = editStart(profile, connection, today);
+      const { answers, strength } = addStrength ? strengthStart(profile, connection, today) : editStart(profile, connection, today);
       return { draft: { v: DRAFT_VERSION, step: 'consent', done: SCREENS.map((s) => s.id), answers, strength, savedAt: new Date(0).toISOString() } as SetupDraft, restored: false };
     }
     const saved = newest(loadLocalDraft(user!.id), parseDraft(profile?.onboarding_draft));
@@ -76,7 +79,7 @@ export function Onboarding() {
   const remoteOk = useRef(true);
 
   const setup = a.setup!;
-  const ctx = { a, strength };
+  const ctx = { a, strength, keepRuns: addStrength };
   const stepId: ScreenId | null = step === 'preview' ? null : step;
   const errors = useMemo(() => (stepId ? validateStep(stepId, a, strength, today) : {}), [stepId, a, strength, today]);
   const blocked = Object.keys(errors).length > 0;
@@ -120,12 +123,12 @@ export function Onboarding() {
   /** Moves on from `from`, to the overview when the edited block is finished. */
   const advance = useCallback((from: ScreenId, c: { a: OnboardingAnswers; strength: StrengthPrefs }) => {
     setDone((d) => (d.includes(from) ? d : [...d, from]));
-    const to = nextScreen(from, c);
+    const to = nextScreen(from, { ...c, keepRuns: addStrength });
     if (returnBlock && (to === 'preview' || screenDef(to).block !== returnBlock)) {
       setReturnBlock(null);
       go('preview');
     } else go(to);
-  }, [returnBlock, go]);
+  }, [returnBlock, go, addStrength]);
 
   const next = useCallback(() => {
     if (!stepId) return;
@@ -166,6 +169,15 @@ export function Onboarding() {
     setBusy(true);
     setError(null);
     try {
+      if (addStrength && plan) {
+        if (!prefs || !generated.workouts.some((w) => w.kind.startsWith('strength'))) throw new Error(t('preview.addStrength.none'));
+        await saveOnboarding(user!.id, answers, prefs);
+        await addStrengthToPlan(user!.id, plan, workouts, answers, generated, today);
+        await reload();
+        toast(t('preview.addStrength.done'), 'success');
+        navigate('/strength');
+        return;
+      }
       await saveOnboarding(user!.id, answers, prefs);
       await createPlan(user!.id, answers, generated, today);
       clearLocalDraft(user!.id);
@@ -199,6 +211,7 @@ export function Onboarding() {
     next,
     skip,
     step: stepId ?? 'strengthPlan',
+    keepRuns: addStrength,
   };
 
   const list = visibleScreens(ctx);
@@ -268,7 +281,7 @@ export function Onboarding() {
         )}
 
         {Screen && <Screen s={api} />}
-        {step === 'preview' && <PreviewStep s={api} busy={busy} editing={editing} hasPlan={!!plan} onStart={start} />}
+        {step === 'preview' && <PreviewStep s={api} busy={busy} editing={editing} hasPlan={!!plan} addStrength={addStrength} onStart={start} />}
 
         {error && <Notice tone="error" className="mt-5">{error}</Notice>}
 

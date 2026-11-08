@@ -29,4 +29,6 @@ export interface StepApi {
   /** Skip the current (optional) step: records "manual" for the Garmin step and moves on without further checks. */
   skip: () => void;
   step: ScreenId;
+  /** Strength is added to a running plan that stays as it is: the running answers are not asked and not editable. */
+  keepRuns: boolean;
 }

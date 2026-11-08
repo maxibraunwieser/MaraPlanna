@@ -19,7 +19,7 @@ const BLOCKS: BlockId[] = ['welcome', 'personal', 'everyday', 'health', 'goal', 
 export function AnswersOverview({ s, answers, strength }: { s: StepApi; answers: OnboardingAnswers; strength: StrengthPrefs }) {
   const { t, lang } = useI18n();
   const setup = answers.setup!;
-  const ctx = { a: s.a, strength: s.strength };
+  const ctx = { a: s.a, strength: s.strength, keepRuns: s.keepRuns };
   const units = answers.units;
   const weight = setup.weightKg ? (setup.weightUnit === 'lb' ? `${Math.round(kgToLb(setup.weightKg) * 10) / 10} lb` : `${setup.weightKg} kg`) : '–';
   const height = setup.heightCm ? heightText(setup.heightCm, setup.heightUnit) : '–';

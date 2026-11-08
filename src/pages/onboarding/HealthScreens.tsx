@@ -1,4 +1,4 @@
-// Blocks 7 and 8: injuries and the health check, then motivation, how the plan adapts, reminders, units and language.
+// Blocks 7 and 8: injuries and the health check, then motivation and how the plan adapts.
 
 import { Input, Notice, Textarea } from '../../components/ui';
 import { useI18n, type MsgKey } from '../../lib/i18n';
@@ -6,7 +6,6 @@ import { PARQ, REGIONS, parqFlagged } from '../../lib/onboarding/catalog';
 import type { InjuryArea, Motivation, ParqKey, Pregnancy, Structure } from '../../lib/types';
 import type { StepApi } from './api';
 import { CheckRow, Choice, Chip, MultiChips, Question, Slider } from './kit';
-import { UnitsQuestion } from './PersonalScreens';
 
 export function InjuryNowScreen({ s }: { s: StepApi }) {
   const { t } = useI18n();
@@ -173,21 +172,6 @@ export function AdaptScreen({ s }: { s: StepApi }) {
           )}
         </div>
         <Notice tone="info" className="mt-3">{t('ob.notify.note')}</Notice>
-      </Question>
-    </div>
-  );
-}
-
-export function PrefsScreen({ s }: { s: StepApi }) {
-  const { t, lang, setLang } = useI18n();
-  return (
-    <div className="space-y-6">
-      <UnitsQuestion s={s} />
-      <Question label={t('ob.lang.label')}>
-        <div className="flex gap-2" role="radiogroup" aria-label={t('ob.lang.label')}>
-          <Chip on={lang === 'de'} onClick={() => setLang('de')}>Deutsch</Chip>
-          <Chip on={lang === 'en'} onClick={() => setLang('en')}>English</Chip>
-        </div>
       </Question>
     </div>
   );

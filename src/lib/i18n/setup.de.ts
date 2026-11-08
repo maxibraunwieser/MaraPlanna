@@ -410,6 +410,10 @@ export const deSetup: Record<keyof typeof enSetup, string> = {
   'preview.replaceStart': 'Meinen Plan ersetzen',
   'preview.save': 'Speichern und Plan aktualisieren',
   'preview.started': 'Dein Plan ist bereit. Los geht’s!',
+  'preview.addStrength.note': 'Dein Laufplan bleibt genau so, wie er ist. Die Krafteinheiten kommen dazu.',
+  'preview.addStrength.start': 'Kraft zu meinem Plan hinzufügen',
+  'preview.addStrength.none': 'Aus deinen Antworten sind keine Krafteinheiten entstanden. Wähle einen Anteil Krafttraining und versuche es erneut.',
+  'preview.addStrength.done': 'Kraft wurde zu deinem Plan hinzugefügt. Deine Läufe sind unverändert.',
 
   // Warum der Plan so aussieht
   'explain.goal.race': 'Dieser Plan bereitet dich in {weeks} Wochen auf {distance} vor.',

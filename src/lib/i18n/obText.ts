@@ -92,8 +92,6 @@ export const obText = area({
     'ob.s.motivation': 'Optional.',
     'ob.t.adapt': 'Adapting the plan',
     'ob.s.adapt': 'And reminders.',
-    'ob.t.prefs': 'Units and language',
-    'ob.s.prefs': 'You can change both later in Settings.',
 
     // consent
     'ob.consent.health': 'I consent to MaraPlanna processing my health and training data (for example body data, heart rate, injuries, runs and strength workouts) to build and adjust my plan.',
@@ -436,8 +434,6 @@ export const obText = area({
     'ob.s.motivation': 'Optional.',
     'ob.t.adapt': 'Plan anpassen',
     'ob.s.adapt': 'Und Erinnerungen.',
-    'ob.t.prefs': 'Einheiten und Sprache',
-    'ob.s.prefs': 'Beides kannst du später in den Einstellungen ändern.',
 
     'ob.consent.health': 'Ich willige ein, dass MaraPlanna meine Gesundheits- und Trainingsdaten (zum Beispiel Körperdaten, Herzfrequenz, Verletzungen, Läufe und Krafteinheiten) verarbeitet, um meinen Plan zu erstellen und anzupassen.',
     'ob.consent.health.note': 'Gesundheitsdaten sind besonders geschützt (DSGVO Art. 9). Du kannst deine Einwilligung jederzeit widerrufen und dein Konto samt allen Daten in den Einstellungen löschen.',

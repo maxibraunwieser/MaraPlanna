@@ -8,6 +8,7 @@ import type { GarminConnection, OnboardingAnswers, Profile, RaceKey, SetupExtras
 import { EXPERIENCE_OF_LEVEL, RACE_KEY_M, applyPersonal } from './derive';
 import { strengthPerWeek } from './strengthMap';
 import { primaryOfGoal } from './catalog';
+import { setRunPct, settle } from './apply';
 
 const nearestRace = (distanceM: number): RaceKey =>
   (Object.keys(RACE_KEY_M) as RaceKey[]).reduce((best, k) => (Math.abs(RACE_KEY_M[k] - distanceM) < Math.abs(RACE_KEY_M[best] - distanceM) ? k : best), '5k' as RaceKey);
@@ -78,4 +79,15 @@ export function editStart(profile: Profile, connection: GarminConnection | null,
     answers,
     strength: { ...strength, perWeek: strengthN, weightUnit: strength.savedAt ? strength.weightUnit : answers.units === 'mi' ? 'lb' : 'kg' },
   };
+}
+
+/**
+ * A user who set up running only and now adds strength: their saved answers, with a share of strength so the strength questions
+ * come up, and no strength count yet (it is worked out on the strength plan screen).
+ */
+export function strengthStart(profile: Profile, connection: GarminConnection | null, today: string): { answers: OnboardingAnswers; strength: StrengthPrefs } {
+  const start = editStart(profile, connection, today);
+  const share = start.answers.setup!.runPct >= 100 ? setRunPct({ a: start.answers, strength: start.strength }, 80, today) : { a: start.answers, strength: start.strength };
+  const m = settle({ a: share.a, strength: { ...share.strength, perWeek: null } }, today);
+  return { answers: m.a, strength: m.strength };
 }
