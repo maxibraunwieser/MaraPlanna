@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { greetingPart, restingHrDelta, trainingReadiness } from './readiness';
+import { greetingPart, latestRestingHr, restingHrDelta, trainingReadiness } from './readiness';
 import type { Activity, DailyMetric } from '../types';
 
 const metric = (date: string, over: Partial<DailyMetric> = {}): DailyMetric => ({
@@ -47,5 +47,20 @@ describe('restingHrDelta', () => {
     const today = metric('2026-11-07', { resting_hr: 55 });
     expect(restingHrDelta([...base, today], today)).toBe(5);
     expect(restingHrDelta([today], today)).toBeNull();
+  });
+});
+
+describe('latestRestingHr', () => {
+  it("takes yesterday's value when today's row has none yet", () => {
+    const rows = [metric('2026-11-06', { resting_hr: 49 }), metric('2026-11-07', { resting_hr: null })];
+    expect(latestRestingHr(rows, '2026-11-07')?.resting_hr).toBe(49);
+  });
+  it("prefers today's value", () => {
+    const rows = [metric('2026-11-06', { resting_hr: 49 }), metric('2026-11-07', { resting_hr: 51 })];
+    expect(latestRestingHr(rows, '2026-11-07')?.resting_hr).toBe(51);
+  });
+  it('ignores readings older than a week and has none without data', () => {
+    expect(latestRestingHr([metric('2026-10-20', { resting_hr: 49 })], '2026-11-07')).toBeNull();
+    expect(latestRestingHr([], '2026-11-07')).toBeNull();
   });
 });

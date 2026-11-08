@@ -107,6 +107,12 @@ export function restingHrDelta(metrics: DailyMetric[], m: DailyMetric | null): n
   return base === null ? null : Math.round(m.resting_hr - base);
 }
 
+/** The newest resting heart rate of the last week: today's row often has none yet (Garmin settles it after the night). */
+export function latestRestingHr(metrics: DailyMetric[], today: string): DailyMetric | null {
+  const from = addDays(today, -7);
+  return metrics.filter((x) => x.resting_hr && x.date <= today && x.date >= from).sort((a, b) => b.date.localeCompare(a.date))[0] ?? null;
+}
+
 /** Which greeting fits the local hour. */
 export function greetingPart(hour: number): 'morning' | 'day' | 'evening' | 'night' {
   if (hour >= 5 && hour < 11) return 'morning';

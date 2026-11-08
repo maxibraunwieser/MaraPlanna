@@ -6,7 +6,7 @@ import { useData } from '../../lib/data';
 import { currentLang, useI18n, type MsgKey } from '../../lib/i18n';
 import { daysBetween, mondayOf } from '../../lib/planner/dates';
 import { distanceLabel } from '../../lib/planner/goals';
-import { greetingPart, restingHrDelta, trainingReadiness } from '../../lib/planner/readiness';
+import { greetingPart, latestRestingHr, restingHrDelta, trainingReadiness } from '../../lib/planner/readiness';
 import { fmtDate, fmtDuration, fmtNum } from '../../lib/format';
 import { cx } from '../ui';
 
@@ -107,8 +107,12 @@ export function HomeHero() {
   const sleepSub = [sleepWord, m?.sleep_s ? `${fmtNum(m.sleep_s / 3600)} h` : null].filter(Boolean).join(' · ');
   const hrvStatus = m?.hrv_status?.toLowerCase();
   const hrvSub = hrvStatus ? (HRV_STATUS.includes(hrvStatus) ? t(`rd.hrv.${hrvStatus}` as MsgKey) : hrvStatus) : m?.hrv_weekly_avg ? t('hm.hrv.avg', { n: Math.round(m.hrv_weekly_avg) }) : null;
-  const delta = restingHrDelta(metrics, m);
-  const rhrSub = delta === null ? null : delta === 0 || Math.abs(delta) <= 2 ? t('hm.rhr.same') : t(delta > 0 ? 'hm.rhr.up' : 'hm.rhr.down', { n: Math.abs(delta) });
+  // Resting HR: the newest reading of the week, else the value from the Garmin profile (heart-rate settings).
+  const rhrRow = latestRestingHr(metrics, today);
+  const rhr = rhrRow?.resting_hr ?? connection?.profile?.restingHr ?? null;
+  const delta = restingHrDelta(metrics, rhrRow);
+  const rhrSub = delta !== null ? (delta === 0 || Math.abs(delta) <= 2 ? t('hm.rhr.same') : t(delta > 0 ? 'hm.rhr.up' : 'hm.rhr.down', { n: Math.abs(delta) })) : rhrRow ? null : rhr ? t('hm.rhr.profile') : null;
+  const rhrAge = rhrRow && rhrRow.date < today ? t('hm.rhr.since', { date: fmtDate(rhrRow.date, { day: 'numeric', month: 'short' }) }) : null;
   const readySub = r.score === null ? null : `${t(`rd.${r.level}` as MsgKey)} · ${t(r.source === 'garmin' ? 'hm.readiness.garmin' : 'hm.readiness.calc')}`;
 
   return (
@@ -137,7 +141,7 @@ export function HomeHero() {
             <Tile icon={<Moon className="h-3.5 w-3.5" />} label={t('hm.sleep')} value={sleepScore !== null ? String(sleepScore) : m?.sleep_s ? fmtNum(m.sleep_s / 3600) : null} unit={sleepScore === null ? 'h' : undefined} sub={sleepSub || null} score={sleepScore ?? undefined} tone={sleepTone} />
             <Tile icon={<Waves className="h-3.5 w-3.5" />} label={t('hm.hrv')} value={m?.hrv_last_night ? String(Math.round(m.hrv_last_night)) : null} unit="ms" sub={hrvSub} />
             <Tile icon={<Gauge className="h-3.5 w-3.5" />} label={t('hm.readiness')} value={r.score !== null ? String(r.score) : null} sub={readySub} score={r.score ?? 0} tone={r.level} />
-            <Tile icon={<HeartPulse className="h-3.5 w-3.5" />} label={t('hm.rhr')} value={m?.resting_hr ? String(m.resting_hr) : null} unit="bpm" sub={rhrSub} />
+            <Tile icon={<HeartPulse className="h-3.5 w-3.5" />} label={t('hm.rhr')} value={rhr ? String(rhr) : null} unit="bpm" sub={[rhrSub, rhrAge].filter(Boolean).join(' · ') || null} />
           </div>
           {!connection ? (
             <Link to="/connect" className="mt-3 inline-block text-sm font-semibold text-brand hover:underline">{t('hm.connect')} →</Link>
