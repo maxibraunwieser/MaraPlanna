@@ -33,7 +33,7 @@ interface Chip {
 }
 
 export function WeekBoard({
-  week, extras, unavailable, minutes, onMove, onOpen, runsOnly = false,
+  week, extras, unavailable, minutes, onMove, onOpen, runsOnly = false, lockRuns = false, readOnly = false,
 }: {
   week: DayTemplate[];
   extras: ExtraSession[];
@@ -44,6 +44,10 @@ export function WeekBoard({
   onOpen?: (id: string) => void;
   /** Only the runs are shown (before the strength questions). */
   runsOnly?: boolean;
+  /** The runs stay on their days (a running plan that is kept); only strength sessions move. */
+  lockRuns?: boolean;
+  /** Nothing moves (the week is only shown). */
+  readOnly?: boolean;
 }) {
   const { t, lang } = useI18n();
   const short = weekdayNames(lang);
@@ -64,7 +68,8 @@ export function WeekBoard({
     return out;
   };
   const has = (d: number, item: BoardItem) => chipsOf(d).some((c) => c.item === item);
-  const canDrop = (item: BoardItem, from: number, to: number) => to !== from && !unavailable.includes(to as Weekday) && !has(to, item);
+  // With the runs locked, a strength session never goes onto the day of the long run.
+  const canDrop = (item: BoardItem, from: number, to: number) => to !== from && !unavailable.includes(to as Weekday) && !has(to, item) && !(lockRuns && item === 'strength' && week[to].run === 'long');
   /** The next day in a direction that can take the session (skipping days with no time and days that have one). */
   const neighbour = (item: BoardItem, from: number, dir: 1 | -1): Weekday | null => {
     for (let i = 1; i < 7; i++) {
@@ -116,7 +121,7 @@ export function WeekBoard({
             </div>
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
               {chips.map((c) => {
-                const movable = c.item === 'run' || c.item === 'strength';
+                const movable = !readOnly && (c.item === 'strength' || (c.item === 'run' && !lockRuns));
                 const prev = movable ? neighbour(c.item as BoardItem, d, -1) : null;
                 const nextDay = movable ? neighbour(c.item as BoardItem, d, 1) : null;
                 const name = `${c.label}, ${long[d]}`;

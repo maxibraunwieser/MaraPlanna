@@ -11,6 +11,7 @@ import { RunDaysScreen, RunExperienceScreen, RunHeartScreen, RunReferenceScreen,
 import { StrEquipmentScreen, StrExperienceScreen, StrFrequencyScreen, StrWhereScreen, StrWristScreen } from './StrengthScreens';
 import { BreaksScreen, DayMinutesScreen, DoubleScreen } from './TimeScreens';
 import { RunPlanScreen, StrengthPlanScreen } from './PlanScreens';
+import { RunKeepScreen } from './KeepScreens';
 
 export const SCREEN_COMPONENTS: Record<ScreenId, ComponentType<{ s: StepApi }>> = {
   consent: ConsentScreen,
@@ -28,6 +29,7 @@ export const SCREEN_COMPONENTS: Record<ScreenId, ComponentType<{ s: StepApi }>> 
   hasGarmin: HasGarminScreen,
   garminConnect: GarminConnectScreen,
   garminReview: GarminReviewScreen,
+  runKeep: RunKeepScreen,
   runExperience: RunExperienceScreen,
   runVolume: RunVolumeScreen,
   runReference: RunReferenceScreen,

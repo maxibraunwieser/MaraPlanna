@@ -11,6 +11,7 @@ import { Button, Card, Notice, cx, useToast } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 import { useData } from '../../lib/data';
 import { addStrengthToPlan, createPlan, saveOnboarding, saveOnboardingDraft } from '../../lib/api';
+import { keptStrengthSessions, keptWeekFor } from '../../lib/planner/keepRuns';
 import { useI18n, type MsgKey } from '../../lib/i18n';
 import { settle, type Model } from '../../lib/onboarding/apply';
 import {
@@ -45,14 +46,15 @@ export function Onboarding() {
   const navigate = useNavigate();
   const toast = useToast();
   const editing = !!profile?.onboarding_completed_at;
-  // Strength added later: the setup opens at the start with the saved answers filled in, and only the strength sessions join the running plan.
+  // Strength added later: the setup opens at the start with the saved answers filled in. The running block shows the running plan
+  // and asks whether to change it; kept, only the strength sessions join it (see `keep` below).
   const [params] = useSearchParams();
-  const addStrength = editing && params.get('add') === 'strength' && !!plan;
+  const addMode = editing && params.get('add') === 'strength' && !!plan;
 
   // Where the person starts: their saved answers (editing), the newer of the two drafts, or a blank start.
   const initial = useMemo(() => {
     if (editing && profile) {
-      const { answers, strength } = addStrength ? strengthStart(profile, connection, today) : editStart(profile, connection, today);
+      const { answers, strength } = addMode ? strengthStart(profile, connection, today) : editStart(profile, connection, today);
       return { draft: { v: DRAFT_VERSION, step: 'consent', done: SCREENS.map((s) => s.id), answers, strength, savedAt: new Date(0).toISOString() } as SetupDraft, restored: false };
     }
     const saved = newest(loadLocalDraft(user!.id), parseDraft(profile?.onboarding_draft));
@@ -79,7 +81,9 @@ export function Onboarding() {
   const remoteOk = useRef(true);
 
   const setup = a.setup!;
-  const ctx = { a, strength, keepRuns: addStrength };
+  const ctx = { a, strength, addMode };
+  /** The running plan stays as it is: its runs come from the database and only strength is added. */
+  const keep = addMode && setup.keepRunPlan !== false;
   const stepId: ScreenId | null = step === 'preview' ? null : step;
   const errors = useMemo(() => (stepId ? validateStep(stepId, a, strength, today) : {}), [stepId, a, strength, today]);
   const blocked = Object.keys(errors).length > 0;
@@ -123,12 +127,12 @@ export function Onboarding() {
   /** Moves on from `from`, to the overview when the edited block is finished. */
   const advance = useCallback((from: ScreenId, c: { a: OnboardingAnswers; strength: StrengthPrefs }) => {
     setDone((d) => (d.includes(from) ? d : [...d, from]));
-    const to = nextScreen(from, { ...c, keepRuns: addStrength });
+    const to = nextScreen(from, { ...c, addMode });
     if (returnBlock && (to === 'preview' || screenDef(to).block !== returnBlock)) {
       setReturnBlock(null);
       go('preview');
     } else go(to);
-  }, [returnBlock, go, addStrength]);
+  }, [returnBlock, go, addMode]);
 
   const next = useCallback(() => {
     if (!stepId) return;
@@ -169,10 +173,13 @@ export function Onboarding() {
     setBusy(true);
     setError(null);
     try {
-      if (addStrength && plan) {
-        if (!prefs || !generated.workouts.some((w) => w.kind.startsWith('strength'))) throw new Error(t('preview.addStrength.none'));
+      if (keep && plan) {
+        // The strength sessions around the runs as they are in the database (the same ones the preview showed).
+        const week = keptWeekFor(answers, workouts, today);
+        const sessions = week ? keptStrengthSessions(plan, workouts, answers, prefs?.routines, week.week, today) : [];
+        if (!prefs || !sessions.length) throw new Error(t('preview.addStrength.none'));
         await saveOnboarding(user!.id, answers, prefs);
-        await addStrengthToPlan(user!.id, plan, workouts, answers, generated, today);
+        await addStrengthToPlan(user!.id, plan, answers, sessions, today);
         await reload();
         toast(t('preview.addStrength.done'), 'success');
         navigate('/strength');
@@ -211,7 +218,8 @@ export function Onboarding() {
     next,
     skip,
     step: stepId ?? 'strengthPlan',
-    keepRuns: addStrength,
+    addMode,
+    keepRuns: keep,
   };
 
   const list = visibleScreens(ctx);
@@ -281,7 +289,7 @@ export function Onboarding() {
         )}
 
         {Screen && <Screen s={api} />}
-        {step === 'preview' && <PreviewStep s={api} busy={busy} editing={editing} hasPlan={!!plan} addStrength={addStrength} onStart={start} />}
+        {step === 'preview' && <PreviewStep s={api} busy={busy} editing={editing} hasPlan={!!plan} addStrength={keep} onStart={start} />}
 
         {error && <Notice tone="error" className="mt-5">{error}</Notice>}
 

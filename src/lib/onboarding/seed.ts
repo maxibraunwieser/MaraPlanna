@@ -88,6 +88,8 @@ export function editStart(profile: Profile, connection: GarminConnection | null,
 export function strengthStart(profile: Profile, connection: GarminConnection | null, today: string): { answers: OnboardingAnswers; strength: StrengthPrefs } {
   const start = editStart(profile, connection, today);
   const share = start.answers.setup!.runPct >= 100 ? setRunPct({ a: start.answers, strength: start.strength }, 80, today) : { a: start.answers, strength: start.strength };
-  const m = settle({ a: share.a, strength: { ...share.strength, perWeek: null } }, today);
+  // Whether the running plan stays is asked again each time; an arranged week from an earlier visit is not reused.
+  const a = { ...share.a, setup: { ...share.a.setup!, keepRunPlan: null, keptWeek: null } };
+  const m = settle({ a, strength: { ...share.strength, perWeek: null } }, today);
   return { answers: m.a, strength: m.strength };
 }

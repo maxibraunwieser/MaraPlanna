@@ -18,7 +18,7 @@ import { distinctWorkouts } from '../../lib/onboarding/strengthMap';
 import { kgToLb } from '../../lib/onboarding/units';
 import { explainPlan } from '../../lib/planner/explain';
 import { buildPlan, type GeneratedPlan } from '../../lib/planner/generate';
-import { currentWeek, keepRunPlan } from '../../lib/planner/keepRuns';
+import { currentWeek, keepRunPlan, keptStrengthSessions, keptWeekFor } from '../../lib/planner/keepRuns';
 import { assessFitness } from '../../lib/planner/fitness';
 import { goalProfile, isRaceGoal } from '../../lib/planner/goals';
 import { restOf, routineMinutes } from '../../lib/strengthPlan';
@@ -92,9 +92,12 @@ export function PreviewStep({ s, busy, editing, hasPlan, addStrength = false, on
     try {
       const { answers, prefs } = finalize(s.a, s.strength, today);
       const assessment = assessFitness({ answers, activities: garminOn ? activities : [], metrics: garminOn ? metrics : [], garmin: garminOn ? (connection?.profile ?? null) : null, today });
-      const generated = buildPlan(answers, assessment, today, prefs?.routines);
-      // Strength added to a running plan: what is shown is the plan that is there, with only the new strength sessions in it.
-      const plan = addStrength && stored ? keepRunPlan(generated, stored, storedWorkouts, today) : generated;
+      // Strength added to a running plan that is kept: what is shown is the plan from the database with only the new strength
+      // sessions in it, placed around its runs (the same sessions "Add strength" saves).
+      const kept = addStrength && stored ? keptWeekFor(answers, storedWorkouts, today) : null;
+      const plan = addStrength && stored
+        ? keepRunPlan(stored, storedWorkouts, kept ? keptStrengthSessions(stored, storedWorkouts, answers, prefs?.routines, kept.week, today) : [], today)
+        : buildPlan(answers, assessment, today, prefs?.routines);
       return { ok: true as const, answers, prefs, assessment, plan };
     } catch (e) {
       return { ok: false as const, error: (e as Error).message };

@@ -15,7 +15,7 @@ export type ScreenId =
   | 'goal' | 'weighting' | 'race' | 'raceDetails' | 'raceTime' | 'strengthGoals' | 'planLength'
   | 'hasGarmin' | 'garminConnect' | 'garminReview'
   | 'motivation' | 'adapt'
-  | 'runExperience' | 'runVolume' | 'runReference' | 'runHeart' | 'runDays' | 'runPlan'
+  | 'runKeep' | 'runExperience' | 'runVolume' | 'runReference' | 'runHeart' | 'runDays' | 'runPlan'
   | 'strExperience' | 'strWhere' | 'strEquipment' | 'strFrequency' | 'double' | 'strWrist' | 'strengthPlan';
 
 /** A screen of the questionnaire or the final overview. */
@@ -56,6 +56,7 @@ export const SCREENS: ScreenDef[] = [
   { id: 'garminReview', block: 'garmin' },
   { id: 'motivation', block: 'prefs', optional: true },
   { id: 'adapt', block: 'prefs', optional: true },
+  { id: 'runKeep', block: 'running' },
   { id: 'runExperience', block: 'running' },
   { id: 'runVolume', block: 'running' },
   { id: 'runReference', block: 'running', optional: true },
@@ -74,9 +75,15 @@ export const SCREENS: ScreenDef[] = [
 export interface Ctx {
   a: OnboardingAnswers;
   strength: StrengthPrefs;
-  /** A running plan exists and stays as it is (strength is added later): the questions about the running are not asked. */
-  keepRuns?: boolean;
+  /**
+   * Strength is added to a running plan that exists: the running block starts with that plan and the question whether to change
+   * it. Kept (or not answered yet), the questions about the running are not asked.
+   */
+  addMode?: boolean;
 }
+
+/** Strength is added and the running plan stays as it is (also while the person has not decided yet). */
+export const keepsRuns = (c: Ctx): boolean => !!c.addMode && c.a.setup?.keepRunPlan !== false;
 
 const RUN_SCREENS: ScreenId[] = ['race', 'raceDetails', 'raceTime', 'planLength', 'runExperience', 'runVolume', 'runReference', 'runHeart', 'runDays', 'runPlan'];
 
@@ -90,6 +97,7 @@ const VISIBLE: Partial<Record<ScreenId, (c: Ctx) => boolean>> = {
   race: runs,
   raceDetails: (c) => runs(c) && c.a.setup?.hasRace === true,
   raceTime: (c) => runs(c) && c.a.setup?.hasRace === true,
+  runKeep: (c) => !!c.addMode,
   strengthGoals: lifts,
   planLength: (c) => !(runs(c) && c.a.setup?.hasRace === true),
   garminConnect: (c) => c.a.setup?.hasGarmin === true,
@@ -105,7 +113,7 @@ const VISIBLE: Partial<Record<ScreenId, (c: Ctx) => boolean>> = {
   pregnancy: (c) => c.a.setup?.gender !== 'male',
 };
 
-export const isVisible = (id: ScreenId, c: Ctx): boolean => !(c.keepRuns && RUN_SCREENS.includes(id)) && (VISIBLE[id]?.(c) ?? true);
+export const isVisible = (id: ScreenId, c: Ctx): boolean => !(keepsRuns(c) && RUN_SCREENS.includes(id)) && (VISIBLE[id]?.(c) ?? true);
 
 /** The screens this person sees, in order. */
 export const visibleScreens = (c: Ctx): ScreenDef[] => SCREENS.filter((s) => isVisible(s.id, c));

@@ -96,6 +96,9 @@ export function validateStep(step: ScreenId, a: OnboardingAnswers, strength: Str
     case 'garminConnect':
       if (!s.garmin) e.garmin = 'choose';
       break;
+    case 'runKeep':
+      if (s.keepRunPlan === null || s.keepRunPlan === undefined) e.keepRunPlan = 'choose';
+      break;
     case 'runExperience':
       if (!s.runStarted) e.runStarted = 'required';
       break;

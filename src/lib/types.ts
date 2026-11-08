@@ -139,6 +139,10 @@ export interface SetupExtras {
   strengthNow: number | null;
   /** Strength sessions per week the person chose in the plan (null = the planner's recommendation). */
   strengthWanted: number | null;
+  /** Strength added to a running plan that exists: keep that plan as it is (true), change it (false), not answered yet (null). */
+  keepRunPlan?: boolean | null;
+  /** Strength added to a running plan that is kept: the week of that plan with the strength days, as the person moved them. */
+  keptWeek?: DayTemplate[] | null;
   lifts: Partial<Record<LiftKey, { kg: number | null; reps: number | null }>>;
   skills: Partial<Record<SkillKey, SkillLevel>>;
   /** Catalogue keys the person does not want / likes, picked from the list, and what they wrote besides. */

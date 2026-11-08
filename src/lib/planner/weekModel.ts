@@ -176,7 +176,7 @@ function runLayouts(inp: WeekModelInput): RunLayout[] {
   return out.sort((a, b) => a.cost - b.cost).slice(0, 24);
 }
 
-type DayKind = 'rest' | 'easy' | 'recovery' | 'quality' | 'long';
+export type DayKind = 'rest' | 'easy' | 'recovery' | 'quality' | 'long';
 
 function dayKinds(lay: RunLayout): DayKind[] {
   const kinds: DayKind[] = Array<DayKind>(7).fill('rest');
@@ -189,7 +189,7 @@ function dayKinds(lay: RunLayout): DayKind[] {
 }
 
 /** How well a strength session of this kind sits on a day (higher is better). */
-function daySuitability(kind: StrengthKind, d: number, kinds: DayKind[]): number {
+export function daySuitability(kind: StrengthKind, d: number, kinds: DayKind[]): number {
   const today = kinds[d];
   const next = kinds[(d + 1) % 7];
   const prev = kinds[(d + 6) % 7];
@@ -272,7 +272,12 @@ export function solveWeek(inp: WeekModelInput): WeekSolution {
     if (!best || total > best.total) best = { lay, kinds, str, total };
   }
   if (!best) return { week: emptyWeek(), runDays: [], longDay: free[free.length - 1], quality: [], recovery: [], strength: [], restDays: free, unplaced: inp.strength.length, longMinutes: null, longTight: false };
-  const { lay, kinds, str } = best;
+  return assemble(input, best.lay, best.kinds, best.str);
+}
+
+/** The week of a run layout with the strength sessions on it, and why each one sits where it does. */
+function assemble(input: WeekModelInput, lay: RunLayout, kinds: DayKind[], str: ReturnType<typeof placeStrength>): WeekSolution {
+  const free = input.free;
   const week = emptyWeek();
   for (const d of lay.runSet) week[d].run = kinds[d] === 'rest' ? 'easy' : kinds[d];
   const strengthDays = new Set<number>();
@@ -300,3 +305,16 @@ export function solveWeek(inp: WeekModelInput): WeekSolution {
   };
 }
 
+/**
+ * The strength sessions around runs that are already fixed (a running plan that exists and stays as it is): the same rules as
+ * solveWeek, but only the strength days are searched; every run keeps its day and its kind.
+ */
+export function solveAroundRuns(inp: WeekModelInput, runWeek: DayTemplate[]): WeekSolution {
+  const free = [...inp.free].sort((a, b) => a - b) as Weekday[];
+  const runSet = ALL_DAYS.filter((d) => runWeek[d].run !== 'rest');
+  const long = runWeek.findIndex((d) => d.run === 'long');
+  const lay: RunLayout = { runSet, longDay: (long >= 0 ? long : (runSet[runSet.length - 1] ?? 6)) as Weekday, quality: ALL_DAYS.filter((d) => runWeek[d].run === 'quality'), cost: 0 };
+  const kinds = runWeek.map((d) => d.run as DayKind);
+  const input = { ...inp, free };
+  return assemble(input, lay, kinds, placeStrength(input, lay, kinds));
+}

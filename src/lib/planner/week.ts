@@ -10,7 +10,7 @@
 import type { DayTemplate, ExtraSession, Level, OnboardingAnswers, Weekday } from '../types';
 import { chooseLayout, type WeekLayout } from './layout';
 import { extraLoad, placeExtras, type DayType } from './extras';
-import { qualityFor, solveWeek, type WeekSolution } from './weekModel';
+import { qualityFor, solveAroundRuns, solveWeek, type WeekModelInput, type WeekSolution } from './weekModel';
 import { strengthMinutesOf } from '../onboarding/catalog';
 import { STRENGTH_KINDS, isStrengthExtra, strengthKinds, withStrengthSessions, type StrengthKind } from '../onboarding/strengthMap';
 
@@ -81,11 +81,22 @@ export function strengthOf(extras: ExtraSession[]): StrengthKind[] {
  * Returns the week, how many of the wanted extra sessions found no day and the solution with the reasons.
  */
 export function autoWeek(input: WeekInput): { week: DayTemplate[]; unplaced: number; longDay: Weekday; solution: WeekSolution } {
+  return withOtherExtras(input, solveWeek(modelInput(input)));
+}
+
+/**
+ * The week of a running plan that exists and stays as it is: the runs keep their days and kinds, and the strength sessions (then
+ * the other extras) are placed around them by the same rules as "plan for me".
+ */
+export function aroundRuns(runWeek: DayTemplate[], input: WeekInput): { week: DayTemplate[]; unplaced: number; longDay: Weekday; solution: WeekSolution } {
+  return withOtherExtras(input, solveAroundRuns(modelInput(input), runWeek));
+}
+
+function modelInput(input: WeekInput): WeekModelInput {
   const { unavailable, level, extras } = input;
   const free = ALL_DAYS.filter((d) => !unavailable.includes(d));
   const runDays = Math.max(1, Math.min(input.runDays, free.length));
-  const strength = strengthOf(extras);
-  const solution = solveWeek({
+  return {
     free,
     minutes: input.minutes ?? [],
     runs: runDays,
@@ -93,10 +104,16 @@ export function autoWeek(input: WeekInput): { week: DayTemplate[]; unplaced: num
     preferred: input.preferred ?? [],
     quality: qualityFor(level, runDays),
     level,
-    strength,
+    strength: strengthOf(extras),
     strengthMin: input.strengthMin ?? 40,
     sameDay: input.sameDay !== false,
-  });
+  };
+}
+
+/** The other extras (core, mobility, cross-training) on the lightest days that already carry a session. */
+function withOtherExtras(input: WeekInput, solution: WeekSolution): { week: DayTemplate[]; unplaced: number; longDay: Weekday; solution: WeekSolution } {
+  const { unavailable, extras } = input;
+  const free = ALL_DAYS.filter((d) => !unavailable.includes(d));
   const week = solution.week;
   const dayType = week.map((d): DayType => (d.run === 'rest' ? 'rest' : d.run));
   const others = expand(extras.filter((e) => !isStrengthExtra(e)));

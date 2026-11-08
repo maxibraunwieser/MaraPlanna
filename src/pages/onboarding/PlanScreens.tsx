@@ -20,6 +20,7 @@ import { buildPlan, timeLimits } from '../../lib/planner/generate';
 import { fmtDistance } from '../../lib/format';
 import { SOURCES, runBuildSteps, strengthBuildSteps, type BuildStep } from '../../lib/planner/rationale';
 import { autoWeek, weekInputOf } from '../../lib/planner/week';
+import { keptWeekFor, moveKeptStrength } from '../../lib/planner/keepRuns';
 import { PATTERN_LABEL, catalogEntry, routineMinutes, setupOf, setupSignature, suggestRoutine, type StrengthType } from '../../lib/strengthPlan';
 import { exName, rxText } from '../../lib/strengthFormat';
 import type { OnboardingAnswers } from '../../lib/types';
@@ -152,6 +153,7 @@ function WorkoutDialog({ s, kind, index, onClose }: { s: StepApi; kind: Strength
 export function StrengthPlanScreen({ s }: { s: StepApi }) {
   const { t, lang } = useI18n();
   const { a, setup, strength } = s;
+  const { workouts: stored, today } = useData();
   const names = weekdayNames(lang, 'long');
   const [open, setOpen] = useState<StrengthType | null>(null);
   const preview = usePlanPreview(a, strength);
@@ -188,8 +190,11 @@ export function StrengthPlanScreen({ s }: { s: StepApi }) {
 
   const custom = a.scheduleMode === 'custom' && !!a.customWeek;
   const n = strength.perWeek ?? 0;
-  const auto = custom ? null : autoWeek(weekInputOf(a, withStrengthSessions(a.extras, n)));
-  const week = custom ? a.customWeek! : auto!.week;
+  // A running plan that is kept: its usual week from the database, with the strength days around its runs.
+  const kept = s.keepRuns ? keptWeekFor(a, stored, today, withStrengthSessions(a.extras, n)) : null;
+  const auto = custom || kept ? null : autoWeek(weekInputOf(a, withStrengthSessions(a.extras, n)));
+  const week = kept ? kept.week : custom ? a.customWeek! : auto!.week;
+  const unplaced = kept ? kept.unplaced : (auto?.solution.unplaced ?? 0);
   const plan = strengthPlanOf(a);
   const chosen = setup.strengthWanted !== null;
   const kindOf = (id: string) => (['lower', 'upper', 'full'].includes(id) ? (id as StrengthType) : null);
@@ -198,7 +203,8 @@ export function StrengthPlanScreen({ s }: { s: StepApi }) {
     ? items(
         strengthBuildSteps({
           today: preview.today,
-          answers: preview.answers,
+          // Kept: the explanation describes the week of the stored plan, not a new one.
+          answers: kept ? { ...preview.answers, scheduleMode: 'custom' as const, customWeek: kept.week } : preview.answers,
           plan: preview.plan,
           assessment: preview.assessment,
           units: a.units,
@@ -244,14 +250,20 @@ export function StrengthPlanScreen({ s }: { s: StepApi }) {
       {plan.max === 0 && <Notice tone="warn">{t('ob.sp.none')}</Notice>}
       {!chosen && plan.limitedBy === 'now' && <Notice tone="info">{t('ob.sp.limit.now', { now: setup.strengthNow ?? 0, n: plan.recommended })}</Notice>}
       {!chosen && plan.limitedBy === 'days' && <Notice tone="info">{t('ob.sp.limit.days', { want: plan.desired, n: plan.recommended })}</Notice>}
-      {auto && auto.solution.unplaced > 0 && <Notice tone="warn">{t('ob.sp.count.short', { missing: auto.solution.unplaced })}</Notice>}
+      {kept && <Notice tone="info">{t('ob.sp.kept')}</Notice>}
+      {unplaced > 0 && <Notice tone="warn">{t('ob.sp.count.short', { missing: unplaced })}</Notice>}
 
       <WeekBoard
         week={week}
         extras={a.extras}
         unavailable={setup.unavailableDays}
         minutes={setup.minutesPerDay}
-        onMove={(mv) => s.updateAll((m) => moveInWeek(m, mv.item, mv.from, mv.to))}
+        onMove={(mv) =>
+          kept
+            ? mv.item === 'strength' && s.updateSetup({ keptWeek: moveKeptStrength(kept.week, mv.from, mv.to, setup.unavailableDays) })
+            : s.updateAll((m) => moveInWeek(m, mv.item, mv.from, mv.to))
+        }
+        lockRuns={!!kept}
         onOpen={(id) => setOpen(kindOf(id))}
       />
       <p className="text-xs text-slate-500">{t('ob.board.hint')}</p>

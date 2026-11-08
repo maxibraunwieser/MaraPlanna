@@ -26,7 +26,7 @@ import { exerciseById, sessionOrder, type Routine, type StrengthPrefs } from '..
 import type { StrengthSetInsert } from './strengthLog';
 import type { GeneratedPlan } from './planner/generate';
 import { isRaceGoal } from './planner/goals';
-import { inputsWithStrength, STRENGTH_DB_KINDS, strengthSessionsFor } from './planner/keepRuns';
+import { inputsWithStrength, STRENGTH_DB_KINDS } from './planner/keepRuns';
 import { generateWeeks } from './planner/generate';
 
 function check<T>(res: { data: T; error: { message: string } | null }): T {
@@ -171,16 +171,15 @@ export async function createPlan(userId: string, answers: OnboardingAnswers, gen
 
 /**
  * Strength is added to a running plan that stays as it is: no run is moved, changed or created again (the coach's changes to it
- * are kept). Only the strength sessions of the new answers come in, on the days of the plan, never on a race day.
+ * are kept). The open strength sessions are replaced by `sessions` (planner/keepRuns.ts places them around the stored runs).
  */
-export async function addStrengthToPlan(userId: string, plan: TrainingPlan, current: PlannedWorkout[], answers: OnboardingAnswers, generated: GeneratedPlan, today: string) {
-  const sessions = strengthSessionsFor(generated, current, today);
+export async function addStrengthToPlan(userId: string, plan: TrainingPlan, answers: OnboardingAnswers, sessions: WorkoutDraft[], today: string) {
   check(await supabase.from('planned_workouts').delete().eq('plan_id', plan.id).eq('status', 'planned').gte('date', today).in('kind', STRENGTH_DB_KINDS));
   for (const batch of chunks(workoutRows(sessions, plan.id, userId), 250)) {
     check(await supabase.from('planned_workouts').insert(batch));
   }
   await updatePlanInputs(plan.id, inputsWithStrength(plan.inputs, answers));
-  await logAdjustment(plan, 'strength', `Strength added: ${answers.extras.reduce((n, e) => n + (STRENGTH_DB_KINDS.includes(`strength_${e.id}`) ? e.perWeek : 0), 0)} per week. Your running plan stays as it is.`);
+  await logAdjustment(plan, 'strength', `Strength added: ${answers.extras.reduce((n, e) => n + ((STRENGTH_DB_KINDS as string[]).includes(`strength_${e.id}`) ? e.perWeek : 0), 0)} per week. Your running plan stays as it is.`);
   return sessions.length;
 }
 
