@@ -213,7 +213,7 @@ export function WorkoutsTab({ ctx }: { ctx: StrengthCtx }) {
                       <Button size="sm" variant="ghost" icon={<Trash2 className="h-4 w-4" />} aria-label={t('dw.aria', { name: nameOf(r) })} onClick={() => setDeleting(r)}><span className="sr-only sm:not-sr-only">{t('dw.button')}</span></Button>
                     </div>
                   </div>
-                  <MuscleMap load={load} className="w-28 shrink-0 self-center sm:w-32" />
+                  <MuscleMap load={load} className="w-24 shrink-0 self-center sm:w-28" />
                 </div>
                 {(open || !r.exercises.length) && (
                   <div className="mt-4 space-y-3">
