@@ -37,6 +37,7 @@ export const KIND_STYLE: Record<WorkoutKind, { readonly label: string; dot: stri
   strength_upper: style('strength_upper', 'bg-violet-500', 'border-l-violet-500', 'bg-violet-50'),
   strength_lower: style('strength_lower', 'bg-violet-600', 'border-l-violet-600', 'bg-violet-50'),
   strength_full: style('strength_full', 'bg-violet-500', 'border-l-violet-500', 'bg-violet-50'),
+  strength_cali: style('strength_cali', 'bg-violet-400', 'border-l-violet-400', 'bg-violet-50'),
   core: style('core', 'bg-purple-400', 'border-l-purple-400', 'bg-purple-50'),
   mobility: style('mobility', 'bg-lime-500', 'border-l-lime-500', 'bg-lime-50'),
   plyo: style('plyo', 'bg-pink-500', 'border-l-pink-500', 'bg-pink-50'),

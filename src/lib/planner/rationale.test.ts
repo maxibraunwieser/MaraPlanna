@@ -34,7 +34,7 @@ function steps(m: Model) {
   const str = strengthBuildSteps({
     ...input,
     facts: { count: m.strength.perWeek ?? 0, recommended: p.recommended, desired: p.desired, now: m.a.setup!.strengthNow ?? 0, chosen: m.a.setup!.strengthWanted !== null, limitedBy: p.limitedBy, minutes: m.strength.minutes },
-    kindNames: { lower: 'Lower body', upper: 'Upper body', full: 'Full body' },
+    kindNames: { lower: 'Lower body', upper: 'Upper body', full: 'Full body', cali: 'Calisthenics' },
     whyNames: { hardDay: 'on a hard-run day', easyDay: 'on an easy-run day', rest: 'on a day of its own' },
   });
   return { run, str };

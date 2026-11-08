@@ -303,6 +303,7 @@ export const enSetup = {
   'workouts.times': 'done {n}× a week',
   'kind.lower': 'Lower body',
   'kind.upper': 'Upper body',
+  'kind.cali': 'Calisthenics',
   'kind.full': 'Full body',
 
   // Step 6: week

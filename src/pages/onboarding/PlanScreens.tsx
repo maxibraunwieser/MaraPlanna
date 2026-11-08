@@ -12,9 +12,9 @@ import { Button, Card, Modal, Notice } from '../../components/ui';
 import { useData } from '../../lib/data';
 import { useI18n, type MsgKey } from '../../lib/i18n';
 import { dateText, weekdayNames } from '../../lib/i18n/dates';
-import { applyStrengthPlan, moveInWeek, moveRunDay, refresh, runOnlyWeek, setStrengthWanted, strengthPlanOf } from '../../lib/onboarding/apply';
+import { applyStrengthPlan, moveInWeek, moveRunDay, refresh, runOnlyWeek, setCaliWanted, setStrengthWanted, strengthPlanOf } from '../../lib/onboarding/apply';
 import { finalize } from '../../lib/onboarding/finalize';
-import { distinctWorkouts, withStrengthSessions } from '../../lib/onboarding/strengthMap';
+import { caliOf, distinctWorkouts, withStrengthSessions } from '../../lib/onboarding/strengthMap';
 import { assessFitness } from '../../lib/planner/fitness';
 import { buildPlan, timeLimits } from '../../lib/planner/generate';
 import { fmtDistance } from '../../lib/format';
@@ -166,7 +166,8 @@ export function StrengthPlanScreen({ s }: { s: StepApi }) {
   }, []);
 
   // Every workout exists: a missing one gets the suggestion, a suggestion made for other answers is made again, own ones stay.
-  const list = distinctWorkouts(strength.perWeek);
+  const cali = Math.min(caliOf(a.extras), strength.perWeek ?? 0);
+  const list = distinctWorkouts(strength.perWeek, cali);
   const kinds = list.map((x) => x.kind);
   const signature = setupSignature(setupOf(strength));
   const stale = kinds.some((k) => {
@@ -197,7 +198,7 @@ export function StrengthPlanScreen({ s }: { s: StepApi }) {
   const unplaced = kept ? kept.unplaced : (auto?.solution.unplaced ?? 0);
   const plan = strengthPlanOf(a);
   const chosen = setup.strengthWanted !== null;
-  const kindOf = (id: string) => (['lower', 'upper', 'full'].includes(id) ? (id as StrengthType) : null);
+  const kindOf = (id: string) => (['lower', 'upper', 'full', 'cali'].includes(id) ? (id as StrengthType) : null);
 
   const steps = preview
     ? items(
@@ -210,7 +211,7 @@ export function StrengthPlanScreen({ s }: { s: StepApi }) {
           units: a.units,
           names,
           facts: { count: n, recommended: plan.recommended, desired: plan.desired, now: setup.strengthNow ?? 0, chosen, limitedBy: plan.limitedBy, minutes: strength.minutes },
-          kindNames: { lower: t('kind.lower'), upper: t('kind.upper'), full: t('kind.full') },
+          kindNames: { lower: t('kind.lower'), upper: t('kind.upper'), full: t('kind.full'), cali: t('kind.cali') },
           whyNames: { hardDay: t('ob.why.hardDay'), easyDay: t('ob.why.easyDay'), rest: t('ob.why.rest') },
         }),
       )
@@ -233,6 +234,23 @@ export function StrengthPlanScreen({ s }: { s: StepApi }) {
           </button>
         </div>
       </div>
+      {n > 0 && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-slate-900">{t('ob.sp.cali.label')}</div>
+            <div className="text-xs text-slate-500">{t('ob.sp.cali.hint')}</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button type="button" aria-label={t('ob.sp.cali.less')} disabled={cali <= 0} onClick={() => s.updateAll((m) => setCaliWanted(m, cali - 1))} className="rounded-full bg-white p-2 ring-1 ring-slate-300 hover:ring-slate-400 disabled:opacity-30">
+              <Minus className="h-4 w-4" />
+            </button>
+            <span data-testid="cali-count" className="w-8 text-center text-2xl font-bold tabular-nums text-slate-900" aria-live="polite">{cali}</span>
+            <button type="button" aria-label={t('ob.sp.cali.more')} disabled={cali >= n} onClick={() => s.updateAll((m) => setCaliWanted(m, cali + 1))} className="rounded-full bg-white p-2 ring-1 ring-slate-300 hover:ring-slate-400 disabled:opacity-30">
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
         <span>{t('ob.sp.count.rec', { n: plan.recommended })}</span>
         <span>{t('ob.sp.count.max', { n: plan.max })}</span>

@@ -45,7 +45,7 @@ const RUNS = new Set(['easy', 'recovery', 'long', 'long_mp', 'threshold', 'inter
 const LABEL: Record<string, string> = {
   easy: 'Easy', recovery: 'Recovery', long: 'Long run', long_mp: 'Long + MP', threshold: 'Threshold', intervals: 'Intervals',
   marathon_pace: 'Marathon pace', fartlek: 'Fartlek', shakeout: 'Shakeout', race: 'Race', strength_upper: 'Upper body',
-  strength_lower: 'Lower body', strength_full: 'Full body', core: 'Core', mobility: 'Mobility', plyo: 'Plyometrics',
+  strength_lower: 'Lower body', strength_full: 'Full body', strength_cali: 'Calisthenics', core: 'Core', mobility: 'Mobility', plyo: 'Plyometrics',
   bike: 'Cycling', swim: 'Swimming', custom: 'Own workout',
 };
 const HARDEST: CalZone[] = ['repetition', 'interval', 'threshold', 'marathon', 'long', 'easy', 'recovery'];

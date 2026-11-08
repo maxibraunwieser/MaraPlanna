@@ -14,7 +14,7 @@
 //  - At least one day a week with nothing planned, best right after the long run (Meeusen et al. 2013).
 
 import type { DayTemplate, Level, Weekday } from '../types';
-import type { StrengthKind } from '../onboarding/strengthMap';
+import { isLegKind, type StrengthKind } from '../onboarding/strengthMap';
 
 export const ALL_DAYS: Weekday[] = [0, 1, 2, 3, 4, 5, 6];
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
@@ -193,7 +193,8 @@ export function daySuitability(kind: StrengthKind, d: number, kinds: DayKind[]):
   const today = kinds[d];
   const next = kinds[(d + 1) % 7];
   const prev = kinds[(d + 6) % 7];
-  if (kind === 'upper') return { rest: 12, easy: 10, recovery: 10, quality: 4, long: -60 }[today];
+  // Upper body and calisthenics are no leg day.
+  if (!isLegKind(kind)) return { rest: 12, easy: 10, recovery: 10, quality: 4, long: -60 }[today];
   let s = { rest: 8, easy: 10, recovery: -10, quality: 15, long: -1000 }[today];
   if (next === 'long') s -= 60;
   if (next === 'quality') s -= 40;
@@ -226,7 +227,7 @@ function placeStrength(inp: WeekModelInput, lay: RunLayout, kinds: DayKind[]): {
         for (let i = 0; i < days.length; i++)
           for (let j = i + 1; j < days.length; j++) {
             if (!adjacent(days[i], days[j])) continue;
-            score -= kindsOrder[i] !== 'upper' && kindsOrder[j] !== 'upper' ? 30 : 8;
+            score -= isLegKind(kindsOrder[i]) && isLegKind(kindsOrder[j]) ? 30 : 8;
           }
         const used = new Set<number>([...runs, ...days]);
         const rest = inp.free.filter((d) => !used.has(d));
@@ -242,8 +243,8 @@ function placeStrength(inp: WeekModelInput, lay: RunLayout, kinds: DayKind[]): {
 
 /** When fewer sessions fit, the ones that matter most stay: leg work first, then upper body (the order of `wanted`). */
 function chooseKinds(wanted: StrengthKind[], s: number): StrengthKind[] {
-  const legs = wanted.filter((k) => k !== 'upper');
-  const upper = wanted.filter((k) => k === 'upper');
+  const legs = wanted.filter(isLegKind);
+  const upper = wanted.filter((k) => !isLegKind(k));
   // Keep a balance: alternate leg and upper sessions when cutting down.
   const out: StrengthKind[] = [];
   let l = 0;

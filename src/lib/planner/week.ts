@@ -12,7 +12,7 @@ import { chooseLayout, type WeekLayout } from './layout';
 import { extraLoad, placeExtras, type DayType } from './extras';
 import { qualityFor, solveAroundRuns, solveWeek, type WeekModelInput, type WeekSolution } from './weekModel';
 import { strengthMinutesOf } from '../onboarding/catalog';
-import { STRENGTH_KINDS, isStrengthExtra, strengthKinds, withStrengthSessions, type StrengthKind } from '../onboarding/strengthMap';
+import { STRENGTH_KINDS, caliOf, isLegKind, isStrengthExtra, weekKinds, withStrengthSessions, type StrengthKind } from '../onboarding/strengthMap';
 
 const ALL_DAYS: Weekday[] = [0, 1, 2, 3, 4, 5, 6];
 const circularGap = (a: number, b: number) => Math.min(Math.abs(a - b), 7 - Math.abs(a - b));
@@ -132,25 +132,25 @@ function expand(extras: ExtraSession[]): ExtraSession[] {
 }
 
 /** The week the person drew: per day run, strength, both or rest. Run types and the strength kinds are placed by the rules. */
-export function manualWeek(states: DayState[], longDay: Weekday, level: Level, otherExtras: ExtraSession[] = []): DayTemplate[] {
+export function manualWeek(states: DayState[], longDay: Weekday, level: Level, otherExtras: ExtraSession[] = [], cali = 0): DayTemplate[] {
   const runDays = ALL_DAYS.filter((d) => states[d] === 'run' || states[d] === 'both');
   const strengthDays = ALL_DAYS.filter((d) => states[d] === 'strength' || states[d] === 'both');
   const week = emptyWeek();
   if (!runDays.length) {
-    assignStrength(week, strengthDays, otherExtras);
+    assignStrength(week, strengthDays, otherExtras, undefined, cali);
     return week;
   }
   const long = runDays.includes(longDay) ? longDay : (runDays[runDays.length - 1] as Weekday);
   const layout = chooseLayout(runDays, runDays.length, long, qualityFor(level, runDays.length));
   const { week: runWeek, dayType } = fromLayout(layout);
-  assignStrength(runWeek, strengthDays, otherExtras, dayType);
+  assignStrength(runWeek, strengthDays, otherExtras, dayType, cali);
   return runWeek;
 }
 
 /** Puts the strength kinds on the chosen days: leg sessions where legs have a day to recover, upper body on the others. */
-function assignStrength(week: DayTemplate[], days: Weekday[], others: ExtraSession[], dayType: DayType[] = Array<DayType>(7).fill('rest')) {
+function assignStrength(week: DayTemplate[], days: Weekday[], others: ExtraSession[], dayType: DayType[] = Array<DayType>(7).fill('rest'), cali = 0) {
   if (!days.length) return;
-  const kinds: StrengthKind[] = strengthKinds(days.length);
+  const kinds: StrengthKind[] = weekKinds(days.length, cali);
   // Fewer than the picked days can never happen (4 or more all get a kind): repeat the pattern.
   while (kinds.length < days.length) kinds.push(kinds[kinds.length % 4]);
   const legsFit = (d: number) => {
@@ -164,8 +164,8 @@ function assignStrength(week: DayTemplate[], days: Weekday[], others: ExtraSessi
     return s;
   };
   const byFit = [...days].sort((a, b) => legsFit(b) - legsFit(a) || a - b);
-  const legs = kinds.filter((k) => k !== 'upper');
-  const upper = kinds.filter((k) => k === 'upper');
+  const legs = kinds.filter(isLegKind);
+  const upper = kinds.filter((k) => !isLegKind(k));
   const order = [...legs, ...upper];
   byFit.forEach((d, i) => week[d].extras.push(order[i]));
   // Other extras (core, mobility, cross-training) go on the lightest days that already have a session; a day the person
@@ -181,7 +181,7 @@ function assignStrength(week: DayTemplate[], days: Weekday[], others: ExtraSessi
 }
 
 /** The state per day of an existing week (for the manual editor). */
-export function statesOf(week: DayTemplate[], strengthIds: string[] = ['lower', 'upper', 'full']): DayState[] {
+export function statesOf(week: DayTemplate[], strengthIds: string[] = STRENGTH_KINDS): DayState[] {
   return week.map((d) => {
     const run = d.run !== 'rest';
     const strength = d.extras.some((id) => strengthIds.includes(id));
@@ -226,7 +226,7 @@ export function weekIssues(
   if (!empty.length && runDays.length < 7) out.push({ key: 'noRest', severity: 'warn' });
 
   if (ctx.runsWanted !== null && runDays.length !== ctx.runsWanted) out.push({ key: 'runsMismatch', severity: 'warn', params: { have: runDays.length, want: ctx.runsWanted } });
-  const strengthIds = ['lower', 'upper', 'full'];
+  const strengthIds: string[] = STRENGTH_KINDS;
   const strengthDays = week.filter((d) => d.extras.some((id) => strengthIds.includes(id))).length;
   if (ctx.strengthWanted !== null && strengthDays !== Math.min(ctx.strengthWanted, 7)) out.push({ key: 'strengthMismatch', severity: 'warn', params: { have: strengthDays, want: ctx.strengthWanted } });
   return out;
@@ -274,12 +274,13 @@ export function applyAutoWeek(a: OnboardingAnswers, strengthPerWeek: number): On
 export function applyManualWeek(a: OnboardingAnswers, states: DayState[], longDay: Weekday): OnboardingAnswers {
   const strengthDays = states.filter((s) => s === 'strength' || s === 'both').length;
   const others = a.extras.filter((e) => !isStrengthExtra(e));
-  const customWeek = manualWeek(states, longDay, a.level, others);
+  const cali = Math.min(caliOf(a.extras), strengthDays);
+  const customWeek = manualWeek(states, longDay, a.level, others, cali);
   return {
     ...a,
     scheduleMode: 'custom',
     customWeek,
-    extras: withStrengthSessions(others, strengthDays),
+    extras: withStrengthSessions(others, strengthDays, cali),
     longRunDay: (customWeek.findIndex((d) => d.run === 'long') >= 0 ? customWeek.findIndex((d) => d.run === 'long') : longDay) as Weekday,
     availableDays: ALL_DAYS.filter((d) => customWeek[d].run !== 'rest'),
     runDaysPerWeek: Math.max(1, customWeek.filter((d) => d.run !== 'rest').length),

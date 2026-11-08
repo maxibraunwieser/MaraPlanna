@@ -133,6 +133,18 @@ export function setStrengthWanted(m: Model, n: number | null): Model {
   return applyStrengthPlan(withSetup(m, { strengthWanted: n }));
 }
 
+/** How many of the week's strength sessions are calisthenics (the total stays; the week is planned again). */
+export function setCaliWanted(m: Model, n: number): Model {
+  const total = m.strength.perWeek ?? 0;
+  const a = { ...m.a, extras: withStrengthSessions(m.a.extras, total, Math.max(0, Math.min(total, n))) };
+  // A drawn week keeps its days; only which strength session goes where is decided again.
+  if (a.scheduleMode === 'custom' && a.customWeek) {
+    const long = a.customWeek.findIndex((d) => d.run === 'long');
+    return { a: applyManualWeek(a, statesOf(a.customWeek), (long >= 0 ? long : a.longRunDay) as Weekday), strength: m.strength };
+  }
+  return { a: applyAutoWeek(a, total), strength: m.strength };
+}
+
 /** A run is dragged to another day: the days the person likes to run on become the new set (the planner keeps to them). */
 export function moveRunDay(m: Model, from: Weekday, to: Weekday): Model {
   const week = runOnlyWeek(m.a).week;

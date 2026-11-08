@@ -10,7 +10,7 @@ export type StrengthFocus = 'upper' | 'lower' | 'upper_lower' | 'full';
 export type Equipment = 'bodyweight' | 'dumbbells' | 'gym';
 
 /** Non-running sessions the user can add (multi-select). */
-export type ExtraType = 'upper' | 'lower' | 'full' | 'core' | 'mobility' | 'plyo' | 'bike' | 'swim' | 'custom';
+export type ExtraType = 'upper' | 'lower' | 'full' | 'cali' | 'core' | 'mobility' | 'plyo' | 'bike' | 'swim' | 'custom';
 
 export interface ExtraSession {
   id: string;
@@ -364,6 +364,7 @@ export type WorkoutKind =
   | 'strength_upper'
   | 'strength_lower'
   | 'strength_full'
+  | 'strength_cali'
   | 'core'
   | 'mobility'
   | 'plyo'

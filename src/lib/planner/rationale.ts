@@ -4,7 +4,7 @@
 
 import { fmtDistance, fmtPace } from '../format';
 import type { DayTemplate, FitnessAssessment, OnboardingAnswers, Units, Weekday } from '../types';
-import { STRENGTH_KINDS, isStrengthExtra, type StrengthKind } from '../onboarding/strengthMap';
+import { STRENGTH_KINDS, isLegKind, isStrengthExtra, type StrengthKind } from '../onboarding/strengthMap';
 import { timeLimits, type GeneratedPlan } from './generate';
 import { zonePace } from './workouts';
 import { autoWeek, weekInputOf } from './week';
@@ -183,7 +183,7 @@ export interface StrengthFacts {
   minutes: number;
 }
 
-const KIND_ORDER: Record<StrengthKind, number> = { lower: 0, full: 1, upper: 2 };
+const KIND_ORDER: Record<StrengthKind, number> = { lower: 0, full: 1, upper: 2, cali: 3 };
 
 /** The steps that bring the strength sessions into the running week. */
 export function strengthBuildSteps(input: Input & { facts: StrengthFacts; kindNames: Record<StrengthKind, string>; whyNames: Record<StrengthWhy, string> }): BuildStep[] {
@@ -201,7 +201,7 @@ export function strengthBuildSteps(input: Input & { facts: StrengthFacts; kindNa
   const withRun = week.strength.filter((s) => week.runDays.includes(s.day)).length;
   out.push({ id: 'str.time', params: { min: f.minutes, together: withRun, alone: week.strength.length - withRun }, sources: [] });
 
-  const legs = week.strength.filter((s) => s.kind !== 'upper');
+  const legs = week.strength.filter((s) => isLegKind(s.kind));
   out.push({ id: 'str.interference', params: { days: legs.length ? list(legs.map((s) => s.day), names) : '–', long: names[week.longDay] }, sources: ['wilson', 'fyfe', 'acsm', 'robineau'] });
 
   const placed = [...week.strength].sort((x, y) => x.day - y.day || KIND_ORDER[x.kind] - KIND_ORDER[y.kind]);

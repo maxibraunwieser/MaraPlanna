@@ -13,10 +13,10 @@ import type { GeneratedPlan } from './generate';
 import { aroundRuns, weekInputOf } from './week';
 import { daySuitability, type DayKind } from './weekModel';
 
-export const STRENGTH_DB_KINDS: WorkoutKind[] = ['strength_lower', 'strength_upper', 'strength_full', 'core'];
+export const STRENGTH_DB_KINDS: WorkoutKind[] = ['strength_lower', 'strength_upper', 'strength_full', 'strength_cali', 'core'];
 
 const ALL_DAYS: Weekday[] = [0, 1, 2, 3, 4, 5, 6];
-const STRENGTH_IDS = ['lower', 'upper', 'full'];
+const STRENGTH_IDS = ['lower', 'upper', 'full', 'cali'];
 /** How many weeks ahead the usual week of the stored plan is read from. */
 const WEEKS_READ = 6;
 

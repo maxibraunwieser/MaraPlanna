@@ -224,7 +224,7 @@ export interface RoutineExercise {
 
 /** A workout the user repeats (one per kind of strength session: lower, upper or full body). */
 export interface Routine {
-  /** The id of the extra session it belongs to: 'lower', 'upper' or 'full'. */
+  /** The id of the extra session it belongs to: 'lower', 'upper', 'full' or 'cali'. */
   id: string;
   /** Own name ("Strength A – Lower body & core"); missing = the default name of its kind. */
   name?: string;
@@ -439,8 +439,8 @@ export interface StrengthFeedInput {
   date?: string;
 }
 
-const STRENGTH_KINDS = new Set(['strength_upper', 'strength_lower', 'strength_full', 'core', 'custom']);
-const KIND_OF: Record<string, string> = { strength_upper: 'upper', strength_lower: 'lower', strength_full: 'full', core: 'core', custom: 'custom' };
+const STRENGTH_KINDS = new Set(['strength_upper', 'strength_lower', 'strength_full', 'strength_cali', 'core', 'custom']);
+const KIND_OF: Record<string, string> = { strength_upper: 'upper', strength_lower: 'lower', strength_full: 'full', strength_cali: 'cali', core: 'core', custom: 'custom' };
 /** The most animations one feed carries (each is a few hundred bytes; the watch keeps the feed in memory). */
 const MAX_ANIMATIONS = 14;
 const KG_PER_LB = 0.45359237;

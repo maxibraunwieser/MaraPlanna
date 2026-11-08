@@ -28,6 +28,8 @@ const info = (type: ExtraType, load: ExtraLoad, kind: WorkoutKind) => ({
 export const EXTRA_INFO: Record<ExtraType, { readonly label: string; readonly hint: string; load: ExtraLoad; kind: WorkoutKind }> = {
   lower: info('lower', 'legs', 'strength_lower'),
   upper: info('upper', 'light', 'strength_upper'),
+  // Calisthenics is upper body and core: no leg day, like an upper-body session.
+  cali: info('cali', 'light', 'strength_cali'),
   full: info('full', 'legs', 'strength_full'),
   core: info('core', 'light', 'core'),
   mobility: info('mobility', 'light', 'mobility'),
@@ -123,6 +125,20 @@ function prescription(role: Role, intensity: Intensity, equipment: Equipment): {
 
 const ex = (name: string, sets: number, reps: string, note?: string): Step => ({ type: 'exercise', name, sets, reps, ...(note ? { note } : {}) });
 
+/** A calisthenics session without the person's own workout: bar and parallel bars, skill first. */
+function caliSession(intensity: Intensity): Step[] {
+  const light = intensity === 'light';
+  const sets = light ? 2 : 3;
+  return [
+    ex('Dead hang', sets, '20–30 s'),
+    ex('Pull-up', sets, light ? '4–6' : '5–8', 'band-assisted if needed'),
+    ex('Dips', sets, light ? '5–8' : '6–10', 'push-ups if dips are too hard'),
+    ex('Inverted row (table or bar)', sets, '8–10'),
+    ex('Pike push-up', sets, '6–8'),
+    ex('Hollow hold', sets, '20–30 s'),
+  ];
+}
+
 function coreSession(intensity: Intensity, equipment: Equipment): Step[] {
   const sets = intensity === 'light' ? 2 : 3;
   return [
@@ -189,6 +205,12 @@ export function extraSession(
         return { kind, title: `${routine.name ?? `${label} strength`}${suffix}`, steps: routineSteps(routine, light), duration_min: routineMinutes(routine, light) };
       }
       return { kind, title: `${label} strength${suffix}`, steps: strengthSteps(extra.type, intensity, equipment), duration_min: light ? 25 : intensity === 'build' ? 45 : 40 };
+    }
+    case 'cali': {
+      if (routine && routine.exercises.length) {
+        return { kind, title: routine.name ?? 'Calisthenics', steps: routineSteps(routine, light), duration_min: routineMinutes(routine, light) };
+      }
+      return { kind, title: 'Calisthenics', steps: caliSession(intensity), duration_min: light ? 30 : 45 };
     }
     case 'core':
       return { kind, title: 'Core stability', steps: coreSession(intensity, equipment), duration_min: light ? 15 : 25 };

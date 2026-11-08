@@ -27,6 +27,7 @@ const MATCHING_SPORTS: Partial<Record<WorkoutKind, Sport[]>> = {
   strength_upper: ['strength'],
   strength_lower: ['strength'],
   strength_full: ['strength'],
+  strength_cali: ['strength'],
   core: ['strength', 'mobility', 'other'],
   mobility: ['mobility', 'other', 'strength'],
   plyo: ['strength', 'other'],

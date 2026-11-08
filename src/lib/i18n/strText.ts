@@ -91,6 +91,7 @@ export const strText = area({
     'sg.pattern.core': 'Core',
     'sg.type.lower': 'Lower body',
     'sg.type.upper': 'Upper body',
+    'sg.type.cali': 'Calisthenics',
     'sg.type.full': 'Full body',
 
     // the page
@@ -360,6 +361,7 @@ export const strText = area({
     'sg.pattern.core': 'Rumpf',
     'sg.type.lower': 'Unterkörper',
     'sg.type.upper': 'Oberkörper',
+    'sg.type.cali': 'Calisthenics',
     'sg.type.full': 'Ganzkörper',
 
     'sg.title': 'Kraft',

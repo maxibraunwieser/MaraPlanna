@@ -236,7 +236,7 @@ export function buildPlanFeed(input: PlanFeedInput): PlanFeed {
 
 const WEEK_TITLE_MAX = 18;
 const MAX_WEEKS = 30;
-const STRENGTH_KINDS = new Set(['strength_upper', 'strength_lower', 'strength_full', 'core']);
+const STRENGTH_KINDS = new Set(['strength_upper', 'strength_lower', 'strength_full', 'strength_cali', 'core']);
 const PHASE_LETTER = { base: 'b', build: 'u', peak: 'p', taper: 't' } as const;
 
 /** One session of a week: day (0 = Monday), short title, km, minutes, status (c done, p planned, x skipped). */

@@ -70,7 +70,7 @@ export interface Analysis {
 
 const PURPOSE_KINDS: WorkoutKind[] = [
   'easy', 'recovery', 'long', 'long_mp', 'threshold', 'intervals', 'marathon_pace', 'fartlek', 'shakeout', 'race',
-  'strength_lower', 'strength_full', 'strength_upper', 'core', 'mobility', 'plyo', 'bike', 'swim', 'custom',
+  'strength_lower', 'strength_full', 'strength_upper', 'strength_cali', 'core', 'mobility', 'plyo', 'bike', 'swim', 'custom',
 ];
 
 /** What a kind of session is for, in the language of the page. */

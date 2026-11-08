@@ -33,10 +33,10 @@ function choices<V extends string>(values: readonly V[], prefix: string): { valu
 
 export const PATTERN_LABEL = live<Pattern>(['squat', 'hinge', 'lunge', 'glute', 'calf', 'push_h', 'push_v', 'pull_h', 'pull_v', 'delts', 'arms', 'core'], 'sg.pattern');
 
-export type StrengthType = 'lower' | 'upper' | 'full';
-export const STRENGTH_TYPES: StrengthType[] = ['lower', 'upper', 'full'];
+export type StrengthType = 'lower' | 'upper' | 'full' | 'cali';
+export const STRENGTH_TYPES: StrengthType[] = ['lower', 'upper', 'full', 'cali'];
 export const TYPE_LABEL = live<StrengthType>(STRENGTH_TYPES, 'sg.type');
-export const isStrengthType = (id: string): id is StrengthType => id === 'lower' || id === 'upper' || id === 'full';
+export const isStrengthType = (id: string): id is StrengthType => id === 'lower' || id === 'upper' || id === 'full' || id === 'cali';
 
 /** Goal and level wording shown in the questionnaire. */
 export const GOALS = choices<StrengthGoal>(['running', 'strong', 'muscle', 'health'], 'sg.goal');
@@ -113,7 +113,54 @@ const SLOTS: Record<StrengthType, Pattern[]> = {
   lower: ['squat', 'hinge', 'lunge', 'glute', 'calf', 'core'],
   upper: ['push_h', 'pull_h', 'push_v', 'pull_v', 'delts', 'core', 'arms'],
   full: ['squat', 'push_h', 'hinge', 'pull_h', 'push_v', 'core'],
+  cali: ['pull_v', 'push_h', 'pull_h', 'push_v', 'core', 'core'],
 };
+
+/**
+ * Calisthenics: upper body and core with the body weight, at a bar and parallel bars (a calisthenics park). Each slot lists its
+ * exercises from easy to hard; the person's level picks the start, an excluded exercise or one that does not suit a limitation
+ * (shoulder, wrist) falls back to the next easier one. The skill comes first, while the person is fresh.
+ */
+const CALI_SLOTS: { slot: string; keys: [string, string, string]; alt?: string[] }[] = [
+  { slot: 'skill', keys: ['dead_hang', 'l_sit', 'front_lever_progressionen'], alt: ['hollow_hold'] },
+  { slot: 'pull_v', keys: ['klimmzuege_einarmig_oder_mit_hilfe', 'pull_up', 'muscle_ups'], alt: ['klimmzuege_untergriff'] },
+  { slot: 'dips', keys: ['push_up', 'dips_am_barren_brustbetont', 'dips_am_barren_brustbetont'], alt: ['diamond_push_ups'] },
+  { slot: 'pull_h', keys: ['australian_pull_ups', 'inverted_row', 'inverted_row'] },
+  { slot: 'push_h', keys: ['push_up', 'diamond_push_ups', 'archer_push_ups'], alt: ['push_up'] },
+  { slot: 'push_v', keys: ['pike_push_up', 'pike_push_up', 'handstand_push_ups_an_der_wand'], alt: ['ytw'] },
+  { slot: 'core', keys: ['hollow_hold', 'haengendes_beinheben', 'l_sit'], alt: ['plank'] },
+];
+/** The gear of a calisthenics park; a calisthenics workout always counts on a bar and parallel bars. */
+const CALI_GEAR: Gear[] = ['pullup', 'parallel', 'table', 'post'];
+
+/** A calisthenics workout for the person's level, time, limitations and exclusions. */
+function suggestCali(setup: Setup, now: string | null): Routine {
+  const lv = LEVEL_INDEX[setup.level ?? 'new'];
+  const ok = (key: string, taken: Set<string>) => {
+    const x = catalogEntry(key);
+    return !!x && !taken.has(key) && !setup.excluded?.includes(key) && !x.avoid.some((a) => setup.avoid.includes(a));
+  };
+  const taken = new Set<string>();
+  const out: RoutineExercise[] = [];
+  // As many exercises (three sets each) as fit into the session length, at least three.
+  const fits = () => out.length < 3 || Math.round(5 + (out.length + 1) * 3 * 2.5) <= setup.minutes;
+  for (const { keys, alt } of CALI_SLOTS) {
+    if (!fits()) break;
+    const order = [...keys.slice(0, lv + 1).reverse(), ...(alt ?? [])];
+    const key = order.find((k) => ok(k, taken));
+    if (!key) continue;
+    taken.add(key);
+    const x = catalogEntry(key)!;
+    const hold = / s$/.test(x.reps ?? '');
+    const rx = hold
+      ? { sets: 3, reps: lv === 0 ? '15–20 s' : lv === 1 ? '20–30 s' : '30–45 s' }
+      : x.pattern === 'core'
+        ? { sets: 3, reps: x.reps ?? '8–12' }
+        : { sets: 3, reps: lv === 0 ? '5–8' : lv === 1 ? '6–10' : '8–12' };
+    out.push({ key: x.key, name: x.name, ...(x.lib ? { id: x.lib } : {}), ...rx, kg: null });
+  }
+  return { id: 'cali', exercises: out, by: 'suggested', updatedAt: now, basis: setupSignature(setup) };
+}
 
 function slotsFor(type: StrengthType, goal: StrengthGoal | null): Pattern[] {
   const base = [...SLOTS[type]];
@@ -187,6 +234,7 @@ function pick(pattern: Pattern, setup: Setup, taken: Set<string>): CatalogExerci
 
 /** A workout for one kind of session, built from the person's goal, level, equipment, limitations and time. */
 export function suggestRoutine(type: StrengthType, setup: Setup, now: string | null = null): Routine {
+  if (type === 'cali') return suggestCali({ ...setup, gear: [...new Set([...setup.gear, ...CALI_GEAR])] }, now);
   const slots = slotsFor(type, setup.goal);
   const want = exerciseCount(setup.minutes, slots.length);
   const taken = new Set<string>();

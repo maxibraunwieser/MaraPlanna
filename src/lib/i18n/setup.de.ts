@@ -304,6 +304,7 @@ export const deSetup: Record<keyof typeof enSetup, string> = {
   'workouts.times': '{n}× pro Woche',
   'kind.lower': 'Unterkörper',
   'kind.upper': 'Oberkörper',
+  'kind.cali': 'Calisthenics',
   'kind.full': 'Ganzkörper',
 
   // Schritt 6: Woche

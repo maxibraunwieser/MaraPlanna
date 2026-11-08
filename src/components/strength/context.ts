@@ -24,4 +24,4 @@ export interface StrengthCtx {
   deleteSession: (sessionKey: string) => Promise<void>;
 }
 
-export const isGymSession = (w: Pick<PlannedWorkout, 'kind'>) => w.kind === 'strength_lower' || w.kind === 'strength_upper' || w.kind === 'strength_full' || w.kind === 'core';
+export const isGymSession = (w: Pick<PlannedWorkout, 'kind'>) => w.kind === 'strength_lower' || w.kind === 'strength_upper' || w.kind === 'strength_full' || w.kind === 'strength_cali' || w.kind === 'core';

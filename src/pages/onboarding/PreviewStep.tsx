@@ -14,7 +14,7 @@ import { finalize } from '../../lib/onboarding/finalize';
 import { runsRecommendation, strengthRecommendation } from '../../lib/onboarding/derive';
 import { checkGoal } from '../../lib/onboarding/goalCheck';
 import { parqFlagged } from '../../lib/onboarding/catalog';
-import { distinctWorkouts } from '../../lib/onboarding/strengthMap';
+import { caliOf, distinctWorkouts } from '../../lib/onboarding/strengthMap';
 import { kgToLb } from '../../lib/onboarding/units';
 import { explainPlan } from '../../lib/planner/explain';
 import { buildPlan, type GeneratedPlan } from '../../lib/planner/generate';
@@ -250,7 +250,7 @@ export function PreviewStep({ s, busy, editing, hasPlan, addStrength = false, on
       {prefs && (
         <Section id="strength" icon={<Dumbbell className="h-5 w-5 text-brand" />} title={t('preview.strength')} edit={t('nav.edit')} onEdit={edit('strengthPlan')}>
           <div className="space-y-2">
-            {distinctWorkouts(s.strength.perWeek).map(({ kind, times }, i) => {
+            {distinctWorkouts(s.strength.perWeek, caliOf(s.a.extras)).map(({ kind, times }, i) => {
               const r = prefs.routines.find((x) => x.id === kind);
               if (!r) return null;
               return (

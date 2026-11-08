@@ -22,7 +22,7 @@ const RUN_TONE: Record<string, string> = {
   long: 'bg-sky-100 text-sky-800',
   recovery: 'bg-teal-100 text-teal-800',
 };
-const STRENGTH_IDS = ['lower', 'upper', 'full'];
+const STRENGTH_IDS = ['lower', 'upper', 'full', 'cali'];
 
 interface Chip {
   item: BoardItem | 'other';
