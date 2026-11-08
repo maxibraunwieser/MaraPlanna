@@ -132,9 +132,9 @@ export function Activities() {
     <div>
       <PageHeader
         title={t('act.title')}
-        subtitle={connection ? t('act.sub.garmin') : t('act.sub.manual')}
+        subtitle={connection ? undefined : t('act.sub.manual')}
         actions={
-          <>
+          connection ? undefined : <>
             <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()} loading={importing} icon={<FileUp className="h-4 w-4" />}>
               {t('act.import')}
             </Button>

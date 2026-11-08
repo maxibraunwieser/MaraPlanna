@@ -147,7 +147,7 @@ export function Strength() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
-      <PageHeader title={t('sg.title')} subtitle={t('sg.sub')} />
+      <PageHeader title={t('sg.title')} />
 
 
       {ctx.setsError && <Notice tone="warn">{ctx.setsError}</Notice>}

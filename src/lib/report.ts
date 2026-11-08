@@ -22,7 +22,20 @@ export interface ReportItem {
   tooFast: boolean;
 }
 
-interface Pair {
+/** Recovery markers of a week (from its Monday to `cutoff`) against the week before: averages of resting HR, HRV and sleep. */
+export function recoveryOf(metrics: DailyMetric[], start: string, cutoff: string): { restingHr: Pair; hrv: Pair; sleepH: Pair } {
+  const day = (m: DailyMetric, from: string, to: string) => m.date >= from && m.date <= to;
+  const cur = metrics.filter((m) => day(m, start, cutoff));
+  const prev = metrics.filter((m) => day(m, addDays(start, -7), addDays(start, -1)));
+  const pair = (f: (m: DailyMetric) => number | null): Pair => ({ now: avg(cur.map(f)), prev: avg(prev.map(f)) });
+  return {
+    restingHr: pair((m) => m.resting_hr),
+    hrv: pair((m) => m.hrv_last_night),
+    sleepH: pair((m) => (m.sleep_s ? m.sleep_s / 3600 : null)),
+  };
+}
+
+export interface Pair {
   now: number | null;
   prev: number | null;
 }
@@ -131,16 +144,7 @@ export function weekReport(input: {
   const before = activities.filter((a) => a.sport === 'run' && a.local_date < start && a.local_date >= addDays(plan.start_date, -60));
   const longest = longDone !== null && longDone >= 16 && longDone > Math.max(0, ...before.map(km)) + 0.2;
 
-  // Recovery markers vs the week before.
-  const day = (m: DailyMetric, from: string, to: string) => m.date >= from && m.date <= to;
-  const cur = metrics.filter((m) => day(m, start, cutoff));
-  const prev = metrics.filter((m) => day(m, addDays(start, -7), addDays(start, -1)));
-  const pair = (f: (m: DailyMetric) => number | null): Pair => ({ now: avg(cur.map(f)), prev: avg(prev.map(f)) });
-  const wellness = {
-    restingHr: pair((m) => m.resting_hr),
-    hrv: pair((m) => m.hrv_last_night),
-    sleepH: pair((m) => (m.sleep_s ? m.sleep_s / 3600 : null)),
-  };
+  const wellness = recoveryOf(metrics, start, cutoff);
 
   const projection = {
     startS: tandaProjection(activities, addDays(start, -1))?.seconds ?? null,

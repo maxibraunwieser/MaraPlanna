@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Info, TrendingUp } from 'lucide-react';
 import { useData } from '../lib/data';
 import { projectionHistory } from '../lib/projection';
-import { weekReport, type ReportItem, type ReportNote, type WeekReport } from '../lib/report';
+import { recoveryOf, weekReport, type ReportItem, type ReportNote, type WeekReport } from '../lib/report';
 import { estimateMaxHr } from '../lib/planner/fitness';
 import { useActivityDetails } from '../lib/details';
 import { addDays, mondayOf, weekdayOf } from '../lib/planner/dates';
@@ -173,12 +173,11 @@ function Marker({ label, now, prev, unit, digits = 0, higherIsBetter }: { label:
   return (
     <div className="rounded-xl bg-slate-50 p-3">
       <div className="text-xs text-slate-500">{label}</div>
-      <div className="mt-0.5 flex items-baseline gap-1.5">
-        <span className="font-semibold tabular-nums text-slate-900">
-          {fmtNum(now, digits)} {unit}
-        </span>
-        {show && <span className={cx('text-xs font-semibold', better ? 'text-emerald-600' : 'text-amber-600')}>{d! > 0 ? '▲' : '▼'} {fmtNum(Math.abs(d!), digits)}</span>}
+      {/* value and unit on one line, the change against last week below (the tiles are narrow on a phone) */}
+      <div className="mt-0.5 whitespace-nowrap font-semibold tabular-nums text-slate-900">
+        {fmtNum(now, digits)} <span className="text-xs font-medium text-slate-500">{unit}</span>
       </div>
+      {show && <div className={cx('text-xs font-semibold tabular-nums', better ? 'text-emerald-600' : 'text-amber-600')}>{d! > 0 ? '▲' : '▼'} {fmtNum(Math.abs(d!), digits)}</div>}
       <div className="text-[11px] text-slate-400">{tr('rep.avgVsPrev')}</div>
     </div>
   );
@@ -216,17 +215,6 @@ function ReportBody({ r }: { r: WeekReport }) {
           <p className="text-sm text-slate-500">{t('rep.noSessions')}</p>
         )}
       </div>
-
-      {(r.wellness.restingHr.now !== null || r.wellness.hrv.now !== null || r.wellness.sleepH.now !== null) && (
-        <div>
-          <div className="mb-2 text-sm font-semibold text-slate-900">{t('rep.recovery')}</div>
-          <div className="grid grid-cols-3 gap-2">
-            <Marker label={t('rd.resting')} unit="bpm" now={r.wellness.restingHr.now} prev={r.wellness.restingHr.prev} higherIsBetter={false} />
-            <Marker label={t('rd.hrv')} unit="ms" now={r.wellness.hrv.now} prev={r.wellness.hrv.prev} higherIsBetter />
-            <Marker label={t('rd.sleep')} unit="h" digits={1} now={r.wellness.sleepH.now} prev={r.wellness.sleepH.prev} higherIsBetter />
-          </div>
-        </div>
-      )}
 
       {r.next && (r.next.week || r.next.long || r.next.key.length > 0) && (
         <div className="rounded-xl ring-1 ring-slate-200 p-4">
@@ -326,6 +314,24 @@ function WeeklyReportCard() {
   );
 }
 
+/** Recovery this week against the week before (resting HR, HRV, sleep): the top of the forecast page. */
+function RecoveryCard() {
+  const { metrics, today } = useData();
+  const { t } = useI18n();
+  const w = useMemo(() => recoveryOf(metrics, mondayOf(today), today), [metrics, today]);
+  if (w.restingHr.now === null && w.hrv.now === null && w.sleepH.now === null) return null;
+  return (
+    <Card>
+      <div className="mb-2 text-sm font-semibold text-slate-900">{t('rep.recovery')}</div>
+      <div className="grid grid-cols-3 gap-2">
+        <Marker label={t('rd.resting')} unit="bpm" now={w.restingHr.now} prev={w.restingHr.prev} higherIsBetter={false} />
+        <Marker label={t('rd.hrv')} unit="ms" now={w.hrv.now} prev={w.hrv.prev} higherIsBetter />
+        <Marker label={t('rd.sleep')} unit="h" digits={1} now={w.sleepH.now} prev={w.sleepH.prev} higherIsBetter />
+      </div>
+    </Card>
+  );
+}
+
 export function Progress({ forecast = false }: { forecast?: boolean }) {
   const { loading, plan } = useData();
   const { t } = useI18n();
@@ -340,8 +346,15 @@ export function Progress({ forecast = false }: { forecast?: boolean }) {
   }
   return (
     <div className="space-y-5">
-      <PageHeader title={t('pg.title')} subtitle={t('pg.sub')} />
-      {forecast ? <ProjectionCard /> : <WeeklyReportCard />}
+      <PageHeader title={forecast ? t('nav.run.forecast') : t('nav.run.report')} />
+      {forecast ? (
+        <>
+          <RecoveryCard />
+          <ProjectionCard />
+        </>
+      ) : (
+        <WeeklyReportCard />
+      )}
     </div>
   );
 }

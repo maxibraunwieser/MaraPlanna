@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { CalendarClock, CalendarDays, ChevronDown, Clock, Pencil, Play, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { isOwnRoutine, type Routine } from '../../../supabase/functions/_shared/strength';
-import { Link } from 'react-router-dom';
 import { STRENGTH_TYPES, TYPE_LABEL, isStrengthType, routineKind, routineMinutes, setupOf, type StrengthType } from '../../lib/strengthPlan';
 import { exName, rxText, stepsToExercises, weightText } from '../../lib/strengthFormat';
 import { lastWeightOf, lastWeights } from '../../lib/strengthStats';
@@ -171,10 +170,7 @@ export function WorkoutsTab({ ctx }: { ctx: StrengthCtx }) {
       <div>
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-base font-semibold text-slate-900">{t('wt.yours')}</h2>
-          <div className="flex flex-wrap items-center gap-1">
-          <Button size="sm" variant="secondary" icon={<Plus className="h-4 w-4" />} onClick={() => setOwn('new')}>{t('ow.add')}</Button>
-          <Link to={ctx.plan ? '/onboarding?edit=1&add=strength' : '/onboarding?edit=1'}><Button size="sm" variant="ghost" icon={<Sparkles className="h-4 w-4 text-brand" />}>{t('wt.change')}</Button></Link>
-          </div>
+          <Button size="sm" variant="secondary" className="shrink-0" icon={<Plus className="h-4 w-4" />} onClick={() => setOwn('new')}>{t('ow.add')}</Button>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           {routines.map((r) => {

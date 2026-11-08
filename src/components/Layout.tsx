@@ -46,14 +46,14 @@ const SECTIONS: Section[] = [
   { to: '/', label: 'nav.today', icon: Home, end: true, owns: (p) => p === '/' },
   { to: '/plan', label: 'nav.plan', icon: CalendarDays, owns: (p) => p.startsWith('/plan') },
   {
-    to: '/activities',
+    to: '/progress',
     label: 'nav.run',
     icon: Footprints,
     owns: (p) => ['/activities', '/progress', '/analysis'].some((x) => p.startsWith(x)),
     sub: [
-      { to: '/activities', label: 'nav.activities', icon: ListChecks, match: (p) => p.startsWith('/activities') || p.startsWith('/analysis') },
       { to: '/progress', label: 'nav.run.report', icon: ClipboardCheck, match: (p) => p === '/progress' },
       { to: '/progress/forecast', label: 'nav.run.forecast', icon: TrendingUp, match: (p) => p.startsWith('/progress/forecast') },
+      { to: '/activities', label: 'nav.activities', icon: ListChecks, match: (p) => p.startsWith('/activities') || p.startsWith('/analysis') },
     ],
   },
   {
