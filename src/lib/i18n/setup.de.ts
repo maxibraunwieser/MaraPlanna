@@ -413,6 +413,8 @@ export const deSetup: Record<keyof typeof enSetup, string> = {
   'preview.addStrength.note': 'Dein Laufplan bleibt genau so, wie er ist. Die Krafteinheiten kommen dazu.',
   'preview.addStrength.start': 'Kraft zu meinem Plan hinzufügen',
   'preview.addStrength.none': 'Aus deinen Antworten sind keine Krafteinheiten entstanden. Wähle einen Anteil Krafttraining und versuche es erneut.',
+  'preview.addStrength.ready': 'Dein Laufplan bleibt genau so, wie er ist. Gespeichert wird erst, wenn du auf „Kraft zu meinem Plan hinzufügen“ drückst.',
+  'preview.addStrength.week': 'Diese Woche',
   'preview.addStrength.done': 'Kraft wurde zu deinem Plan hinzugefügt. Deine Läufe sind unverändert.',
 
   // Warum der Plan so aussieht

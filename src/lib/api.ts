@@ -26,6 +26,7 @@ import { exerciseById, sessionOrder, type Routine, type StrengthPrefs } from '..
 import type { StrengthSetInsert } from './strengthLog';
 import type { GeneratedPlan } from './planner/generate';
 import { isRaceGoal } from './planner/goals';
+import { inputsWithStrength, STRENGTH_DB_KINDS, strengthSessionsFor } from './planner/keepRuns';
 import { generateWeeks } from './planner/generate';
 
 function check<T>(res: { data: T; error: { message: string } | null }): T {
@@ -168,21 +169,17 @@ export async function createPlan(userId: string, answers: OnboardingAnswers, gen
   return plan;
 }
 
-const STRENGTH_DB_KINDS = ['strength_lower', 'strength_upper', 'strength_full', 'core'];
-
 /**
  * Strength is added to a running plan that stays as it is: no run is moved, changed or created again (the coach's changes to it
  * are kept). Only the strength sessions of the new answers come in, on the days of the plan, never on a race day.
  */
 export async function addStrengthToPlan(userId: string, plan: TrainingPlan, current: PlannedWorkout[], answers: OnboardingAnswers, generated: GeneratedPlan, today: string) {
-  const lastDay = current.reduce((m, w) => (w.date > m ? w.date : m), today);
-  const raceDays = new Set(current.filter((w) => w.kind === 'race').map((w) => w.date));
-  const sessions = generated.workouts.filter((w) => STRENGTH_DB_KINDS.includes(w.kind) && w.date >= today && w.date <= lastDay && !raceDays.has(w.date));
+  const sessions = strengthSessionsFor(generated, current, today);
   check(await supabase.from('planned_workouts').delete().eq('plan_id', plan.id).eq('status', 'planned').gte('date', today).in('kind', STRENGTH_DB_KINDS));
   for (const batch of chunks(workoutRows(sessions, plan.id, userId), 250)) {
     check(await supabase.from('planned_workouts').insert(batch));
   }
-  await updatePlanInputs(plan.id, answers);
+  await updatePlanInputs(plan.id, inputsWithStrength(plan.inputs, answers));
   await logAdjustment(plan, 'strength', `Strength added: ${answers.extras.reduce((n, e) => n + (STRENGTH_DB_KINDS.includes(`strength_${e.id}`) ? e.perWeek : 0), 0)} per week. Your running plan stays as it is.`);
   return sessions.length;
 }

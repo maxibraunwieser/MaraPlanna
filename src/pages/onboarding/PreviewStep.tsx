@@ -18,6 +18,7 @@ import { distinctWorkouts } from '../../lib/onboarding/strengthMap';
 import { kgToLb } from '../../lib/onboarding/units';
 import { explainPlan } from '../../lib/planner/explain';
 import { buildPlan, type GeneratedPlan } from '../../lib/planner/generate';
+import { currentWeek, keepRunPlan } from '../../lib/planner/keepRuns';
 import { assessFitness } from '../../lib/planner/fitness';
 import { goalProfile, isRaceGoal } from '../../lib/planner/goals';
 import { restOf, routineMinutes } from '../../lib/strengthPlan';
@@ -79,7 +80,7 @@ export interface PreviewProps {
 /** The last page: the generated plan, explained, with a way back to every answer. */
 export function PreviewStep({ s, busy, editing, hasPlan, addStrength = false, onStart }: PreviewProps) {
   const { t, lang } = useI18n();
-  const { activities, metrics, connection, today } = useData();
+  const { activities, metrics, connection, today, plan: stored, workouts: storedWorkouts } = useData();
   const [stage, setStage] = useState(0);
   const [ready, setReady] = useState(false);
   const garminOn = s.setup.garmin === 'connected';
@@ -91,13 +92,15 @@ export function PreviewStep({ s, busy, editing, hasPlan, addStrength = false, on
     try {
       const { answers, prefs } = finalize(s.a, s.strength, today);
       const assessment = assessFitness({ answers, activities: garminOn ? activities : [], metrics: garminOn ? metrics : [], garmin: garminOn ? (connection?.profile ?? null) : null, today });
-      const plan = buildPlan(answers, assessment, today, prefs?.routines);
+      const generated = buildPlan(answers, assessment, today, prefs?.routines);
+      // Strength added to a running plan: what is shown is the plan that is there, with only the new strength sessions in it.
+      const plan = addStrength && stored ? keepRunPlan(generated, stored, storedWorkouts, today) : generated;
       return { ok: true as const, answers, prefs, assessment, plan };
     } catch (e) {
       return { ok: false as const, error: (e as Error).message };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify([s.a, s.strength]), activities, metrics, connection, garminOn, today]);
+  }, [JSON.stringify([s.a, s.strength]), activities, metrics, connection, garminOn, today, addStrength, stored, storedWorkouts]);
 
   useEffect(() => {
     setReady(false);
@@ -125,7 +128,7 @@ export function PreviewStep({ s, busy, editing, hasPlan, addStrength = false, on
   const units = s.units;
   const peak = Math.max(...plan.weeks.map((w) => w.targetKm));
   const longest = Math.max(...plan.weeks.map((w) => w.longKm));
-  const first = plan.weeks[0];
+  const first = addStrength ? currentWeek(plan.weeks, today) : plan.weeks[0];
   const week1 = plan.workouts.filter((w) => w.week === first.week);
   const runs = plan.workouts.filter((w) => w.distance_km).length;
   const explain = explainPlan({ answers, plan, units, today });
@@ -133,7 +136,7 @@ export function PreviewStep({ s, busy, editing, hasPlan, addStrength = false, on
   const informed = !assessment.vdotSource.startsWith('a typical');
   // How much more the first planned week asks than the person runs now (the usual rule of thumb is at most 10 %).
   const currentKm = answers.currentWeeklyKm;
-  const jump = currentKm > 0 && first.targetKm > currentKm * 1.1 + 0.5 ? Math.round((first.targetKm / currentKm - 1) * 100) : null;
+  const jump = !addStrength && currentKm > 0 && first.targetKm > currentKm * 1.1 + 0.5 ? Math.round((first.targetKm / currentKm - 1) * 100) : null;
   const edit = (step: SetupStep) => () => s.goTo(step);
   const max = answers.maxHr;
   const zones = max ? hrZones({ maxHr: max, restingHr: answers.setup!.restingHr, garminFloors: garminOn && answers.setup!.hrSource.max === 'garmin' ? (connection?.profile?.zones ?? null) : null }) : null;
@@ -145,7 +148,7 @@ export function PreviewStep({ s, busy, editing, hasPlan, addStrength = false, on
     <div className="space-y-4" data-testid="preview">
       <Notice tone="success">
         <div className="font-semibold">{setup.name.trim() ? t('preview.ready.named', { name: setup.name.trim() }) : t('preview.ready')}</div>
-        <div className="mt-0.5">{t('preview.ready.text')}</div>
+        <div className="mt-0.5">{addStrength ? t('preview.addStrength.ready') : t('preview.ready.text')}</div>
       </Notice>
 
       <Section id="goal" icon={<Target className="h-5 w-5 text-brand" />} title={t('preview.goal')} edit={t('nav.edit')} onEdit={addStrength ? undefined : edit('goal')}>
@@ -193,11 +196,11 @@ export function PreviewStep({ s, busy, editing, hasPlan, addStrength = false, on
         <h3 className="mb-1 mt-5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-500"><BarChart3 className="h-3.5 w-3.5" />{t('preview.volume')}</h3>
         <VolumeChart
           units={units}
-          data={plan.weeks.map((w, i) => ({ label: `${w.week}`, sublabel: dateText(w.startDate, lang), plannedKm: w.targetKm, actualKm: null, current: i === 0 }))}
+          data={plan.weeks.map((w) => ({ label: `${w.week}`, sublabel: dateText(w.startDate, lang), plannedKm: w.targetKm, actualKm: null, current: w.week === first.week }))}
         />
       </Section>
 
-      <Section id="week" icon={<CalendarDays className="h-5 w-5 text-brand" />} title={t('preview.firstWeek')} edit={t('nav.edit')} onEdit={edit(planScreen)}>
+      <Section id="week" icon={<CalendarDays className="h-5 w-5 text-brand" />} title={addStrength ? t('preview.addStrength.week') : t('preview.firstWeek')} edit={t('nav.edit')} onEdit={edit(planScreen)}>
         <ul className="divide-y divide-slate-100 text-sm">
           {week1.map((w) => (
             <li key={`${w.date}-${w.title}`} className="flex items-center justify-between gap-3 py-2">

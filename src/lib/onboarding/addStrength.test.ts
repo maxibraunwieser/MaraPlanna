@@ -7,7 +7,8 @@ import { applyStrengthPlan, settle } from './apply';
 import { finalize } from './finalize';
 import { editStart, strengthStart } from './seed';
 import { firstOfBlock, nextScreen, visibleBlocks, visibleScreens } from './screens';
-import type { Profile } from '../types';
+import { inputsWithStrength, keepRunPlan } from '../planner/keepRuns';
+import type { PlannedWorkout, Profile, TrainingPlan } from '../types';
 
 const TODAY = '2026-11-06';
 const NOW = '2026-11-06T10:00:00Z';
@@ -58,5 +59,41 @@ describe('adding strength to a plan that has only running', () => {
 
   it('the plan message is translated', () => {
     expect(messageText('Strength added: 2 per week. Your running plan stays as it is.', 'de')).toBe('Kraft hinzugefügt: 2 pro Woche. Dein Laufplan bleibt unverändert.');
+  });
+});
+
+describe('a running plan that was made earlier stays exactly as it is', () => {
+  const EARLIER = '2026-10-26';
+  it('shows and keeps the stored runs, weeks and fitness; strength comes only from today on', () => {
+    const p = profile(normalizeAnswers(SCENARIOS['marathon, 4 runs']));
+    const before = editStart(p, null, EARLIER);
+    const f0 = finalize(before.answers, before.strength, EARLIER, NOW);
+    const stored = buildPlan(f0.answers, assessFitness({ answers: f0.answers, activities: [], metrics: [], garmin: null, today: EARLIER }), EARLIER, f0.prefs?.routines);
+    const plan = { id: 'p', user_id: 'u', inputs: { ...f0.answers, noStridesDays: ['tue'] }, fitness: stored.fitness, weeks: stored.weeks } as unknown as TrainingPlan;
+    // the coach shortened one run: the stored row differs from what the planner would build now
+    const rows = stored.workouts.map((w, i) => ({ ...w, id: String(i), plan_id: 'p', user_id: 'u', status: w.date < TODAY ? 'done' : 'planned', title: i === 5 ? 'Coach changed' : w.title })) as unknown as PlannedWorkout[];
+
+    const start = strengthStart(p, null, TODAY);
+    const m = applyStrengthPlan(settle({ a: start.answers, strength: start.strength }, TODAY));
+    const f1 = finalize(m.a, m.strength, TODAY, NOW);
+    const generated = buildPlan(f1.answers, assess(f1.answers), TODAY, f1.prefs?.routines);
+    const kept = keepRunPlan(generated, plan, rows, TODAY);
+
+    expect(kept.weeks).toBe(plan.weeks);
+    expect(kept.fitness).toBe(plan.fitness);
+    const keptRuns = kept.workouts.filter((w) => !isStrength(w.kind));
+    expect(keptRuns.map((w) => w.title)).toEqual(rows.filter((w) => !isStrength(w.kind)).map((w) => w.title));
+    expect(keptRuns.some((w) => w.title === 'Coach changed')).toBe(true);
+    const strength = kept.workouts.filter((w) => isStrength(w.kind));
+    expect(strength.length).toBeGreaterThan(0);
+    expect(strength.every((w) => w.date >= TODAY && w.date <= rows[rows.length - 1].date)).toBe(true);
+
+    // only the strength part of the stored inputs changes; the run part and the coach's changes stay
+    const inputs = inputsWithStrength(plan.inputs, f1.answers);
+    expect(inputs.noStridesDays).toEqual(['tue']);
+    expect(inputs.runDaysPerWeek).toBe(plan.inputs.runDaysPerWeek);
+    expect(inputs.availableDays).toEqual(plan.inputs.availableDays);
+    expect(inputs.raceDate).toBe(plan.inputs.raceDate);
+    expect(inputs.extras).toEqual(f1.answers.extras);
   });
 });

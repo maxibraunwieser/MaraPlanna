@@ -412,6 +412,8 @@ export const enSetup = {
   'preview.addStrength.note': 'Your running plan stays exactly as it is. The strength sessions are added to it.',
   'preview.addStrength.start': 'Add strength to my plan',
   'preview.addStrength.none': 'No strength sessions came out of your answers. Choose a share of strength training and try again.',
+  'preview.addStrength.ready': 'Your running plan stays exactly as it is. Nothing is saved until you press "Add strength to my plan".',
+  'preview.addStrength.week': 'This week',
   'preview.addStrength.done': 'Strength was added to your plan. Your runs are unchanged.',
 
   // Why the plan looks like this (planner/explain.ts)
