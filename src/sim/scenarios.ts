@@ -12,6 +12,8 @@ import { EMPTY_PREFS, normalizePrefs, type Routine, type RoutineExercise, type S
 import type { OnboardingAnswers } from '../lib/types';
 import { blankStart } from '../lib/onboarding/seed';
 import { SIM_USER } from './fakeSupabase';
+import { ownSessions } from '../lib/strengthSchedule';
+import { suggestRoutine } from '../lib/strengthPlan';
 
 type Tables = Record<string, Record<string, any>[]>;
 
@@ -75,7 +77,7 @@ function prefs(over: Partial<StrengthPrefs>, today: string): StrengthPrefs {
 }
 
 /** The workouts a suggestion would give for these answers. */
-const suggested = (p: StrengthPrefs, now: string): Routine[] => suggestAll(STRENGTH_TYPES.filter((t) => t !== 'full'), setupOf(p), [], now);
+const suggested = (p: StrengthPrefs, now: string): Routine[] => suggestAll(STRENGTH_TYPES.filter((t) => t === 'lower' || t === 'upper'), setupOf(p), [], now);
 
 const withKg = (r: Routine, kg: Record<string, number>): Routine => ({
   ...r,
@@ -384,6 +386,30 @@ export const SCENARIOS: Scenario[] = [
       p.routines = suggested(p, `${today}T08:00:00Z`).map((r) => withKg(r, kg));
       const a = answers(today, { equipment: deriveEquipment(p) });
       return { ...profile(a, p, today), ...planTables(a, p, today), strength_sets: history(today, 16, RUNNER_LIFTS) };
+    },
+  },
+  {
+    id: 'own',
+    label: 'Own workouts: a weekly park session and a one-off',
+    about: 'Suggested lower- and upper-body workouts with 16 weeks of sets, plus two workouts of the person\'s own: a calisthenics park session every Saturday and a one-off mobility session in three days. Add, move and delete workouts here.',
+    start: '/strength',
+    build: (today) => {
+      const p = prefs({}, today);
+      const kg = { back_squat: 95, rdl_bb: 85, reverse_lunge_db: 20, bench_press: 62.5, bb_row: 55, ohp: 37.5 };
+      const now = `${today}T08:00:00Z`;
+      const park: Routine = { id: 'own-park', name: 'Park session', exercises: suggestRoutine('cali', { ...setupOf(p), level: 'some', minutes: 45 }, now).exercises, by: 'own', updatedAt: now, schedule: { mode: 'series', days: [5], from: today, until: null } };
+      const mobility: Routine = {
+        id: 'own-mobility', name: 'Hip mobility', by: 'own', updatedAt: now, schedule: { mode: 'once', date: addDays(today, 3) },
+        exercises: [{ key: 'glute_bridge', name: 'Single-leg glute bridge', sets: 2, reps: '12', kg: null }, { key: 'dead_bug', name: 'Dead bug', sets: 2, reps: '10 / side', kg: null }, { key: 'side_plank', name: 'Side plank', sets: 2, reps: '30 s / side', kg: null }],
+      };
+      p.routines = [...suggested(p, now).map((r) => withKg(r, kg)), park, mobility];
+      const a = answers(today, { equipment: deriveEquipment(p) });
+      const t = planTables(a, p, today);
+      const plan = t.training_plans[0] as any;
+      const own = [park, mobility].flatMap((r) => ownSessions(r, plan, t.planned_workouts as any, today)).map((w, i) => ({
+        ...w, id: `own-${String(i).padStart(3, '0')}`, plan_id: plan.id, user_id: SIM_USER.id, status: 'planned', status_source: 'auto', activity_id: null, actual_distance_km: null, original_date: null, note: null,
+      }));
+      return { ...profile(a, p, today), ...t, planned_workouts: [...t.planned_workouts, ...own], strength_sets: history(today, 16, RUNNER_LIFTS) };
     },
   },
   {

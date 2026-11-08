@@ -54,7 +54,7 @@ export function CreatePlan() {
   const create = async () => {
     setBusy(true);
     try {
-      await createPlan(user!.id, answers, generated, today);
+      await createPlan(user!.id, answers, generated, today, normalizePrefs(profile?.strength).routines);
       await reload();
       toast(t('cp.ready'), 'success');
       navigate('/');

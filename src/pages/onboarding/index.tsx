@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, CloudCheck } from 'lucide-react';
-import type { StrengthPrefs } from '../../../supabase/functions/_shared/strength';
+import { normalizePrefs, type StrengthPrefs } from '../../../supabase/functions/_shared/strength';
 import { CenteredPage } from '../../components/Layout';
 import { Button, Card, Notice, cx, useToast } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
@@ -186,7 +186,7 @@ export function Onboarding() {
         return;
       }
       await saveOnboarding(user!.id, answers, prefs);
-      await createPlan(user!.id, answers, generated, today);
+      await createPlan(user!.id, answers, generated, today, (prefs ?? normalizePrefs(profile?.strength)).routines);
       clearLocalDraft(user!.id);
       // Best effort: the draft column may not exist yet.
       if (remoteOk.current) void saveOnboardingDraft(user!.id, null);

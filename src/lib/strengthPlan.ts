@@ -346,7 +346,8 @@ export function routinePatches(
   const out: { id: string; steps: Step[]; duration_min: number }[] = [];
   for (const w of workouts) {
     if (w.status !== 'planned' || w.date < today) continue;
-    const id = w.kind.startsWith('strength_') ? w.kind.slice('strength_'.length) : null;
+    // A session of the person's own workout carries its id; the planner's sessions are found by their kind.
+    const id = w.routine_id ?? (w.kind.startsWith('strength_') ? w.kind.slice('strength_'.length) : null);
     const routine = id ? routines.find((r) => r.id === id) : undefined;
     if (!routine || !routine.exercises.length) continue;
     const deload = weeks.find((x) => x.week === w.week)?.recovery === true || w.phase === 'taper';

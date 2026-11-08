@@ -15,6 +15,23 @@ export const exerciseLabel = (r: Pick<SetRow, 'exercise_id' | 'exercise_name'>):
 /** Same exercise from the watch (library id) and from the website (name) share one key. */
 export const exerciseKeyOf = (r: Pick<SetRow, 'exercise_id' | 'exercise_name'>): string => exerciseLabel(r).toLowerCase();
 
+/** The weight of the last time per exercise (from the watch or the website), by library id and by name. */
+export function lastWeights(rows: SetRow[]): Map<string, { kg: number; date: string }> {
+  const out = new Map<string, { kg: number; date: string }>();
+  for (const r of rows) {
+    if (!r.weight_kg || r.weight_kg <= 0) continue;
+    for (const k of [r.exercise_id, exerciseKeyOf(r)]) {
+      if (!k) continue;
+      const cur = out.get(k);
+      if (!cur || r.local_date > cur.date || (r.local_date === cur.date && r.weight_kg > cur.kg)) out.set(k, { kg: r.weight_kg, date: r.local_date });
+    }
+  }
+  return out;
+}
+
+/** The last weight of an exercise of a workout (by its library id, else by its name). */
+export const lastWeightOf = (last: Map<string, { kg: number; date: string }>, x: { id?: string; name: string }) => (x.id ? last.get(x.id) : undefined) ?? last.get(x.name.toLowerCase());
+
 /** Estimated one-repetition maximum (Epley). Only for 1–12 repetitions with a weight; null otherwise. */
 export function e1rm(kg: number | null | undefined, reps: number): number | null {
   if (!kg || kg <= 0 || reps < 1 || reps > 12) return null;

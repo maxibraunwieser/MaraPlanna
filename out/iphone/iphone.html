@@ -7,10 +7,11 @@
 <style>
   html, body { margin: 0; height: 100%; background: #E5E7EB; font-family: system-ui, Segoe UI, sans-serif; }
   .wrap { display: flex; height: 100%; align-items: center; justify-content: center; gap: 40px; padding: 12px; box-sizing: border-box; }
-  .side { width: 250px; color: #1F2937; }
+  .side { width: 250px; color: #1F2937; max-height: 100%; overflow-y: auto; }
   .side h1 { font-size: 18px; margin: 0 0 12px; }
   .side a { display: block; margin: 6px 0; padding: 10px 12px; background: #fff; border-radius: 10px; color: #111827; text-decoration: none; font-size: 14px; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
   .side a:hover { background: #FFF7ED; }
+  .side h2 { font-size: 13px; margin: 14px 0 4px; color: #6B7280; text-transform: uppercase; letter-spacing: .04em; }
   .side p { font-size: 12px; color: #6B7280; line-height: 1.4; }
   .phone { position: relative; width: 393px; height: 852px; border-radius: 56px; background: #0B0B0F; padding: 14px; box-sizing: content-box;
            box-shadow: 0 0 0 2px #6B7280, 0 30px 60px rgba(0,0,0,.35); transform-origin: center center; }
@@ -34,7 +35,15 @@
     <a href="http://localhost:5174/settings?scenario=runner&bar=0&lang=de" target="app">Einstellungen</a>
     <a href="http://localhost:5174/?scenario=new&bar=0&garmin=ok&lang=de" target="app">Fragebogen (neuer Account)</a>
     <a href="http://localhost:5174/?scenario=ready&bar=0&lang=de" target="app">Heute ohne Garmin</a>
-    <p>Das ist Chrome in einem Rahmen von 393 × 852 Punkten (iPhone 15 Pro). Es ist keine Darstellung in Safari, Schriften und Ränder können auf einem echten iPhone leicht abweichen. Keine Daten werden gespeichert.</p>
+    <h2>Kraft testen</h2>
+    <a href="http://localhost:5174/strength?scenario=own&bar=0&lang=de" target="app">Kraft · eigene Workouts (Serie + einmalig)</a>
+    <a href="http://localhost:5174/strength?scenario=history&bar=0&lang=de" target="app">Kraft · Workouts mit Gewichten</a>
+    <a href="http://localhost:5174/strength?tab=progress&scenario=history&bar=0&lang=de" target="app">Kraft · Fortschritt</a>
+    <a href="http://localhost:5174/strength?tab=history&scenario=history&bar=0&lang=de" target="app">Kraft · Verlauf (Uhr + App)</a>
+    <a href="http://localhost:5174/strength?scenario=legacy&bar=0&lang=de" target="app">Kraft · noch nicht eingerichtet</a>
+    <a href="http://localhost:5174/onboarding?edit=1&add=strength&scenario=complete&bar=0&lang=de" target="app">Kraft nachträglich einrichten</a>
+    <a href="http://localhost:5174/strength?scenario=lb&bar=0&lang=de" target="app">Kraft · Gewichte in lb</a>
+    <p>Das ist Chrome in einem Rahmen von 393 × 852 Punkten (iPhone 15 Pro). Es ist keine Darstellung in Safari, Schriften und Ränder können auf einem echten iPhone leicht abweichen. Keine Daten werden gespeichert. Die Seiten kommen aus der Simulation: vorher im Projektordner <code>npm run sim</code> starten.</p>
   </div>
   <div class="phone" id="phone">
     <div class="island"></div>

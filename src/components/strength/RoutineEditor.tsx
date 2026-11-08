@@ -217,7 +217,7 @@ export function RoutineEditor({
       {suggestible && type && <p className="-mt-1 text-xs text-slate-500">{t('re.basis')}</p>}
 
       {routine.exercises.length === 0 && !listing && (
-        <p className="rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500">{t('re.empty')}</p>
+        <p className="rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500">{t(suggestible && type ? 're.empty' : 're.emptyOwn')}</p>
       )}
 
       <ol className="space-y-2">

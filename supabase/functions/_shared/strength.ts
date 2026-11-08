@@ -222,9 +222,18 @@ export interface RoutineExercise {
   note?: string;
 }
 
-/** A workout the user repeats (one per kind of strength session: lower, upper or full body). */
+/**
+ * When a workout of the person's own is in the plan: once on a date, or as a series on weekdays (0 = Monday) from a date until
+ * a date or the end of the plan.
+ */
+export type RoutineSchedule = { mode: 'once'; date: string } | { mode: 'series'; days: number[]; from: string; until: string | null };
+
+/** A workout the person added themselves (not one of the planner's kinds); its sessions carry its id in the plan. */
+export const isOwnRoutine = (id: string): boolean => id.startsWith('own-');
+
+/** A workout the user repeats (one per kind of strength session: lower, upper, full body or calisthenics, or one of their own). */
 export interface Routine {
-  /** The id of the extra session it belongs to: 'lower', 'upper', 'full' or 'cali'. */
+  /** The id of the extra session it belongs to: 'lower', 'upper', 'full' or 'cali'; 'own-…' for a workout of the person's own. */
   id: string;
   /** Own name ("Strength A – Lower body & core"); missing = the default name of its kind. */
   name?: string;
@@ -234,6 +243,21 @@ export interface Routine {
   updatedAt: string | null;
   /** For a suggested workout: the answers it was built for, so it is rebuilt when they change. */
   basis?: string;
+  /** A workout of the person's own: when it is in the plan. */
+  schedule?: RoutineSchedule;
+}
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+function normalizeSchedule(raw: unknown): RoutineSchedule | undefined {
+  const s = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  if (s.mode === 'once' && typeof s.date === 'string' && ISO_DAY.test(s.date)) return { mode: 'once', date: s.date };
+  if (s.mode === 'series' && typeof s.from === 'string' && ISO_DAY.test(s.from)) {
+    const days = [...new Set((Array.isArray(s.days) ? s.days : []).map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort();
+    if (!days.length) return undefined;
+    return { mode: 'series', days, from: s.from, until: typeof s.until === 'string' && ISO_DAY.test(s.until) ? s.until : null };
+  }
+  return undefined;
 }
 
 export interface StrengthPrefs {
@@ -325,6 +349,7 @@ function normalizeRoutine(raw: unknown): Routine | null {
     by: r.by === 'own' ? 'own' : 'suggested',
     updatedAt: typeof r.updatedAt === 'string' ? r.updatedAt : null,
     ...(typeof r.basis === 'string' && r.by !== 'own' ? { basis: r.basis.slice(0, 200) } : {}),
+    ...(normalizeSchedule(r.schedule) ? { schedule: normalizeSchedule(r.schedule) } : {}),
   };
 }
 
@@ -356,7 +381,7 @@ export function normalizePrefs(raw: unknown): StrengthPrefs {
     lifts: liftMap(r.lifts),
     levelCaps: capMap(r.levelCaps),
     trainStyle: oneOf(r.trainStyle, ['full', 'split', 'upperlower', 'any'] as const),
-    routines: (Array.isArray(r.routines) ? r.routines : []).flatMap((x) => normalizeRoutine(x) ?? []).slice(0, 6),
+    routines: (Array.isArray(r.routines) ? r.routines : []).flatMap((x) => normalizeRoutine(x) ?? []).slice(0, 16),
     savedAt: typeof r.savedAt === 'string' ? r.savedAt : null,
   };
 }

@@ -64,3 +64,26 @@ export function library(setup: Setup, opts: { taken?: string[]; focus: Muscle[];
 
 /** The exercise a plan step or a routine entry stands for (by key, else by its English name). */
 export const catalogOf = (x: { key?: string; name: string }): CatalogExercise | undefined => (x.key ? catalogEntry(x.key) : undefined) ?? CATALOG.find((c) => c.name.toLowerCase() === x.name.toLowerCase());
+
+export type MuscleLoad = 'primary' | 'secondary';
+
+/**
+ * What a workout trains: each exercise counts fully for its main muscle and half for the others, weighted by its sets. The
+ * muscles with at least 60 % of the most-trained one are the main ones of the workout, the rest are worked as well.
+ */
+export function workoutMuscles(exercises: { key?: string; name: string; sets?: number }[]): Partial<Record<Muscle, MuscleLoad>> {
+  const score = new Map<Muscle, number>();
+  for (const x of exercises) {
+    const c = catalogOf(x);
+    if (!c) continue;
+    const sets = Math.max(1, x.sets ?? 3);
+    musclesOfExercise(c).forEach((m, i) => score.set(m, (score.get(m) ?? 0) + sets * (i === 0 ? 1 : 0.5)));
+  }
+  const top = Math.max(0, ...score.values());
+  const out: Partial<Record<Muscle, MuscleLoad>> = {};
+  for (const m of MUSCLES) {
+    const v = score.get(m) ?? 0;
+    if (v > 0) out[m] = v >= top * 0.6 ? 'primary' : 'secondary';
+  }
+  return out;
+}

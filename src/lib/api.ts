@@ -22,12 +22,13 @@ import type {
   WorkoutDraft,
 } from './types';
 import type { AdaptResult, WorkoutPatch } from './planner/adapt';
-import { exerciseById, sessionOrder, type Routine, type StrengthPrefs } from '../../supabase/functions/_shared/strength.ts';
+import { exerciseById, isOwnRoutine, sessionOrder, type Routine, type StrengthPrefs } from '../../supabase/functions/_shared/strength.ts';
 import type { StrengthSetInsert } from './strengthLog';
 import type { GeneratedPlan } from './planner/generate';
 import { isRaceGoal } from './planner/goals';
 import { inputsWithStrength, STRENGTH_DB_KINDS } from './planner/keepRuns';
 import { generateWeeks } from './planner/generate';
+import { ownSessions } from './strengthSchedule';
 
 function check<T>(res: { data: T; error: { message: string } | null }): T {
   if (res.error) throw new Error(res.error.message);
@@ -137,7 +138,7 @@ export async function saveOnboarding(userId: string, answers: OnboardingAnswers,
 const workoutRows = (drafts: WorkoutDraft[], planId: string, userId: string) =>
   drafts.map((d) => ({ ...d, plan_id: planId, user_id: userId }));
 
-export async function createPlan(userId: string, answers: OnboardingAnswers, generated: GeneratedPlan, startDate: string) {
+export async function createPlan(userId: string, answers: OnboardingAnswers, generated: GeneratedPlan, startDate: string, ownRoutines: Routine[] = []) {
   check(await supabase.from('training_plans').update({ status: 'archived' }).eq('user_id', userId).eq('status', 'active'));
   const plan = check(
     await supabase
@@ -157,6 +158,9 @@ export async function createPlan(userId: string, answers: OnboardingAnswers, gen
   for (const batch of chunks(workoutRows(generated.workouts, plan.id, userId), 250)) {
     check(await supabase.from('planned_workouts').insert(batch));
   }
+  // The person's own workouts come along into the new plan, on the days of their schedules.
+  const own = ownRoutines.flatMap((r) => ownSessions(r, plan, [], startDate));
+  if (own.length) await insertOwnSessions(plan, own);
   check(
     await supabase.from('plan_adjustments').insert({
       plan_id: plan.id,
@@ -181,6 +185,22 @@ export async function addStrengthToPlan(userId: string, plan: TrainingPlan, answ
   await updatePlanInputs(plan.id, inputsWithStrength(plan.inputs, answers));
   await logAdjustment(plan, 'strength', `Strength added: ${answers.extras.reduce((n, e) => n + ((STRENGTH_DB_KINDS as string[]).includes(`strength_${e.id}`) ? e.perWeek : 0), 0)} per week. Your running plan stays as it is.`);
   return sessions.length;
+}
+
+/** The sessions of a workout of the person's own go into the plan (each carries the workout's id). */
+export async function insertOwnSessions(plan: Pick<TrainingPlan, 'id' | 'user_id'>, drafts: WorkoutDraft[]) {
+  for (const batch of chunks(workoutRows(drafts, plan.id, plan.user_id), 250)) check(await supabase.from('planned_workouts').insert(batch));
+}
+
+/** The planned sessions of a workout from a day on leave the plan (done, skipped and missed ones stay). */
+export async function deleteRoutineSessions(planId: string, routineId: string, from: string) {
+  const q = supabase.from('planned_workouts').delete().eq('plan_id', planId).eq('status', 'planned').gte('date', from);
+  check(await (isOwnRoutine(routineId) ? q.eq('routine_id', routineId) : q.eq('kind', `strength_${routineId}`).is('routine_id', null)));
+}
+
+/** Sessions on new dates (a session moved, or a series of them). */
+export async function moveWorkouts(patches: { id: string; date: string; original_date: string | null }[]) {
+  for (const batch of chunks(patches, 20)) await Promise.all(batch.map((p) => updateWorkout(p.id, { date: p.date, original_date: p.original_date })));
 }
 
 export async function updateWorkout(id: string, patch: WorkoutPatch) {
@@ -220,7 +240,8 @@ export async function persistAdaptation(plan: TrainingPlan, result: AdaptResult,
       routines,
     });
     check(
-      await supabase.from('planned_workouts').delete().eq('plan_id', plan.id).in('status', ['planned', 'skipped']).gte('date', replan.fromDate),
+      // The sessions of the person's own workouts stay: they are not part of what the planner builds.
+      await supabase.from('planned_workouts').delete().eq('plan_id', plan.id).in('status', ['planned', 'skipped']).gte('date', replan.fromDate).is('routine_id', null),
     );
     for (const batch of chunks(workoutRows(generated.workouts, plan.id, plan.user_id), 250)) {
       check(await supabase.from('planned_workouts').insert(batch));

@@ -551,9 +551,18 @@ export function generateWeeks(ctx: GenerateContext): { weeks: WeekSummary[]; wor
   const strengthPlaced = (phase: Phase, recovery: boolean, raceWeek: boolean): { extra: ExtraSession; day: Weekday }[] => {
     if (!base) return [];
     const pool = [...base.strength];
+    // A kind the person moved to other weekdays stays on them.
+    const moved = new Map(Object.entries(answers.setup?.strengthDays ?? {}).map(([k, days]) => [k, [...(days ?? [])]]));
     const out: { extra: ExtraSession; day: Weekday }[] = [];
     for (const e of extrasForWeek(answers.extras, phase, recovery, raceWeek)) {
       if (!isStrengthExtra(e)) continue;
+      const own = moved.get(e.id);
+      if (own?.length) {
+        out.push({ extra: e, day: own.shift()! });
+        const j = pool.findIndex((p) => p.kind === e.id);
+        if (j >= 0) pool.splice(j, 1);
+        continue;
+      }
       const i = pool.findIndex((p) => p.kind === e.id);
       if (i < 0) continue;
       out.push({ extra: e, day: pool[i].day });

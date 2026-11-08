@@ -143,6 +143,8 @@ export interface SetupExtras {
   keepRunPlan?: boolean | null;
   /** Strength added to a running plan that is kept: the week of that plan with the strength days, as the person moved them. */
   keptWeek?: DayTemplate[] | null;
+  /** Weekdays the person moved a kind of strength session to (lower, upper, full, cali): the plan keeps them there when it is rebuilt. */
+  strengthDays?: Partial<Record<string, Weekday[]>>;
   lifts: Partial<Record<LiftKey, { kg: number | null; reps: number | null }>>;
   skills: Partial<Record<SkillKey, SkillLevel>>;
   /** Catalogue keys the person does not want / likes, picked from the list, and what they wrote besides. */
@@ -378,6 +380,8 @@ export type WorkoutStatus = 'planned' | 'completed' | 'partial' | 'missed' | 'sk
 
 /** A workout as produced by the generator (not yet persisted). */
 export interface WorkoutDraft {
+  /** A session of a workout the person added themselves ('own-…'); null or missing for the planner's sessions. */
+  routine_id?: string | null;
   date: string;
   week: number;
   phase: Phase;
