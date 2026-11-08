@@ -8,7 +8,7 @@
 import type { CalStep, CalWorkout } from './calendar.ts';
 import { TUNED, moveOf, type Move2 } from './exerciseMoves.ts';
 import { CATALOG, catalogEntry, type CatalogExercise } from './exerciseCatalog.ts';
-import { exerciseName } from './content.ts';
+import { exerciseName, workoutTitle } from './content.ts';
 import { LIBRARY } from './exerciseLibrary.ts';
 import { available } from './exerciseAvailable.ts';
 import type { ListGroup } from './exerciseListData.ts';
@@ -430,6 +430,18 @@ export interface FeedSession {
   ex: FeedExercise[];
 }
 
+/** One of the person's workouts on the website (the list "Your workouts"), to start on the watch at any time. */
+export interface FeedWorkout {
+  /** Today's planned session of this workout (its sets complete it), else ''. */
+  id: string;
+  /** The workout on the website: lower, upper, full, cali or 'own-…'. */
+  r: string;
+  t: string;
+  /** Kind: lower, upper, full, cali or custom. */
+  c: string;
+  ex: FeedExercise[];
+}
+
 export interface StrengthFeed {
   /** The day the sessions are for (YYYY-MM-DD): the watch ignores a feed of another day. */
   d?: string;
@@ -446,6 +458,8 @@ export interface StrengthFeed {
   today: { id: string; t: string; ex: FeedExercise[] } | null;
   /** All of today's strength sessions: the person picks which one on the watch. */
   sess: FeedSession[];
+  /** Every workout of the person (built from the website's workouts each time, so a change there reaches the watch). */
+  wo?: FeedWorkout[];
   /** What each exercise of the person felt like on the wrist so far (see signaturesOf), by library id. */
   sig?: Record<string, number[]>;
   /** Animated figures by animation key for the exercises above; missing when the user turned animations off. */
@@ -470,6 +484,11 @@ const KIND_OF: Record<string, string> = { strength_upper: 'upper', strength_lowe
 const MAX_ANIMATIONS = 14;
 const KG_PER_LB = 0.45359237;
 const TITLE_MAX = 26;
+/** The most workouts the watch keeps (each is stored on its own: a value in the watch's storage holds 8 KB). */
+const MAX_WORKOUTS = 6;
+/** Names of the planner's workouts on the watch (the watch app speaks German). */
+const WORKOUT_NAME: Record<string, string> = { lower: 'Unterkörper', upper: 'Oberkörper', full: 'Ganzkörper', cali: 'Calisthenics' };
+const WORKOUT_ORDER = ['lower', 'upper', 'full', 'cali'];
 const NAME_MAX = 22;
 
 /** Characters the watch font may not have (umlauts stay, they are in the fonts). */
@@ -550,11 +569,28 @@ export function buildStrengthFeed(input: StrengthFeedInput): StrengthFeed {
     .filter((w) => STRENGTH_KINDS.has(w.kind) && w.status !== 'skipped' && w.steps.some((s) => s.type === 'exercise'))
     .flatMap((w) => {
       const rows = w.steps.flatMap((s: CalStep): FeedExercise[] => (s.type === 'exercise' ? [feedExercise(s, input)] : []));
-      return rows.length ? [{ id: w.id, t: clean(w.title).slice(0, TITLE_MAX), c: KIND_OF[w.kind] ?? 'custom', ex: rows.slice(0, 12) }] : [];
+      // The title as the website shows it in German (the watch app speaks German); own workouts keep their name.
+      return rows.length ? [{ id: w.id, t: clean(workoutTitle(w.title, 'de')).slice(0, TITLE_MAX), c: KIND_OF[w.kind] ?? 'custom', ex: rows.slice(0, 12) }] : [];
     })
     .slice(0, 4);
   const first = sess[0];
   const today = first ? { id: first.id, t: first.t, ex: first.ex } : null;
+
+  // Every workout of the person: the planner's first, then their own; today's planned session of it is linked, so finishing it
+  // on the watch completes that session in the plan.
+  const order = (id: string) => (WORKOUT_ORDER.includes(id) ? WORKOUT_ORDER.indexOf(id) : WORKOUT_ORDER.length);
+  const wo: FeedWorkout[] = !ready
+    ? []
+    : prefs.routines
+        .filter((r) => r.exercises.length > 0 && (WORKOUT_ORDER.includes(r.id) || isOwnRoutine(r.id)))
+        .map((r, i) => ({ r, i }))
+        .sort((a, b) => order(a.r.id) - order(b.r.id) || a.i - b.i)
+        .slice(0, MAX_WORKOUTS)
+        .map(({ r }) => {
+          const planned = input.workouts.find((w) => w.status === 'planned' && (w.routine_id ? w.routine_id === r.id : w.kind === `strength_${r.id}`));
+          const rows = r.exercises.slice(0, 12).map((x) => feedExercise({ type: 'exercise', name: x.name, sets: x.sets, reps: x.reps, ...(x.id ? { id: x.id } : {}), ...(x.key ? { key: x.key } : {}), ...(x.kg ? { kg: x.kg } : {}) }, input));
+          return { id: planned?.id ?? '', r: r.id, t: clean(r.name || WORKOUT_NAME[r.id] || 'Workout').slice(0, TITLE_MAX), c: isOwnRoutine(r.id) ? 'custom' : r.id, ex: rows };
+        });
 
   // The person's own list (free training and changing an exercise on the watch): today's exercises first, then the rest.
   const todays = sess.flatMap((x) => x.ex);
@@ -570,17 +606,19 @@ export function buildStrengthFeed(input: StrengthFeedInput): StrengthFeed {
     ...(input.date ? { d: input.date } : {}),
     ready, w: prefs.wrist === 'left' ? 'l' : prefs.wrist === 'right' ? 'r' : null, u: unit, auto: prefs.autoConfirm, share: prefs.shareData,
     ex: ex.slice(0, 24), today, sess,
+    ...(wo.length ? { wo } : {}),
   };
+  const woRows = wo.flatMap((w) => w.ex);
   // What each exercise felt like on the wrist so far: only for the exercises the watch knows today.
   if (input.sigs) {
     const sig: Record<string, number[]> = {};
-    for (const x of [...todays, ...ex]) if (x.i && input.sigs[x.i] && !sig[x.i]) sig[x.i] = input.sigs[x.i];
+    for (const x of [...todays, ...ex, ...woRows]) if (x.i && input.sigs[x.i] && !sig[x.i]) sig[x.i] = input.sigs[x.i];
     if (Object.keys(sig).length) feed.sig = sig;
   }
   if (prefs.animation) {
     const an: Record<string, Move2> = {};
     // the exercises of today's sessions first (their figures show while resting), then the person's other exercises
-    const wanted = [...todays.flatMap((e) => (e.a ? [e.a] : [])), ...ex.flatMap((e) => (e.a ? [e.a] : []))];
+    const wanted = [...todays, ...woRows, ...ex].flatMap((e) => (e.a ? [e.a] : []));
     for (const key of wanted) {
       if (Object.keys(an).length >= MAX_ANIMATIONS) break;
       const m = key && !an[key] ? moveOf(key) : null;

@@ -223,7 +223,7 @@ async function strengthToday(admin: SupabaseClient, secret: string, date: string
     .limit(400);
   const sigs = signaturesOf((sigRows ?? []) as { exercise_id: string; source: string; wrist: string | null; diag: unknown }[], prefs.wrist);
   const { data: workouts } = plan
-    ? await admin.from('planned_workouts').select('id, date, kind, title, steps, distance_km, duration_min, key_session, status, note').eq('plan_id', plan.id).eq('date', date)
+    ? await admin.from('planned_workouts').select('id, date, kind, title, steps, distance_km, duration_min, key_session, status, note, routine_id').eq('plan_id', plan.id).eq('date', date)
     : { data: [] };
   return capFigures(buildStrengthFeed({ prefs, workouts: (workouts ?? []) as CalWorkout[], lastKg, sigs, date }));
 }
@@ -307,6 +307,11 @@ async function saveStrength(admin: SupabaseClient, secret: string, body: Record<
   if (error) {
     const missing = /strength_sets|schema cache|does not exist/.test(error.message);
     return { error: missing ? 'Database update needed: run supabase/migrations/20261104000000_strength.sql in the Supabase SQL Editor.' : error.message };
+  }
+  // The planned session the training was for is done, the same as when it is logged on the website.
+  const workout = typeof body.workout === 'string' && /^[0-9a-f-]{36}$/.test(body.workout) ? body.workout : null;
+  if (workout && made.rows.length) {
+    await admin.from('planned_workouts').update({ status: 'completed', status_source: 'user' }).eq('id', workout).eq('user_id', dev.userId).in('status', ['planned', 'missed']);
   }
   return { saved: made.rows.length };
 }

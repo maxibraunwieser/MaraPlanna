@@ -13,6 +13,10 @@ module StrengthEntry {
     (:strength)
     const IDS = [:kraft0, :kraft1, :kraft2, :kraft3] as Array<Symbol>;
 
+    // Die Einträge der Workouts der Website im Reiter Kraft (höchstens sechs)
+    (:strength)
+    const WO_IDS = [:wo0, :wo1, :wo2, :wo3, :wo4, :wo5] as Array<Symbol>;
+
     // Die Karte einer Krafteinheit von heute: Name der Einheit, darunter "Kraft · 3 Übungen"
     (:strength)
     function sessionCard(feed as Dictionary?, i as Number) as CardItem? {
@@ -55,6 +59,14 @@ module StrengthEntry {
             return out;
         }
         todayItems(feed, out);
+        // Alle Workouts der Website (eins, das heute geplant ist, steht schon oben bei heute)
+        var wo = StrengthPlan.workouts(feed);
+        for (var i = 0; i < wo.size() && i < WO_IDS.size(); i++) {
+            if (wo[i].get("today") == true) {
+                continue;
+            }
+            out.add(new CardItem(WO_IDS[i], wo[i].get("t") as String, name + " · " + (wo[i].get("n") as Number) + " " + (WatchUi.loadResource(Rez.Strings.StrengthExercises) as String), Draw.VIOLET));
+        }
         var free = StrengthPlan.fromFeed(feed, -1);
         if (free != null) {
             // mit geladener Bibliothek: Menü nach Muskelgruppe, sonst gleich die eigene Liste
@@ -79,9 +91,20 @@ module StrengthEntry {
         return -1;
     }
 
+    // Nummer eines Workouts der Website zu einem Eintrag des Menüs; -1 für alles andere
+    (:strength)
+    function workoutIndex(id as Object?) as Number {
+        for (var i = 0; i < WO_IDS.size(); i++) {
+            if (id == WO_IDS[i]) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     (:strength)
     function handles(id as Object?) as Boolean {
-        return sessionIndex(id) >= 0 || id == :kraftFree || id == :kraftSetup;
+        return sessionIndex(id) >= 0 || workoutIndex(id) >= 0 || id == :kraftFree || id == :kraftSetup;
     }
 
     (:nostrength)
@@ -100,7 +123,8 @@ module StrengthEntry {
             StrengthLibrary.show(feed);
             return;
         }
-        start(StrengthPlan.fromFeed(feed, sessionIndex(id)));
+        var w = workoutIndex(id);
+        start(w >= 0 ? StrengthPlan.fromWorkout(feed, w) : StrengthPlan.fromFeed(feed, sessionIndex(id)));
     }
 
     // Das Training mit diesem Plan beginnen (null: nichts tun)
@@ -116,6 +140,28 @@ module StrengthEntry {
 
     (:nostrength)
     function open(id as Object?, feed as Dictionary?) as Void {
+    }
+
+    // Die Einheit von heute mit dieser Nummer starten (für den Rundgang der Demo)
+    (:strength)
+    function openSession(i as Number, feed as Dictionary?) as Void {
+        if (i >= 0 && i < IDS.size()) {
+            open(IDS[i], feed);
+        }
+    }
+
+    (:nostrength)
+    function openSession(i as Number, feed as Dictionary?) as Void {
+    }
+
+    // Den Kraft-Feed speichern (Workouts einzeln); ohne Kraft nichts
+    (:strength)
+    function storeFeed(data as Dictionary) as Void {
+        StrengthPlan.storeFeed(data);
+    }
+
+    (:nostrength)
+    function storeFeed(data as Dictionary) as Void {
     }
 
 

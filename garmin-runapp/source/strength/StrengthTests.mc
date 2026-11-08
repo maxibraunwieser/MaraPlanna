@@ -441,3 +441,51 @@ function testRecognizerSeparatesExercisesFromTheirMovement(logger as Logger) as 
     Test.assertEqual(Recognizer.best(Recognizer.scores(cands, curl2, true)), 0);
     return true;
 }
+
+// Die Workouts der Website: einzeln gespeichert, im Menü (eins, das heute geplant ist, verbunden), startbar wie eine Einheit.
+(:test)
+function testWorkoutsOfTheWebsite(logger as Logger) as Boolean {
+    var feed = seedStr(null);
+    var data = {
+        "d" => Sync.today(),
+        "ready" => true,
+        "ex" => [{ "i" => "squat", "n" => "Kniebeuge", "f" => "squat", "m" => 0 }],
+        "sess" => [] as Array,
+        "wo" => [
+            { "id" => "plan-1", "r" => "lower", "t" => "Unterkörper", "c" => "lower", "ex" => [
+                { "i" => "squat", "n" => "Kniebeuge", "f" => "squat", "s" => 4, "r" => 5, "k" => 80, "rest" => 120, "m" => 0 },
+                { "i" => "deadlift", "n" => "Kreuzheben", "f" => "hinge", "s" => 3, "r" => 6, "rest" => 120, "m" => 0 }
+            ] },
+            { "id" => "", "r" => "own-park", "t" => "Park-Einheit", "c" => "custom", "ex" => [
+                { "i" => "pull_up", "n" => "Klimmzug", "f" => "pull_v", "s" => 3, "r" => 6, "rest" => 90, "m" => 0 }
+            ] }
+        ]
+    } as Dictionary;
+    StrengthPlan.storeFeed(data);
+    // im Speicher: "wo" ist aus dem Feed herausgenommen, jedes Workout steht für sich
+    Test.assert(!(Application.Storage.getValue("str") as Dictionary).hasKey("wo"));
+    Test.assert(Application.Storage.getValue("wo1") instanceof Dictionary);
+    Test.assert(Application.Storage.getValue("wo2") == null);
+    var list = StrengthPlan.workouts(feed);
+    Test.assertEqual(list.size(), 2);
+    Test.assertEqual(list[0].get("t") as Object, "Unterkörper" as Object);
+    Test.assertEqual(list[0].get("today") as Object, true as Object);
+    Test.assertEqual(list[1].get("today") as Object, false as Object);
+    Test.assertEqual(list[1].get("n") as Object, 1 as Object);
+    // gestartet: die Übungen des Workouts in seiner Reihenfolge, die geplante Einheit von heute verbunden
+    var p = StrengthPlan.fromWorkout(feed, 0) as StrengthPlan;
+    Test.assertEqual(p.title, "Unterkörper");
+    Test.assertEqual(p.workoutId, "plan-1");
+    Test.assertEqual(p.items.size(), 2);
+    Test.assertEqual(p.items[0].sets, 4);
+    Test.assert((p.items[0].kg - 80.0).abs() < 0.01);
+    var own = StrengthPlan.fromWorkout(feed, 1) as StrengthPlan;
+    Test.assertEqual(own.workoutId, "");
+    Test.assertEqual(own.items[0].id, "pull_up");
+    // ein Workout weniger auf der Website: der alte Eintrag ist weg
+    StrengthPlan.storeFeed({ "d" => Sync.today(), "ready" => true, "ex" => [] as Array, "sess" => [] as Array, "wo" => [{ "id" => "", "r" => "upper", "t" => "Oberkörper", "c" => "upper", "ex" => [{ "i" => "bench_press", "n" => "Bankdrücken", "f" => "push_h", "s" => 3, "r" => 8, "rest" => 90, "m" => 0 }] }] } as Dictionary);
+    Test.assertEqual(StrengthPlan.workouts(feed).size(), 1);
+    Test.assert(Application.Storage.getValue("wo1") == null);
+    Test.assert(StrengthPlan.fromWorkout(feed, 1) == null);
+    return true;
+}

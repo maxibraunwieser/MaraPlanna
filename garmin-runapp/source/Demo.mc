@@ -70,7 +70,7 @@ module Demo {
         if (action.find("open") == 0) {
             // "open0" ... "open2": die erste, zweite, dritte Einheit von heute
             WatchUi.popView(WatchUi.SLIDE_IMMEDIATE);
-            StrengthEntry.open(StrengthEntry.IDS[(action.substring(4, 5) as String).toNumber() as Number], WeekPlan.feed());
+            StrengthEntry.openSession((action.substring(4, 5) as String).toNumber() as Number, WeekPlan.feed());
             autopilot();
             return;
         }
@@ -314,7 +314,12 @@ module Demo {
     // Kraft-Teil wie vom Server für jemanden, der alles auf der Website eingerichtet hat: der Hauptfeed sagt nur "eingerichtet",
     // die Einheiten von heute (drei zur Wahl) und ihre Figuren stehen im Speicher wie nach GET /watch/strength
     // (erzeugt von tools/gen-demo-strength.cjs mit dem Code des Servers; kurze Pausen für die Vorführung).
-    (:demo)
+    // Uhren ohne Kraft (128 KB): nichts zu säen
+    (:demo :nostrength)
+    function seedStrength(feed as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>) as Void {
+    }
+
+    (:demo :strength)
     function seedStrength(feed as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>) as Void {
         // Uhren mit 128 KB Speicher haben kein Krafttraining (StrengthEntry); die Figurendaten passen dort nicht in den Speicher
         if (System.getSystemStats().totalMemory < 200000) {
@@ -323,7 +328,7 @@ module Demo {
         feed.put("strength", { "ready" => true, "w" => "l", "u" => "kg", "auto" => true, "share" => false } as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>);
         var str = DemoStrength.str();
         str.put("d", Sync.today());
-        Application.Storage.setValue("str", str);
+        StrengthEntry.storeFeed(str as Dictionary);
         Application.Storage.setValue("figs", DemoStrength.figs());
         for (var i = 0; i < StrengthLibrary.GROUPS.size(); i++) {
             var chunk = DemoStrength.lib(StrengthLibrary.GROUPS[i]);

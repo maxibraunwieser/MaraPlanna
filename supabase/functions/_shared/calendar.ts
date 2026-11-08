@@ -15,6 +15,8 @@ export type CalStep =
 
 export interface CalWorkout {
   id: string;
+  /** The person's own workout this session belongs to ('own-…'); missing for the planner's sessions. */
+  routine_id?: string | null;
   date: string;
   kind: string;
   title: string;

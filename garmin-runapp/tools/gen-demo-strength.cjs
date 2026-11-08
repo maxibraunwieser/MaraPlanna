@@ -11,13 +11,19 @@ const { buildStrengthFeed, normalizePrefs, capFigures, libraryRows } = require('
 const prefs = normalizePrefs({
   wrist: 'left', styles: ['free'], exercises: ['squat', 'bench_press', 'row', 'bicep_curl'], weightUnit: 'kg', savedAt: '2026-11-07T08:00:00Z',
   autoConfirm: true, animation: true,
+  // the workouts of the website ("Your workouts"): two of the planner's and one of the person's own
+  routines: [
+    { id: 'lower', by: 'own', updatedAt: null, exercises: [{ key: 'goblet_squat', name: 'Goblet squat', sets: 3, reps: '10', kg: 20 }, { key: 'rdl_db', name: 'Dumbbell Romanian deadlift', sets: 3, reps: '10', kg: 24 }, { key: 'reverse_lunge_db', name: 'Dumbbell reverse lunge', sets: 3, reps: '8' }] },
+    { id: 'upper', by: 'own', updatedAt: null, exercises: [{ key: 'bench_press', name: 'Bench press', sets: 3, reps: '8', kg: 60 }, { key: 'bb_row', name: 'Barbell row', sets: 3, reps: '8', kg: 50 }] },
+    { id: 'own-park', name: 'Park-Einheit', by: 'own', updatedAt: null, schedule: { mode: 'series', days: [5], from: '2026-11-07', until: null }, exercises: [{ key: 'pull_up', name: 'Pull-up', sets: 3, reps: '6' }, { key: 'push_up', name: 'Push-up', sets: 3, reps: '12' }, { key: 'dead_hang', name: 'Dead hang', sets: 2, reps: '30 s' }] },
+  ],
 });
 
 const ex = (name, sets, reps, extra = {}) => ({ type: 'exercise', name, sets, reps, ...extra });
 const session = (id, kind, title, steps) => ({ id, date: '2026-11-07', kind, title, steps, distance_km: null, duration_min: 40, key_session: false, status: 'planned', note: null });
 const workouts = [
-  session('00000000-0000-0000-0000-000000000001', 'strength_upper', 'Upper body', [ex('Bench press', 1, '8', { kg: 60 }), ex('Barbell row', 1, '8', { kg: 50 }), ex('Dumbbell curl', 1, '10', { kg: 14 })]),
-  session('00000000-0000-0000-0000-000000000002', 'strength_lower', 'Lower body', [ex('Goblet squat', 3, '10', { kg: 20 }), ex('Dumbbell Romanian deadlift', 3, '10', { kg: 24 }), ex('Bulgarian split squat', 3, '8'), ex('Dumbbell hip thrust', 3, '12', { kg: 24 }), ex('Single-leg calf raise (holding DB)', 3, '12')]),
+  session('00000000-0000-0000-0000-000000000001', 'strength_upper', 'Upper body strength', [ex('Bench press', 1, '8', { kg: 60 }), ex('Barbell row', 1, '8', { kg: 50 }), ex('Dumbbell curl', 1, '10', { kg: 14 })]),
+  session('00000000-0000-0000-0000-000000000002', 'strength_lower', 'Lower body strength', [ex('Goblet squat', 3, '10', { kg: 20 }), ex('Dumbbell Romanian deadlift', 3, '10', { kg: 24 }), ex('Bulgarian split squat', 3, '8'), ex('Dumbbell hip thrust', 3, '12', { kg: 24 }), ex('Single-leg calf raise (holding DB)', 3, '12')]),
   session('00000000-0000-0000-0000-000000000003', 'core', 'Core stability', [ex('Dead bug', 3, '10 / side'), ex('Plank', 2, '45 s'), ex('Side plank', 2, '30 s / side'), ex('Bird dog', 2, '10 / side')]),
 ];
 
@@ -31,7 +37,7 @@ const sigs = {
 
 const feed = capFigures(buildStrengthFeed({ prefs, workouts, lastKg: {}, sigs, date: '2026-11-07' }), 60000);
 // short pauses and a short hold, for the demonstration
-for (const s of feed.sess) for (const e of s.ex) {
+for (const s of [...feed.sess, ...(feed.wo ?? [])]) for (const e of s.ex) {
   e.rest = 20;
   if (e.h) e.h = Math.min(e.h, 15);
 }
@@ -74,4 +80,4 @@ ${Object.entries(libGroups).map(([g, rows]) => `        if (group.equals("${g}")
 }
 `;
 fs.writeFileSync(path.join(__dirname, '..', 'source', 'DemoStrength.mc'), code);
-console.log('source/DemoStrength.mc written:', feed.sess.map((s) => `${s.t} (${s.ex.length})`).join(', '), '·', Object.keys(an).length, 'figures,', JSON.stringify(an).length, 'bytes');
+console.log('source/DemoStrength.mc written:', feed.sess.map((s) => `${s.t} (${s.ex.length})`).join(', '), '· workouts:', (feed.wo ?? []).map((w) => w.t).join(', '), '·', Object.keys(an).length, 'figures,', JSON.stringify(an).length, 'bytes');

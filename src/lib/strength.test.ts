@@ -175,7 +175,8 @@ describe('watch feed', () => {
 
   it('sends every strength session of the day to choose from', () => {
     const two = buildStrengthFeed({ prefs, workouts: [session(), session({ id: '22222222-2222-2222-2222-222222222222', kind: 'core', title: 'Core stability', steps: [{ type: 'exercise', name: 'Dead bug', sets: 3, reps: '10 / side' }, { type: 'exercise', name: 'Side plank', sets: 2, reps: '30 s / side' }, { type: 'exercise', name: 'Bird dog', sets: 2, reps: '10 / side' }] }), session({ id: '33333333-3333-3333-3333-333333333333', status: 'skipped' }), session({ id: '44444444-4444-4444-4444-444444444444', kind: 'easy', steps: [] })], lastKg: {} });
-    expect(two.sess.map((x) => [x.t, x.c])).toEqual([['Strength test', 'full'], ['Core stability', 'core']]);
+    // the titles in German, as the website shows them (the watch app speaks German)
+    expect(two.sess.map((x) => [x.t, x.c])).toEqual([['Krafttest', 'full'], ['Rumpfstabilität', 'core']]);
     expect(two.today?.id).toBe(two.sess[0].id);
     const core = two.sess[1].ex;
     expect(core.map((e) => [e.i, e.m])).toEqual([['dead_bug', 0], ['side_plank', 2], ['bird_dog', 1]]);
@@ -311,5 +312,43 @@ describe('exercise animations', () => {
   it('keeps the animation setting', () => {
     expect(normalizePrefs({}).animation).toBe(true);
     expect(normalizePrefs({ animation: false }).animation).toBe(false);
+  });
+});
+
+describe('watch feed: the workouts of the website', () => {
+  const lower = { id: 'lower', exercises: [{ key: 'back_squat', name: 'Back squat', id: 'squat', sets: 4, reps: '5', kg: 80 }, { key: 'rdl_bb', name: 'Romanian deadlift', sets: 3, reps: '6' }], by: 'own' as const, updatedAt: null };
+  const park = { id: 'own-park', name: 'Park session', exercises: [{ key: 'pull_up', name: 'Pull-up', id: 'pull_up', sets: 3, reps: '6–10' }, { key: 'dead_hang', name: 'Dead hang', sets: 3, reps: '30 s' }], by: 'own' as const, updatedAt: null, schedule: { mode: 'series' as const, days: [5], from: '2026-11-04', until: null } };
+  const upper = { id: 'upper', name: 'Push & pull', exercises: [{ key: 'bench_press', name: 'Bench press', id: 'bench_press', sets: 4, reps: '6' }], by: 'suggested' as const, updatedAt: null };
+  const withRoutines = (routines: unknown[]) => normalizePrefs({ ...prefs, routines });
+
+  it('lists every workout with its exercises, the planner\'s first, built from the website each time', () => {
+    const f = buildStrengthFeed({ prefs: withRoutines([park, lower, upper]), workouts: [], lastKg: { squat: 85 } });
+    expect(f.wo!.map((w) => [w.r, w.t, w.c])).toEqual([['lower', 'Unterkörper', 'lower'], ['upper', 'Push & pull', 'upper'], ['own-park', 'Park session', 'custom']]);
+    const squat = f.wo![0].ex[0];
+    expect(squat).toMatchObject({ i: 'squat', s: 4, r: 5 });
+    // the weight of the last time wins over the workout's own target
+    expect(squat.k).toBe(85);
+    expect(f.wo![2].ex.length).toBe(2);
+    // a change on the website is in the next feed
+    const changed = buildStrengthFeed({ prefs: withRoutines([{ ...lower, exercises: [lower.exercises[0]] }]), workouts: [], lastKg: {} });
+    expect(changed.wo!.map((w) => w.ex.length)).toEqual([1]);
+  });
+
+  it('links today\'s planned session of a workout, so finishing it on the watch completes it', () => {
+    const today = [session({ id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', kind: 'strength_lower' }), session({ id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', kind: 'custom', routine_id: 'own-park', title: 'Park session' })];
+    const f = buildStrengthFeed({ prefs: withRoutines([lower, park, upper]), workouts: today, lastKg: {} });
+    expect(f.wo!.find((w) => w.r === 'lower')!.id).toBe('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+    expect(f.wo!.find((w) => w.r === 'own-park')!.id).toBe('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
+    expect(f.wo!.find((w) => w.r === 'upper')!.id).toBe('');
+  });
+
+  it('has no workouts before the strength part is set up, and none without exercises', () => {
+    expect(buildStrengthFeed({ prefs: normalizePrefs({ routines: [lower] }), workouts: [], lastKg: {} }).wo).toBeUndefined();
+    expect(buildStrengthFeed({ prefs: withRoutines([{ ...lower, exercises: [] }]), workouts: [], lastKg: {} }).wo).toBeUndefined();
+  });
+
+  it('keeps at most six workouts (the watch stores each on its own)', () => {
+    const many = Array.from({ length: 9 }, (_, i) => ({ ...park, id: `own-${i}`, name: `W${i}` }));
+    expect(buildStrengthFeed({ prefs: withRoutines(many), workouts: [], lastKg: {} }).wo!.length).toBe(6);
   });
 });

@@ -130,6 +130,10 @@ class Sync {
             Application.Storage.deleteValue("weeks");
             Application.Storage.deleteValue("str");
             Application.Storage.deleteValue("figs");
+            Application.Storage.deleteValue("wom");
+            for (var i = 0; i < 6; i++) {
+                Application.Storage.deleteValue("wo" + i);
+            }
             deleteLibrary();
             Application.Storage.deleteValue("synced");
         } else if (data.hasKey("code")) {
@@ -238,7 +242,7 @@ class Sync {
         if (code == 200 && data instanceof Dictionary && data.hasKey("ready")) {
             var an = data.get("an");
             data.remove("an");
-            Application.Storage.setValue("str", data as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>);
+            StrengthPlan.storeFeed(data as Dictionary);
             if (an instanceof Dictionary) {
                 Application.Storage.setValue("figs", an as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>);
             } else {

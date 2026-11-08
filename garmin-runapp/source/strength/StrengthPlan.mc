@@ -10,6 +10,9 @@
 //        ex     [{i, n, f, a?, m, h?}]   die Übungsliste (Kennung, Name, Familie, Figur, Zählart, Halten in s)
 //        sess   [{id, t, c, ex:[{i, n, f, s, r, k?, rest, a?, m, h?}]}]   die Einheiten von heute
 //        sig    {Kennung: [n, Mittel (6), Streuung (6)]}   wie sich die Übungen dieser Person am Handgelenk anfühlen
+//        wo     [{id, r, t, c, ex}]   alle Workouts der Website ("Deine Workouts"), bei jedem Abgleich neu von dort; jedes wird
+//               einzeln unter "wo0" … "wo5" gespeichert, die Liste (Titel, Zahl der Übungen, geplante Einheit von heute) unter
+//               "wom" = {d, l:[{t, n, id}]}. id = die heute geplante Einheit dieses Workouts ('' ohne): ihre Sätze erledigen sie.
 //        an     {Figurenschlüssel: Bewegung}  →  "figs"
 //   Zählart m: 0 aus der Bewegung, 1 die Uhr versucht es, fragt aber immer nach, 2 Halten mit Zeit.
 
@@ -185,6 +188,114 @@ class StrengthPlan {
             return null;
         }
         return st;
+    }
+
+    // Höchstens so viele Workouts der Website behält die Uhr (je ein eigener Wert im Speicher)
+    static const MAX_WORKOUTS = 6;
+
+    // Den Kraft-Feed vom Server speichern ("an" = Figuren hat der Aufrufer schon herausgenommen): die Workouts einzeln,
+    // ihre Liste unter "wom", der Rest unter "str".
+    static function storeFeed(data as Dictionary) as Void {
+        var wo = g(data, "wo");
+        data.remove("wo");
+        var list = [] as Array<Application.Storage.ValueType>;
+        if (wo instanceof Array) {
+            for (var i = 0; i < wo.size() && list.size() < MAX_WORKOUTS; i++) {
+                var w = wo[i];
+                if (w instanceof Dictionary) {
+                    var ex = g(w, "ex");
+                    Application.Storage.setValue("wo" + list.size(), w as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>);
+                    list.add({ "t" => str(g(w, "t")), "n" => ex instanceof Array ? ex.size() : 0, "id" => str(g(w, "id")) } as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>);
+                }
+            }
+        }
+        for (var i = list.size(); i < MAX_WORKOUTS; i++) {
+            Application.Storage.deleteValue("wo" + i);
+        }
+        var d = g(data, "d");
+        Application.Storage.setValue("wom", { "d" => d instanceof String ? d : "", "l" => list } as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>);
+        Application.Storage.setValue("str", data as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>);
+    }
+
+    // Die Workouts der Website für das Menü (Titel, Zahl der Übungen, ob eins davon heute geplant ist). Sie gelten jeden Tag;
+    // nur die Verbindung zur geplanten Einheit gilt bloß für den Tag des Abgleichs.
+    static function workouts(feed as Dictionary?) as Array<Dictionary> {
+        var out = [] as Array<Dictionary>;
+        if (status(feed) != StrengthStatus.READY) {
+            return out;
+        }
+        var raw = Application.Storage.getValue("wom") as Object?;
+        if (!(raw instanceof Dictionary)) {
+            return out;
+        }
+        var fresh = str(g(raw as Dictionary, "d")).equals(Sync.today());
+        var l = g(raw as Dictionary, "l");
+        if (l instanceof Array) {
+            for (var i = 0; i < l.size() && i < MAX_WORKOUTS; i++) {
+                var x = l[i];
+                if (x instanceof Dictionary) {
+                    out.add({ "t" => str(g(x, "t")), "n" => toFloat(g(x, "n")).toNumber(), "today" => fresh && str(g(x, "id")).length() > 0 } as Dictionary);
+                }
+            }
+        }
+        return out;
+    }
+
+    // Ein Workout der Website starten (Nummer in der Liste): seine Übungen in seiner Reihenfolge, danach die eigene Liste zum
+    // Wechseln. Ist es heute geplant, erledigen seine Sätze die geplante Einheit.
+    static function fromWorkout(feed as Dictionary?, index as Number) as StrengthPlan? {
+        var raw = Application.Storage.getValue("wo" + index) as Object?;
+        if (!(raw instanceof Dictionary)) {
+            return null;
+        }
+        var w = raw as Dictionary;
+        var p = fromFeed(feed, -1);
+        if (p == null) {
+            var b = block(feed);
+            if (b == null || !flag(b, "ready", false)) {
+                return null;
+            }
+            p = new StrengthPlan();
+            p.unit = str(g(b, "u")).equals("lb") ? "lb" : "kg";
+            p.auto = flag(b, "auto", true);
+            p.share = flag(b, "share", false);
+            p.wrist = str(g(b, "w"));
+            var figs = Application.Storage.getValue("figs") as Object?;
+            if (figs instanceof Dictionary) {
+                p.figs = figs as Dictionary;
+            }
+        }
+        var meta = Application.Storage.getValue("wom") as Object?;
+        var fresh = meta instanceof Dictionary && str(g(meta as Dictionary, "d")).equals(Sync.today());
+        p.title = str(g(w, "t"));
+        p.workoutId = fresh ? str(g(w, "id")) : "";
+        p.kind = str(g(w, "c"));
+        var items = [] as Array<Planned>;
+        var rows = g(w, "ex");
+        if (rows instanceof Array) {
+            for (var i = 0; i < rows.size(); i++) {
+                if (rows[i] instanceof Dictionary) {
+                    items.add(fromRow(rows[i] as Dictionary, true));
+                }
+            }
+        }
+        if (items.size() == 0) {
+            return null;
+        }
+        var all = [] as Array<Planned>;
+        all.addAll(items);
+        for (var i = 0; i < p.options.size(); i++) {
+            var known = false;
+            for (var j = 0; j < items.size(); j++) {
+                known = known || items[j].same(p.options[i]);
+            }
+            if (!known) {
+                all.add(p.options[i]);
+            }
+        }
+        p.items = items;
+        p.options = all;
+        return p;
     }
 
     // Die Einheiten von heute (Titel und Zahl der Übungen) für das Menü
