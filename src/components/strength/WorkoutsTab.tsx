@@ -143,7 +143,7 @@ export function WorkoutsTab({ ctx }: { ctx: StrengthCtx }) {
       <div>
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-base font-semibold text-slate-900">{t('wt.yours')}</h2>
-          <Link to="/onboarding?edit=1"><Button size="sm" variant="ghost" icon={<Sparkles className="h-4 w-4 text-brand" />}>{t('wt.change')}</Button></Link>
+          <Link to={ctx.plan ? '/onboarding?edit=1&add=strength' : '/onboarding?edit=1'}><Button size="sm" variant="ghost" icon={<Sparkles className="h-4 w-4 text-brand" />}>{t('wt.change')}</Button></Link>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           {routines.map((r) => {
