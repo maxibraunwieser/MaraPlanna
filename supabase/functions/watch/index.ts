@@ -47,6 +47,8 @@ function serviceRoleKey(): string {
 const hex = (bytes: Uint8Array) => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 const sha256 = async (s: string) => hex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))));
 const dbError = (m: string) => (/watch_devices|schema cache|does not exist/.test(m) ? MIGRATION_HINT : m);
+/** A marathon plan: its times are for 42.195 km (no distance saved = a plan from before other distances existed; null = no race). */
+const marathonPlan = (f: { raceDistanceM?: number | null } | null | undefined): boolean => !!f && (f.raceDistanceM === undefined || f.raceDistanceM === 42195);
 
 // ---------------------------------------------------------------------------
 // Watch side
@@ -109,39 +111,6 @@ async function feed(admin: SupabaseClient, secret: string, date: string) {
     admin.from('profiles').select('units').eq('id', dev.userId).maybeSingle(),
     admin.from('activities').select('distance_m').eq('user_id', dev.userId).eq('sport', 'run').gte('local_date', start).lte('local_date', end),
   ]);
-  const { data: workouts } = plan
-    ? await admin
-        .from('planned_workouts')
-        .select('id, date, kind, title, steps, distance_km, duration_min, key_session, status, note')
-        .eq('plan_id', plan.id)
-        .gte('date', start)
-        .lte('date', until)
-    : { data: [] };
-  return buildWatchFeed({
-    date,
-    raceDate: plan?.race_date ?? null,
-    predictedS: plan?.fitness?.predictedMarathonS ?? null,
-    paces: plan?.fitness?.paces ?? null,
-    units: (profile?.units === 'mi' ? 'mi' : 'km') as CalUnits,
-    workouts: (workouts ?? []) as CalWorkout[],
-    weekDoneKm: (runs ?? []).reduce((s: number, r: { distance_m: number | null }) => s + (r.distance_m ?? 0) / 1000, 0),
-    hasPlan: !!plan,
-  });
-}
-
-/** VDOT, paces, today's run as steps and the sessions of this and next week, for the MaraPlanna Run app. */
-async function run(admin: SupabaseClient, secret: string, date: string) {
-  const dev = await device(admin, secret);
-  if ('reply' in dev) return dev.reply;
-  const start = mondayOf(date);
-  const [{ data: plan }, { data: profile }, { data: runs }] = await Promise.all([
-    admin.from('training_plans').select('id, fitness, race_date, race_name').eq('user_id', dev.userId).eq('status', 'active').maybeSingle(),
-    admin.from('profiles').select('units').eq('id', dev.userId).maybeSingle(),
-    admin.from('activities').select('distance_m').eq('user_id', dev.userId).eq('sport', 'run').gte('local_date', start).lte('local_date', addDays(start, 6)),
-  ]);
-  // Separate query: without the strength column (migration not run yet) the units above still work.
-  const { data: strengthRow } = await admin.from('profiles').select('strength').eq('id', dev.userId).maybeSingle();
-  const prefs = normalizePrefs(strengthRow?.strength);
   const { data: workouts } = plan
     ? await admin
         .from('planned_workouts')
