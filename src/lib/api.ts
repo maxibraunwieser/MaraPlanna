@@ -198,6 +198,12 @@ export async function deleteRoutineSessions(planId: string, routineId: string, f
   check(await (isOwnRoutine(routineId) ? q.eq('routine_id', routineId) : q.eq('kind', `strength_${routineId}`).is('routine_id', null)));
 }
 
+/** Planned sessions taken out of the plan completely (not done ones). */
+export async function deleteWorkouts(ids: string[]) {
+  if (!ids.length) return;
+  check(await supabase.from('planned_workouts').delete().in('id', ids).not('status', 'in', '(completed,partial)'));
+}
+
 /** Sessions on new dates (a session moved, or a series of them). */
 export async function moveWorkouts(patches: { id: string; date: string; original_date: string | null }[]) {
   for (const batch of chunks(patches, 20)) await Promise.all(batch.map((p) => updateWorkout(p.id, { date: p.date, original_date: p.original_date })));

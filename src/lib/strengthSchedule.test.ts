@@ -173,5 +173,6 @@ describe('the coach card for whole workouts, in German', () => {
     expect(coachLine('Add workout "Hotel gym": once on Wed 2026-11-04', 'de')).toBe('Workout „Hotel gym“ hinzufügen: einmal am Mi 2026-11-04');
     expect(coachLine('Add workout "Core": every Tue, Thu from 2026-10-30 until the end of the plan', 'de')).toBe('Workout „Core“ hinzufügen: jeden Di, Do ab 2026-10-30 bis Planende');
     expect(coachLine('Goblet squat 3 × 10 · 20 kg', 'de')).toMatch(/^Goblet-Kniebeuge 3 × 10 · 20 kg$/);
+    expect(coachLine('Delete "Easy run" on Tue 2026-11-10', 'de')).toBe('„Lockerer Lauf“ am Di 2026-11-10 löschen (ganz aus dem Plan)');
   });
 });

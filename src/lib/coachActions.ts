@@ -90,6 +90,10 @@ export function staleReason(a: CoachAction, ctx: ActionContext): string | null {
       const open = a.workoutIds.map((id) => byId(ctx.workouts, id)).filter((w) => w && w.status === 'planned' && w.date >= ctx.today);
       return open.length ? null : tr('ca.skipGone');
     }
+    case 'delete_workouts': {
+      const left = a.workoutIds.map((id) => byId(ctx.workouts, id)).filter((w) => w && w.status !== 'completed' && w.status !== 'partial');
+      return left.length ? null : tr('ca.gone');
+    }
     case 'scale_workouts': {
       const open = a.items.filter((i) => {
         const w = byId(ctx.workouts, i.workoutId);
@@ -145,6 +149,12 @@ export async function applyAction(a: CoachAction, ctx: ActionContext): Promise<v
       const w = byId(ctx.workouts, id);
       if (w && w.status === 'planned' && w.date >= today) await api.updateWorkout(id, { status: 'skipped', status_source: 'user' });
     }
+  } else if (a.tool === 'delete_workouts') {
+    const ids = a.workoutIds.filter((id) => {
+      const w = byId(ctx.workouts, id);
+      return w && w.kind !== 'race' && w.status !== 'completed' && w.status !== 'partial';
+    });
+    await api.deleteWorkouts(ids);
   } else if (a.tool === 'scale_workouts') {
     for (const item of a.items) {
       const w = byId(ctx.workouts, item.workoutId);

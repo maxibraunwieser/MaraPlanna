@@ -43,6 +43,7 @@ interface ActionBase {
 export type CoachAction =
   | (ActionBase & { tool: 'move_workout'; workoutId: string; date: string })
   | (ActionBase & { tool: 'skip_workouts'; workoutIds: string[] })
+  | (ActionBase & { tool: 'delete_workouts'; workoutIds: string[] })
   | (ActionBase & { tool: 'scale_workouts'; items: { workoutId: string; factor: number }[] })
   | (ActionBase & { tool: 'edit_workouts'; edits: WorkoutEditSpec[]; noStridesDays?: number[] })
   | (ActionBase & { tool: 'change_plan'; changes: PlanChanges })
@@ -141,10 +142,20 @@ export const TOOL_DEFS = [
   {
     name: 'propose_skip_workouts',
     description:
-      'Propose skipping planned sessions (illness, injury, travel, a bad week). They are marked as skipped and the plan continues. The athlete confirms with a button first. Never skip the race.',
+      'Propose skipping planned sessions (illness, injury, travel, a bad week). They STAY in the plan and are shown as skipped; the plan continues. Use this when the athlete says skip / let it go / can\'t do it. To take sessions out of the plan completely, use propose_delete_workouts. The athlete confirms with a button first. Never skip the race.',
     input_schema: {
       type: 'object',
       properties: { workout_ids: { type: 'array', items: ID, description: 'Up to 14 ids' }, reason: { type: 'string' } },
+      required: ['workout_ids', 'reason'],
+    },
+  },
+  {
+    name: 'propose_delete_workouts',
+    description:
+      'Propose deleting single planned sessions: they are removed from the plan COMPLETELY and are no longer shown (unlike skipping, which keeps them visible as skipped). Use this only when the athlete asks to delete or remove sessions. Sessions already done and the race cannot be deleted. For a whole strength workout with all its sessions use propose_delete_strength_workout. In your answer list the sessions and ask whether that is right; the athlete confirms with the Apply button.',
+    input_schema: {
+      type: 'object',
+      properties: { workout_ids: { type: 'array', items: ID, description: 'Up to 30 ids' }, reason: { type: 'string' } },
       required: ['workout_ids', 'reason'],
     },
   },
@@ -253,7 +264,7 @@ export const TOOL_DEFS = [
   },
 ] as const;
 
-export const PROPOSAL_TOOLS = new Set(['propose_move_workout', 'propose_skip_workouts', 'propose_scale_workouts', 'propose_edit_workouts', 'propose_plan_changes', 'propose_delete_strength_workout', 'propose_add_strength_workout']);
+export const PROPOSAL_TOOLS = new Set(['propose_move_workout', 'propose_skip_workouts', 'propose_delete_workouts', 'propose_scale_workouts', 'propose_edit_workouts', 'propose_plan_changes', 'propose_delete_strength_workout', 'propose_add_strength_workout']);
 
 /** Shown to the model after a proposal: it must not claim that anything has changed. */
 const PROPOSED =
@@ -350,6 +361,8 @@ export async function runTool(name: string, input: Record<string, unknown>, stat
       return proposeEdit(input, state);
     case 'propose_plan_changes':
       return proposePlanChanges(input, state);
+    case 'propose_delete_workouts':
+      return proposeDeleteSessions(input, state);
     case 'propose_delete_strength_workout':
       return proposeDeleteRoutine(input, state);
     case 'propose_add_strength_workout':
@@ -357,6 +370,28 @@ export async function runTool(name: string, input: Record<string, unknown>, stat
     default:
       return fail(`Unknown tool "${name}".`);
   }
+}
+
+function proposeDeleteSessions(input: Record<string, unknown>, state: ToolState): ToolResult {
+  const { data } = state;
+  if (!data.plan) return fail('There is no active plan.');
+  const refs = Array.isArray(input.workout_ids) ? input.workout_ids.slice(0, 30) : [];
+  const picked: CoachWorkout[] = [];
+  for (const ref of refs) {
+    const w = resolveWorkout(data.workouts, ref);
+    if (typeof w === 'string') return fail(w);
+    if (w.kind === 'race') return fail('The race cannot be deleted.');
+    if (w.status === 'completed' || w.status === 'partial') return fail(`"${w.title}" on ${w.date} is already done and stays in the history.`);
+    if (!picked.includes(w)) picked.push(w);
+  }
+  if (!picked.length) return fail('Name at least one session to delete.');
+  picked.sort((a, b) => a.date.localeCompare(b.date));
+  return pending(state, {
+    tool: 'delete_workouts',
+    workoutIds: picked.map((w) => w.id),
+    summary: picked.map((w) => `Delete "${w.title}" on ${dayLabel(w.date)}`).join('\n'),
+    reason: text(input.reason, 200),
+  });
 }
 
 function proposeDeleteRoutine(input: Record<string, unknown>, state: ToolState): ToolResult {

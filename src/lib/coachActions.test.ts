@@ -178,3 +178,13 @@ describe('whole strength workouts from the coach', () => {
     expect(previewAction(a, ctx()).length).toBe(2);
   });
 });
+
+describe('deleting sessions from the coach', () => {
+  it('applies while a session can still be deleted; done ones cannot', () => {
+    const w = upcoming('easy');
+    const del = action({ tool: 'delete_workouts', workoutIds: [w.id] });
+    expect(staleReason(del, ctx())).toBeNull();
+    const done = workouts.map((x) => (x.id === w.id ? { ...x, status: 'completed' as const } : x));
+    expect(staleReason(del, ctx({ workouts: done }))).not.toBeNull();
+  });
+});

@@ -336,6 +336,7 @@ const EDIT_PART_DE = (part: string) =>
 
 const COACH_RULES: Rule[] = [
   rx(`Move "(.+)" from ${DAY} to ${DAY}`, (m) => `„${workoutTitle(m[1], 'de')}“ von ${d3(m[2])} ${m[3]} auf ${d3(m[4])} ${m[5]} verschieben`),
+  rx(`Delete "(.+)" on ${DAY}`, (m) => `„${workoutTitle(m[1], 'de')}“ am ${d3(m[2])} ${m[3]} löschen (ganz aus dem Plan)`),
   rx(`Skip "(.+)" on ${DAY}`, (m) => `„${workoutTitle(m[1], 'de')}“ am ${d3(m[2])} ${m[3]} überspringen`),
   rx(`Change "(.+)" on ${DAY}: about ${NUM} km → ${NUM} km \\(([+-]?\\d+) %\\)`, (m) => `„${workoutTitle(m[1], 'de')}“ am ${d3(m[2])} ${m[3]} ändern: etwa ${m[4]} km → ${m[5]} km (${m[6]} %)`),
   rx('From now on, easy runs on (.+) get no strides, also when the plan is rebuilt\\.', (m) => `Ab jetzt bekommen lockere Läufe am ${dayList(m[1])} keine Steigerungen, auch wenn der Plan neu aufgebaut wird.`),

@@ -63,6 +63,7 @@ class Query implements PromiseLike<Result> {
   }
   not(c: string, op: string, v: any) {
     if (op === 'is' && v === null) this.filters.push((r) => r[c] !== null && r[c] !== undefined);
+    else if (op === 'in') { const list = String(v).replace(/[()]/g, '').split(','); this.filters.push((r) => !list.includes(r[c])); }
     else this.filters.push((r) => r[c] !== v);
     return this;
   }

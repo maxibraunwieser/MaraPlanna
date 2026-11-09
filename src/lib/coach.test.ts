@@ -641,3 +641,25 @@ describe('coach: whole strength workouts', () => {
     expect(COACH_SYSTEM).toContain('propose_delete_strength_workout');
   });
 });
+
+describe('coach: deleting single sessions is not skipping them', () => {
+  it('proposes taking sessions out of the plan, never done ones or the race', async () => {
+    const s = state();
+    const open = WORKOUTS.filter((w) => w.status === 'planned' && w.kind !== 'race').slice(0, 2);
+    const r = await runTool('propose_delete_workouts', { workout_ids: open.map((w) => w.id.slice(0, 8)), reason: 'no time' }, s);
+    expect(r.isError).toBeFalsy();
+    const a = s.actions[0] as Extract<CoachAction, { tool: 'delete_workouts' }>;
+    expect(a.tool).toBe('delete_workouts');
+    expect(a.workoutIds.length).toBe(2);
+    expect(a.summary.split('\n')[0]).toMatch(/^Delete ".+" on \w{3} \d{4}-\d{2}-\d{2}$/);
+    const done = WORKOUTS.find((w) => w.status === 'completed');
+    if (done) expect((await runTool('propose_delete_workouts', { workout_ids: [done.id.slice(0, 8)], reason: 'x' }, state())).isError).toBe(true);
+    const race = WORKOUTS.find((w) => w.kind === 'race');
+    if (race) expect((await runTool('propose_delete_workouts', { workout_ids: [race.id.slice(0, 8)], reason: 'x' }, state())).isError).toBe(true);
+  });
+
+  it('the model is told the difference', () => {
+    expect(COACH_SYSTEM).toMatch(/DELETE or REMOVE[^\n]*propose_delete_workouts[^\n]*SKIP[^\n]*propose_skip_workouts/);
+    expect(TOOL_DEFS.find((t) => t.name === 'propose_skip_workouts')!.description).toMatch(/STAY in the plan/);
+  });
+});
