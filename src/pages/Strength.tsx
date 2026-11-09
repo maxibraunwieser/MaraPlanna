@@ -127,7 +127,7 @@ export function Strength() {
   const setupDone = !!prefs.savedAt && prefs.routines.some((r) => r.exercises.length > 0);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
+    <div className="fluid mx-auto max-w-5xl space-y-5">
       <PageHeader title={t('sg.title')} />
 
 

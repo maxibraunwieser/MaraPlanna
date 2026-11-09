@@ -3,16 +3,20 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
+  useRef,
   useState,
   type ButtonHTMLAttributes,
   type HTMLAttributes,
   type InputHTMLAttributes,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react';
 import { X, Loader2, CheckCircle2, AlertTriangle, Info } from 'lucide-react';
 import { tr } from '../lib/i18n';
+import { animateSpring, project, reducedMotion, rubberband, SHEET, SMOOTH } from '../lib/spring';
 
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ');
 
@@ -202,12 +206,50 @@ export function Toggle({ checked, onChange, label, hint }: { checked: boolean; o
 /** Open dialogs, the top one last: Escape closes only that one (a picture opened inside an editor closes alone). */
 const openModals: symbol[] = [];
 
+/** A phone-sized screen: dialogs are sheets from the bottom that can be pulled down. */
+const sheetScreen = () => typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(max-width: 639px)').matches;
+
+/**
+ * A dialog. On a phone it is a sheet: it slides up from the bottom, follows the finger 1:1 when pulled by its grabber or title
+ * (softly resisting upwards), and on release goes where the gesture was heading: closed when the flick projects past half its
+ * height, otherwise back with a little spring. It leaves the way it came, also when closed with X, the backdrop or Escape.
+ */
 export function Modal({ open, onClose, title, children, wide = false }: { open: boolean; onClose: () => void; title: ReactNode; children: ReactNode; wide?: boolean }) {
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const backRef = useRef<HTMLDivElement>(null);
+  const y = useRef(0);
+  const stop = useRef<(() => void) | null>(null);
+  const drag = useRef<{ id: number; startY: number; from: number; samples: { t: number; y: number }[] } | null>(null);
+  const closing = useRef(false);
+  // The parent hands a new onClose on every render: keep the latest without restarting anything (a running close must go on).
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  const set = useCallback((v: number) => {
+    y.current = v;
+    const el = sheetRef.current;
+    if (!el) return;
+    el.style.transform = v ? `translate3d(0, ${v}px, 0)` : '';
+    const h = el.offsetHeight || 1;
+    if (backRef.current) backRef.current.style.opacity = String(Math.max(0, Math.min(1, 1 - v / h)));
+  }, []);
+
+  /** Close the way it came: down off the screen, then tell the parent. */
+  const close = useCallback((velocity = 0) => {
+    if (closing.current) return;
+    const el = sheetRef.current;
+    if (!el || !sheetScreen() || reducedMotion()) return onCloseRef.current();
+    closing.current = true;
+    stop.current?.();
+    stop.current = animateSpring({ from: y.current, to: el.offsetHeight + 24, velocity, params: SMOOTH, onUpdate: set, onDone: () => onCloseRef.current() });
+  }, [set]);
+
   useEffect(() => {
     if (!open) return;
+    closing.current = false;
     const id = Symbol('modal');
     openModals.push(id);
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && openModals[openModals.length - 1] === id && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && openModals[openModals.length - 1] === id && close();
     window.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
     return () => {
@@ -215,21 +257,66 @@ export function Modal({ open, onClose, title, children, wide = false }: { open: 
       openModals.splice(openModals.indexOf(id), 1);
       if (!openModals.length) document.body.style.overflow = '';
     };
-  }, [open, onClose]);
+  }, [open, close]);
+  // stop a running animation only when the dialog goes away
+  useEffect(() => () => stop.current?.(), []);
+
+  // Arrive from the bottom (on a phone, unless the person asked for less motion).
+  useLayoutEffect(() => {
+    const el = sheetRef.current;
+    if (!open || !el || !sheetScreen() || reducedMotion()) return;
+    set(el.offsetHeight);
+    stop.current = animateSpring({ from: el.offsetHeight, to: 0, params: SMOOTH, onUpdate: set });
+  }, [open, set]);
+
   if (!open) return null;
+
+  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!sheetScreen() || (e.target as HTMLElement).closest('button')) return;
+    stop.current?.(); // grab it mid-flight, from where it is now
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { id: e.pointerId, startY: e.clientY, from: y.current, samples: [{ t: e.timeStamp, y: e.clientY }] };
+  };
+  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    const raw = d.from + e.clientY - d.startY;
+    set(raw < 0 ? rubberband(raw, sheetRef.current?.offsetHeight ?? 600) : raw);
+    d.samples = [...d.samples.filter((x) => e.timeStamp - x.t < 100), { t: e.timeStamp, y: e.clientY }];
+  };
+  const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    drag.current = null;
+    const first = d.samples[0];
+    const last = d.samples[d.samples.length - 1];
+    const velocity = last.t > first.t ? ((last.y - first.y) / (last.t - first.t)) * 1000 : 0;
+    const h = sheetRef.current?.offsetHeight ?? 600;
+    // where the flick is heading decides, not where the finger let go
+    if (y.current + project(velocity) > h / 2) return close(velocity);
+    stop.current = animateSpring({ from: y.current, to: 0, velocity, params: SHEET, onUpdate: set });
+  };
+  const grab = { onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp };
+
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-end justify-center p-0 sm:items-center sm:p-4" onClick={() => close()}>
+      <div ref={backRef} className="absolute inset-0 bg-black/60 backdrop-blur-sm" aria-hidden />
       <div
-        className={cx('max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl bg-surface p-5 shadow-xl ring-1 ring-white/10 sm:rounded-3xl sm:p-6', wide ? 'sm:max-w-2xl' : 'sm:max-w-lg')}
+        ref={sheetRef}
+        className={cx('relative max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl bg-surface px-5 pb-5 shadow-xl ring-1 ring-white/10 will-change-transform sm:rounded-3xl sm:p-6', wide ? 'sm:max-w-2xl' : 'sm:max-w-lg')}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
       >
-        <div className="mb-4 flex items-start justify-between gap-4">
-          <div className="text-lg font-semibold text-slate-900">{title}</div>
-          <button onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={tr('common.close')}>
-            <X className="h-5 w-5" />
-          </button>
+        {/* grabber and title: the part of the sheet the finger can pull (the content below keeps scrolling) */}
+        <div className="sticky top-0 z-10 -mx-5 touch-none bg-surface/95 px-5 pt-2 backdrop-blur sm:static sm:mx-0 sm:touch-auto sm:bg-transparent sm:px-0 sm:pt-0" {...grab}>
+          <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-white/25 sm:hidden" aria-hidden />
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div className="text-lg font-semibold tracking-[-0.01em] text-slate-900">{title}</div>
+            <button onClick={() => close()} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={tr('common.close')}>
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
         {children}
       </div>

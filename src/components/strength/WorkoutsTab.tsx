@@ -45,7 +45,7 @@ function ExerciseList({ exercises, unit, last }: { exercises: { key?: string; id
 const nameLine = (exercises: { name: string }[]): string => exercises.map((x) => exName(x.name)).join(' · ');
 
 function Chevron({ open }: { open: boolean }) {
-  return <ChevronDown className={`h-5 w-5 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />;
+  return <ChevronDown className={`h-5 w-5 shrink-0 text-slate-400 transition-transform duration-[420ms] ease-[cubic-bezier(0.32,0.72,0,1)] ${open ? 'rotate-180' : ''}`} />;
 }
 
 /** The workouts, the next session and what is coming up. */
@@ -122,7 +122,7 @@ export function WorkoutsTab({ ctx }: { ctx: StrengthCtx }) {
   return (
     <div className="space-y-5">
       {next ? (
-        <section className="overflow-hidden rounded-2xl bg-ink text-white shadow-sm">
+        <section className="material overflow-hidden rounded-3xl text-white">
           <div className="grid gap-5 p-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:p-6">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-lime">
@@ -133,23 +133,25 @@ export function WorkoutsTab({ ctx }: { ctx: StrengthCtx }) {
                   <span className="block text-2xl font-bold">{localTitle(next.title)}</span>
                   {!openNext && <span className="mt-1 line-clamp-2 block text-xs text-slate-300">{nameLine(stepsToExercises(next.steps))}</span>}
                 </span>
-                <ChevronDown className={`mt-1.5 h-5 w-5 shrink-0 text-slate-300 transition-transform ${openNext ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`mt-1.5 h-5 w-5 shrink-0 text-slate-300 transition-transform duration-[420ms] ease-[cubic-bezier(0.32,0.72,0,1)] ${openNext ? 'rotate-180' : ''}`} />
               </button>
               <div className="mt-1 flex items-center gap-3 text-sm text-slate-300">
                 <span className="inline-flex items-center gap-1"><Clock className="h-4 w-4" /> {t('wt.about', { min: next.duration_min ?? routineMinutes({ id: '', exercises: stepsToExercises(next.steps), by: 'own', updatedAt: null }) })}</span>
                 <span>{t('wt.exercises', { n: next.steps.filter((s) => s.type === 'exercise').length })}</span>
               </div>
-              {openNext && (
-                <ul className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
-                  {stepsToExercises(next.steps).map((x, i) => (
-                    <li key={`${x.name}-${i}`} className="flex items-center gap-3 rounded-xl bg-white/10 px-3 py-2">
-                      <ExerciseThumb exercise={x} className="hidden sm:block" />
-                      <span className="min-w-0 flex-1 font-medium">{exName(x.name)}</span>
-                      <span className="shrink-0 tabular-nums text-slate-300">{rxText(x, unit)}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <div className="fold" data-open={openNext}>
+                <div>
+                  <ul className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+                    {stepsToExercises(next.steps).map((x, i) => (
+                      <li key={`${x.name}-${i}`} className="flex items-center gap-3 rounded-xl bg-white/10 px-3 py-2">
+                        <ExerciseThumb exercise={x} className="hidden sm:block" />
+                        <span className="min-w-0 flex-1 font-medium">{exName(x.name)}</span>
+                        <span className="shrink-0 tabular-nums text-slate-300">{rxText(x, unit)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-col sm:justify-end">
               <Button size="lg" className="col-span-2 w-full" icon={<Play className="h-5 w-5" />} onClick={() => startSession(next)}>{t('wt.start')}</Button>
@@ -197,10 +199,16 @@ export function WorkoutsTab({ ctx }: { ctx: StrengthCtx }) {
                   </div>
                   <MuscleMap load={load} className="w-24 shrink-0 self-center sm:w-28" />
                 </div>
-                {(open || !r.exercises.length) && (
-                  <div className="mt-4 space-y-3">
-                    {open && <MuscleLegend load={load} />}
-                    {!r.exercises.length ? <p className="text-sm text-slate-500">{t('wt.emptyAdd')}</p> : <ExerciseList exercises={r.exercises} unit={unit} last={last} />}
+                {!r.exercises.length ? (
+                  <p className="mt-4 text-sm text-slate-500">{t('wt.emptyAdd')}</p>
+                ) : (
+                  <div className="fold" data-open={open}>
+                    <div>
+                      <div className="space-y-3 pt-4">
+                        <MuscleLegend load={load} />
+                        <ExerciseList exercises={r.exercises} unit={unit} last={last} />
+                      </div>
+                    </div>
                   </div>
                 )}
               </Card>
