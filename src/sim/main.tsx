@@ -10,7 +10,9 @@ import { SCENARIOS, buildScenario, scenarioById } from './scenarios';
 
 const params = new URLSearchParams(window.location.search);
 const scenario = scenarioById(params.get('scenario'));
-const showBar = params.get('bar') !== '0';
+// ?bar=0 hides the situation panel (it covers the tab bar on a phone) and is remembered in this browser; ?bar=1 brings it back.
+if (params.has('bar')) window.localStorage.setItem('maraplanna.sim.bar', params.get('bar') === '0' ? '0' : '1');
+const showBar = window.localStorage.getItem('maraplanna.sim.bar') !== '0';
 resetDb(buildScenario(scenario.id));
 setGarminMode(params.get('garmin'));
 if (params.get('signedout') === '1') startSignedOut();

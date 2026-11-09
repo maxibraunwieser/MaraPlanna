@@ -7,7 +7,8 @@ import { existsSync, mkdirSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-const URL_ = process.argv[2] ?? 'http://localhost:5174/?scenario=own&lang=de';
+// bar=0: without the situation panel, which would cover the tab bar on the phone (remembered in this window's own profile)
+const URL_ = process.argv[2] ?? 'http://localhost:5174/?scenario=own&lang=de&bar=0';
 const PORT = 9333;
 const PHONE = { width: 393, height: 852, deviceScaleFactor: 3, mobile: true };
 const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
