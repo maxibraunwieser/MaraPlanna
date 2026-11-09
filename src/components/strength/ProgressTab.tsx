@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
-import { ArrowDownRight, ArrowUpRight, Flame, Medal, Minus, TrendingUp } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, ChartLine, ChevronDown, Flame, Medal, Minus, TrendingUp } from 'lucide-react';
 import { toUnit } from '../../../supabase/functions/_shared/strength';
-import { exerciseProgress, exerciseSummaries, personalRecords, summarize, weeklyVolume } from '../../lib/strengthStats';
+import { exerciseProgress, exerciseSummaries, personalRecords, summarize, weeklyVolume, type ExercisePoint, type ExerciseSummary } from '../../lib/strengthStats';
 import { exName, weightText } from '../../lib/strengthFormat';
 import { fmtDate, fmtNum } from '../../lib/format';
 import { useI18n, type MsgKey } from '../../lib/i18n';
 import { numberText } from '../../lib/i18n/dates';
 import { Badge, Card, CardTitle, cx } from '../ui';
-import { ProgressChart, Sparkline, WeekBars, type ProgressPoint } from './Charts';
+import { ProgressChart, WeekBars, type ProgressPoint } from './Charts';
 import type { StrengthCtx } from './context';
 
 type Metric = 'e1rm' | 'weight' | 'volume' | 'reps';
@@ -30,6 +30,101 @@ function Tile({ label, value, sub, icon }: { label: string; value: string; sub?:
       <div className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{value}</div>
       {sub && <div className="mt-0.5 text-xs text-slate-500">{sub}</div>}
     </div>
+  );
+}
+
+/**
+ * One exercise of "All lifts": name, last top set and the change. The button next to the name folds the course open: its chart,
+ * start / now / best / change, the last sessions, and a way into the large chart at the top.
+ */
+function ExerciseRow({ s, rows, unit, onOpenChart }: { s: ExerciseSummary; rows: StrengthCtx['rows']; unit: StrengthCtx['unit']; onOpenChart: () => void }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  // worked out the first time it opens, then kept (so it can fold shut with its content)
+  const [seen, setSeen] = useState(false);
+  const pts = useMemo(() => (seen ? exerciseProgress(rows, s.key) : []), [seen, rows, s.key]);
+  const weighted = s.metric === 'e1rm';
+  const val = (p: ExercisePoint) => (weighted ? toUnit(p.e1rm, unit) : p.bestReps);
+  const label = weighted ? unit : t('pr.reps');
+  const show = (v: number) => (weighted ? `${fmtNum(v, 1)} ${unit}` : t('pr.repsValue', { n: v }));
+  const setText = (x: { kg: number; reps: number }) => (x.kg ? `${fmtNum(toUnit(x.kg, unit), 2)}×${x.reps}` : `${x.reps}`);
+  const name = exName(s.label);
+  const id = `course-${s.key.replace(/[^a-z0-9]+/g, '-')}`;
+  const toggle = () => { setSeen(true); setOpen((o) => !o); };
+
+  return (
+    <li className="rounded-xl bg-slate-50 ring-1 ring-slate-200" data-testid={`lift-${s.key}`}>
+      <div className="flex items-center gap-2 px-3 py-2.5">
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate text-sm font-semibold text-slate-900">{name}</span>
+            <button
+              type="button"
+              onClick={toggle}
+              aria-expanded={open}
+              aria-controls={id}
+              aria-label={t(open ? 'pr.hideCourse' : 'pr.showCourse', { name })}
+              className={cx('-my-1 inline-flex shrink-0 items-center gap-0.5 rounded-full px-2 py-1 ring-1 transition-colors', open ? 'bg-brand-soft text-brand ring-brand/40' : 'text-slate-500 ring-slate-300 hover:text-slate-800')}
+            >
+              <ChartLine className="h-3.5 w-3.5" />
+              <ChevronDown className={cx('h-3.5 w-3.5 transition-transform duration-[420ms] ease-[cubic-bezier(0.32,0.72,0,1)]', open && 'rotate-180')} />
+            </button>
+          </div>
+          <div className="text-xs text-slate-500">
+            {weighted ? `${weightText(s.last.topKg, unit)} × ${s.last.topReps}` : t('pr.repsValue', { n: s.last.bestReps })} · {t(s.sessions === 1 ? 'pr.session1' : 'pr.sessionN', { n: s.sessions })}
+          </div>
+        </div>
+        <div className="shrink-0 text-right text-xs">
+          {s.sessions > 1 ? <Trend change={weighted ? toUnit(s.change, unit) : s.change} suffix={weighted ? ` ${unit}` : ''} /> : <span className="text-slate-400">{t('pr.newLift')}</span>}
+        </div>
+      </div>
+
+      <div className="fold" data-open={open} id={id}>
+        <div>
+          {seen && (
+            <div className="space-y-3 px-3 pb-3">
+              {pts.length > 1 ? (
+                <ProgressChart points={pts.map((p) => ({ date: p.date, value: val(p), detail: p.sets.map(setText).join(', ') }))} unit={label} height={150} />
+              ) : (
+                <p className="text-xs text-slate-500">{t('pr.firstSession')}</p>
+              )}
+              <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {[
+                  { k: 'pr.start' as const, v: show(val(s.first)) },
+                  { k: 'pr.now' as const, v: show(val(s.last)) },
+                  { k: 'pr.best' as const, v: show(weighted ? toUnit(s.best, unit) : s.best) },
+                ].map((x) => (
+                  <div key={x.k} className="rounded-lg bg-white px-2.5 py-2 ring-1 ring-slate-200">
+                    <dt className="text-[11px] font-medium text-slate-500">{t(x.k)}</dt>
+                    <dd className="text-sm font-semibold tabular-nums text-slate-900">{x.v}</dd>
+                  </div>
+                ))}
+                <div className="rounded-lg bg-white px-2.5 py-2 ring-1 ring-slate-200">
+                  <dt className="text-[11px] font-medium text-slate-500">{t('pr.change')}</dt>
+                  <dd className="text-sm">
+                    {s.sessions > 1 ? <Trend change={weighted ? toUnit(s.change, unit) : s.change} suffix={weighted ? ` ${unit}` : ''} /> : '–'}
+                    {s.sessions > 1 && s.changePct !== 0 && <span className="block text-[11px] tabular-nums text-slate-500">{s.changePct > 0 ? '+' : ''}{fmtNum(s.changePct)} %</span>}
+                  </dd>
+                </div>
+              </dl>
+              <div>
+                <div className="mb-1 text-[11px] font-medium text-slate-500">{t('pr.lastSessions')}</div>
+                <ul className="divide-y divide-slate-100 text-xs">
+                  {[...pts].reverse().slice(0, 3).map((p) => (
+                    <li key={p.session} className="flex gap-3 py-1.5">
+                      <span className="w-16 shrink-0 text-slate-500">{fmtDate(p.date, { day: 'numeric', month: 'short' })}</span>
+                      <span className="min-w-0 flex-1 truncate text-slate-800">{p.sets.map(setText).join(' · ')}</span>
+                      {p.e1rm > 0 && <span className="shrink-0 tabular-nums text-slate-500">{t('pr.oneRm', { w: weightText(p.e1rm, unit) })}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <button type="button" onClick={onOpenChart} className="text-xs font-semibold text-brand hover:underline">{t('pr.inChart')} →</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </li>
   );
 }
 
@@ -139,25 +234,13 @@ export function ProgressTab({ ctx }: { ctx: StrengthCtx }) {
         </details>
       </Card>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      {/* grid-cols-1 = minmax(0, 1fr): a long exercise name is cut with … instead of pushing the card past the screen */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card>
           <CardTitle>{t('pr.all')}</CardTitle>
           <ul className="space-y-2">
             {summaries.map((s) => (
-              <li key={s.key} className="rounded-xl bg-slate-50 px-3 ring-1 ring-slate-200">
-                <button type="button" onClick={() => { setPicked(s.key); setMetric(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="-mx-3 flex w-[calc(100%+1.5rem)] items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-slate-100">
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-slate-900">{exName(s.label)}</div>
-                    <div className="text-xs text-slate-500">
-                      {s.metric === 'e1rm' ? `${weightText(s.last.topKg, unit)} × ${s.last.topReps}` : t('pr.repsValue', { n: s.last.bestReps })} · {t(s.sessions === 1 ? 'pr.session1' : 'pr.sessionN', { n: s.sessions })}
-                    </div>
-                  </div>
-                  <Sparkline values={s.trend.map((v) => (s.metric === 'e1rm' ? toUnit(v, unit) : v))} />
-                  <div className="w-24 text-right text-xs">
-                    {s.sessions > 1 ? <Trend change={s.metric === 'e1rm' ? toUnit(s.change, unit) : s.change} suffix={s.metric === 'e1rm' ? ` ${unit}` : ''} /> : <span className="text-slate-400">{t('pr.newLift')}</span>}
-                  </div>
-                </button>
-              </li>
+              <ExerciseRow key={s.key} s={s} rows={rows} unit={unit} onOpenChart={() => { setPicked(s.key); setMetric(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
             ))}
           </ul>
         </Card>
