@@ -10,6 +10,7 @@ import { assessFitness } from './planner/fitness';
 import { buildPlan } from './planner/generate';
 import { suggestRoutine } from './strengthPlan';
 import { lastWeightOf, lastWeights } from './strengthStats';
+import { coachLine } from '../../supabase/functions/_shared/content';
 import { movePatches, movedDays, ownSessions, planEnd, routineIdOf, scheduleDates, sessionsOf, weekdaysOf } from './strengthSchedule';
 import type { PlannedWorkout, Profile, TrainingPlan, WeekSummary } from './types';
 
@@ -163,5 +164,14 @@ describe('the weight of the last time', () => {
     expect(lastWeightOf(last, { id: 'squat', name: 'Back squat' })).toEqual({ kg: 82.5, date: '2026-11-05' });
     expect(lastWeightOf(last, { name: 'Pull-up' })).toEqual({ kg: 5, date: '2026-11-06' });
     expect(lastWeightOf(last, { name: 'Plank' })).toBeUndefined();
+  });
+});
+
+describe('the coach card for whole workouts, in German', () => {
+  it('translates the lines of the delete and add proposals', () => {
+    expect(coachLine('Delete workout "Park session" (24 planned sessions from today)', 'de')).toBe('Workout „Park session“ löschen (24 geplante Einheiten ab heute)');
+    expect(coachLine('Add workout "Hotel gym": once on Wed 2026-11-04', 'de')).toBe('Workout „Hotel gym“ hinzufügen: einmal am Mi 2026-11-04');
+    expect(coachLine('Add workout "Core": every Tue, Thu from 2026-10-30 until the end of the plan', 'de')).toBe('Workout „Core“ hinzufügen: jeden Di, Do ab 2026-10-30 bis Planende');
+    expect(coachLine('Goblet squat 3 × 10 · 20 kg', 'de')).toMatch(/^Goblet-Kniebeuge 3 × 10 · 20 kg$/);
   });
 });

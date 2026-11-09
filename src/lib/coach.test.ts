@@ -585,3 +585,59 @@ describe('the coach prompt', () => {
     expect(COACH_SYSTEM).toMatch(/language the athlete writes in/);
   });
 });
+
+describe('coach: whole strength workouts', () => {
+  const WITH: CoachData = {
+    ...DATA,
+    strengthWorkouts: [
+      { id: 'lower', name: 'Lower body', exercises: ['Back squat', 'Romanian deadlift'], schedule: null, planned: 12 },
+      { id: 'own-park', name: 'Park session', exercises: ['Pull-up'], schedule: 'every Sat from 2026-10-30 until the end of the plan', planned: 24 },
+    ],
+  };
+
+  it('shows the workouts with their ids in the context', () => {
+    const ctx = buildContext(WITH);
+    expect(ctx).toContain('STRENGTH WORKOUTS');
+    expect(ctx).toContain('- [lower] Lower body: Back squat, Romanian deadlift · 12 planned sessions from today');
+    expect(ctx).toContain('[own-park] Park session: Pull-up · every Sat from 2026-10-30 until the end of the plan');
+  });
+
+  it('proposes deleting a whole workout (nothing changes until Apply)', async () => {
+    const s = state({}, WITH);
+    const r = await runTool('propose_delete_strength_workout', { workout: '[own-park]', reason: 'no time on Saturdays' }, s);
+    expect(r.isError).toBeFalsy();
+    expect(r.content).toMatch(/NOTHING has been changed/);
+    const a = s.actions[0] as Extract<CoachAction, { tool: 'delete_routine' }>;
+    expect(a).toMatchObject({ tool: 'delete_routine', routineId: 'own-park', status: 'pending' });
+    expect(a.summary).toBe('Delete workout "Park session" (24 planned sessions from today)');
+    expect((await runTool('propose_delete_strength_workout', { workout: 'upper', reason: 'x' }, state({}, WITH))).isError).toBe(true);
+  });
+
+  it('proposes adding a workout, once or every week, and checks what it gets', async () => {
+    const s = state({}, WITH);
+    const once = await runTool('propose_add_strength_workout', { name: 'Hotel gym', exercises: [{ name: 'Push-up', sets: 3, reps: '12' }, { name: 'Goblet squat', sets: 3, reps: '10', kg: 20 }], once_date: '2026-11-04', reason: 'travel' }, s);
+    expect(once.isError).toBeFalsy();
+    const a = s.actions[0] as Extract<CoachAction, { tool: 'add_routine' }>;
+    expect(a.schedule).toEqual({ mode: 'once', date: '2026-11-04' });
+    expect(a.exercises).toEqual([{ name: 'Push-up', sets: 3, reps: '12' }, { name: 'Goblet squat', sets: 3, reps: '10', kg: 20 }]);
+    expect(a.summary.split('\n')).toEqual(['Add workout "Hotel gym": once on Wed 2026-11-04', 'Push-up 3 × 12', 'Goblet squat 3 × 10 · 20 kg']);
+
+    const series = await runTool('propose_add_strength_workout', { name: 'Core', exercises: [{ name: 'Plank', sets: 3, reps: '45 s' }], weekdays: ['tue', 'thu', 'tue'], reason: 'core' }, s);
+    expect(series.isError).toBeFalsy();
+    expect((s.actions[1] as Extract<CoachAction, { tool: 'add_routine' }>).schedule).toEqual({ mode: 'series', days: [1, 3], from: TODAY, until: null });
+
+    // no name, no exercises, a date in the past, no schedule
+    for (const bad of [
+      { name: '', exercises: [{ name: 'Push-up', sets: 3, reps: '10' }], once_date: '2026-11-04' },
+      { name: 'X', exercises: [], once_date: '2026-11-04' },
+      { name: 'X', exercises: [{ name: 'Push-up', sets: 3, reps: '10' }], once_date: '2026-10-01' },
+      { name: 'X', exercises: [{ name: 'Push-up', sets: 3, reps: '10' }] },
+    ]) expect((await runTool('propose_add_strength_workout', { ...bad, reason: 'x' }, state({}, WITH))).isError).toBe(true);
+  });
+
+  it('both are proposal tools the model knows', () => {
+    const names = TOOL_DEFS.map((t) => t.name);
+    expect(names).toEqual(expect.arrayContaining(['propose_delete_strength_workout', 'propose_add_strength_workout']));
+    expect(COACH_SYSTEM).toContain('propose_delete_strength_workout');
+  });
+});

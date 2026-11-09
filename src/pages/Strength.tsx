@@ -6,8 +6,9 @@ import { useAuth } from '../lib/auth';
 import { useI18n, type MsgKey } from '../lib/i18n';
 import { useData } from '../lib/data';
 import { addDays, weekdayOf } from '../lib/planner/dates';
-import { deleteRoutineSessions, deleteStrengthSession, fetchStrengthSets, insertOwnSessions, logStrengthSession, moveWorkouts, saveProfile, saveStrengthPrefs, updatePlanInputs, updateWorkoutSteps } from '../lib/api';
-import { movePatches, movedDays, ownSessions, planEnd, routineIdOf, weekdaysOf, type MoveScope } from '../lib/strengthSchedule';
+import { deleteStrengthSession, fetchStrengthSets, logStrengthSession, moveWorkouts, saveProfile, saveStrengthPrefs, updatePlanInputs, updateWorkoutSteps } from '../lib/api';
+import { movePatches, movedDays, planEnd, routineIdOf, weekdaysOf, type MoveScope } from '../lib/strengthSchedule';
+import { deleteRoutine, saveOwnRoutine } from '../lib/strengthActions';
 import { deriveEquipment, routineMinutes, routinePatches, routineSteps } from '../lib/strengthPlan';
 import type { StrengthSetInsert } from '../lib/strengthLog';
 import type { PlannedWorkout, StrengthSetRow } from '../lib/types';
@@ -93,31 +94,11 @@ export function Strength() {
     },
     planEnd: end,
     deleteRoutine: async (id: string) => {
-      if (plan) await deleteRoutineSessions(plan.id, id, today);
-      let perWeek = prefs.perWeek;
-      if (!isOwnRoutine(id)) {
-        // A planner kind: the plan (and the saved answers) no longer schedule it, so a rebuilt plan does not bring it back.
-        const removed = plan?.inputs.extras.find((e) => e.id === id)?.perWeek ?? 0;
-        if (plan) await updatePlanInputs(plan.id, { ...plan.inputs, extras: plan.inputs.extras.filter((e) => e.id !== id) });
-        if (profile?.onboarding) await saveProfile(user!.id, { onboarding: { ...profile.onboarding, extras: profile.onboarding.extras.filter((e) => e.id !== id) } });
-        perWeek = perWeek === null ? null : Math.max(0, perWeek - removed);
-      }
-      await savePrefsOnly({ ...prefs, perWeek, routines: prefs.routines.filter((r) => r.id !== id) });
+      await deleteRoutine({ userId: user!.id, plan, profile, prefs, id, today });
       await reload();
     },
     saveOwnRoutine: async (r: Routine) => {
-      const routine = { ...r, by: 'own' as const, updatedAt: new Date().toISOString() };
-      const routines = prefs.routines.some((x) => x.id === r.id) ? prefs.routines.map((x) => (x.id === r.id ? routine : x)) : [...prefs.routines, routine];
-      await savePrefsOnly({ ...prefs, routines });
-      let planned = 0;
-      if (plan) {
-        // The sessions from today on follow the (new) schedule and exercises; done ones stay as they were.
-        await deleteRoutineSessions(plan.id, r.id, today);
-        const left = workouts.filter((w) => !(routineIdOf(w) === r.id && w.status === 'planned' && w.date >= today));
-        const drafts = ownSessions(routine, plan, left, today);
-        await insertOwnSessions(plan, drafts);
-        planned = drafts.length;
-      }
+      const planned = await saveOwnRoutine({ userId: user!.id, plan, workouts, prefs, routine: r, today });
       await reload();
       return planned;
     },

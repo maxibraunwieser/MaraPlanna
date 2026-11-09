@@ -15,6 +15,20 @@ export interface CoachWorkout {
   note: string | null;
   /** The session ends with strides. */
   has_strides?: boolean;
+  /** A session of the athlete's own strength workout ('own-…'). */
+  routine_id?: string | null;
+}
+
+/** A strength workout of the athlete (the list "Your workouts" on the website). */
+export interface CoachRoutine {
+  /** 'lower', 'upper', 'full', 'cali' (the planner's) or 'own-…' (the athlete's own). */
+  id: string;
+  name: string;
+  exercises: string[];
+  /** For the athlete's own: "once on …" or "every Mon, Thu from … until …". */
+  schedule: string | null;
+  /** Planned sessions of it from today on. */
+  planned: number;
 }
 
 export interface CoachActivity {
@@ -72,6 +86,8 @@ export interface CoachData {
   /** Roughly the last 8 weeks. */
   metrics: CoachMetric[];
   garminConnected: boolean;
+  /** The athlete's strength workouts. */
+  strengthWorkouts?: CoachRoutine[];
 }
 
 // ---------------------------------------------------------------------------
@@ -274,6 +290,13 @@ export function buildContext(d: CoachData): string {
     .slice(0, 60);
   lines.push('', `RECORDED ACTIVITIES, LAST 6 WEEKS (newest first${d.garminConnected ? '' : '; Garmin is not connected, only imported or manual activities'})`);
   lines.push(...(recent.length ? recent.map(activityLine) : ['- none']));
+
+  lines.push('', 'STRENGTH WORKOUTS (whole workouts; the id in brackets is what propose_delete_strength_workout takes)');
+  lines.push(
+    ...((d.strengthWorkouts ?? []).length
+      ? (d.strengthWorkouts ?? []).map((r) => `- [${r.id}] ${r.name}: ${r.exercises.join(', ') || 'no exercises'}${r.schedule ? ` · ${r.schedule}` : ''} · ${r.planned} planned sessions from today`)
+      : ['- none']),
+  );
 
   const metrics = d.metrics.filter((m) => m.date >= addDays(d.today, -14)).sort((a, b) => b.date.localeCompare(a.date));
   lines.push('', 'WELLNESS, LAST 14 DAYS (newest first)');

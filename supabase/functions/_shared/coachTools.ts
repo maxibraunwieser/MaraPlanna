@@ -45,7 +45,20 @@ export type CoachAction =
   | (ActionBase & { tool: 'skip_workouts'; workoutIds: string[] })
   | (ActionBase & { tool: 'scale_workouts'; items: { workoutId: string; factor: number }[] })
   | (ActionBase & { tool: 'edit_workouts'; edits: WorkoutEditSpec[]; noStridesDays?: number[] })
-  | (ActionBase & { tool: 'change_plan'; changes: PlanChanges });
+  | (ActionBase & { tool: 'change_plan'; changes: PlanChanges })
+  | (ActionBase & { tool: 'delete_routine'; routineId: string; name: string })
+  | (ActionBase & { tool: 'add_routine'; name: string; exercises: NewExercise[]; schedule: NewSchedule });
+
+/** An exercise of a workout the coach adds (matched to the catalogue by name on the website). */
+export interface NewExercise {
+  name: string;
+  sets: number;
+  reps: string;
+  kg?: number;
+}
+
+/** When an added workout is in the plan: once on a date, or every week on weekdays (0 = Monday). */
+export type NewSchedule = { mode: 'once'; date: string } | { mode: 'series'; days: number[]; from: string; until: string | null };
 
 export const RUN_KINDS = new Set(['easy', 'recovery', 'long', 'long_mp', 'threshold', 'intervals', 'marathon_pace', 'fartlek', 'shakeout']);
 const MOVABLE_STATUS = new Set(['planned', 'missed', 'skipped']);
@@ -202,9 +215,45 @@ export const TOOL_DEFS = [
       required: ['reason'],
     },
   },
+  {
+    name: 'propose_delete_strength_workout',
+    description:
+      'Propose deleting a whole strength workout from STRENGTH WORKOUTS (one of the planner\'s like Lower body, or one of the athlete\'s own, once or weekly): the workout and all its planned sessions from today on go; done sessions and logged sets stay. For a single session use propose_skip_workouts. NOTHING is changed: in your answer say exactly what will be deleted (name, how many sessions) and ask whether that is right; the athlete confirms with the Apply button.',
+    input_schema: {
+      type: 'object',
+      properties: { workout: { type: 'string', description: 'The id in brackets from STRENGTH WORKOUTS, e.g. "lower" or "own-abc123"' }, reason: { type: 'string', description: 'One short sentence' } },
+      required: ['workout', 'reason'],
+    },
+  },
+  {
+    name: 'propose_add_strength_workout',
+    description:
+      'Propose adding a strength workout of the athlete\'s own: a name, its exercises and when it is in the plan, once on a date or every week on weekdays (from a date until a date or the end of the plan). NOTHING is changed: in your answer list the workout (exercises, sets × reps, the dates) and ask whether it fits; the athlete confirms with the Apply button. Use common English exercise names (e.g. "Pull-up", "Push-up", "Goblet squat").',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Name of the workout, max 40 characters' },
+        exercises: {
+          type: 'array',
+          description: '1 to 12 exercises in order',
+          items: {
+            type: 'object',
+            properties: { name: { type: 'string' }, sets: { type: 'integer', description: '1 to 10' }, reps: { type: 'string', description: 'e.g. "8", "8–10", "30 s"' }, kg: { type: 'number', description: 'Working weight in kg, if any' } },
+            required: ['name', 'sets', 'reps'],
+          },
+        },
+        once_date: { ...DATE, description: 'For a single session: its date (YYYY-MM-DD, from today on)' },
+        weekdays: { type: 'array', items: { type: 'string', enum: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] }, description: 'For a weekly series: the weekdays' },
+        from: { ...DATE, description: 'Series: first day (default today)' },
+        until: { ...DATE, description: 'Series: last day (leave out = until the end of the plan)' },
+        reason: { type: 'string' },
+      },
+      required: ['name', 'exercises', 'reason'],
+    },
+  },
 ] as const;
 
-export const PROPOSAL_TOOLS = new Set(['propose_move_workout', 'propose_skip_workouts', 'propose_scale_workouts', 'propose_edit_workouts', 'propose_plan_changes']);
+export const PROPOSAL_TOOLS = new Set(['propose_move_workout', 'propose_skip_workouts', 'propose_scale_workouts', 'propose_edit_workouts', 'propose_plan_changes', 'propose_delete_strength_workout', 'propose_add_strength_workout']);
 
 /** Shown to the model after a proposal: it must not claim that anything has changed. */
 const PROPOSED =
@@ -301,9 +350,65 @@ export async function runTool(name: string, input: Record<string, unknown>, stat
       return proposeEdit(input, state);
     case 'propose_plan_changes':
       return proposePlanChanges(input, state);
+    case 'propose_delete_strength_workout':
+      return proposeDeleteRoutine(input, state);
+    case 'propose_add_strength_workout':
+      return proposeAddRoutine(input, state);
     default:
       return fail(`Unknown tool "${name}".`);
   }
+}
+
+function proposeDeleteRoutine(input: Record<string, unknown>, state: ToolState): ToolResult {
+  const id = text(input.workout, 40).replace(/^\[|\]$/g, '');
+  const r = (state.data.strengthWorkouts ?? []).find((x) => x.id === id);
+  if (!r) return fail(`No strength workout has the id "${id}". Use an id in brackets from STRENGTH WORKOUTS.`);
+  return pending(state, {
+    tool: 'delete_routine',
+    routineId: r.id,
+    name: r.name,
+    summary: `Delete workout "${r.name}" (${r.planned} planned sessions from today)`,
+    reason: text(input.reason, 200),
+  });
+}
+
+function proposeAddRoutine(input: Record<string, unknown>, state: ToolState): ToolResult {
+  const { data } = state;
+  const name = text(input.name, 40);
+  if (!name) return fail('The workout needs a name.');
+  const raw = Array.isArray(input.exercises) ? input.exercises.slice(0, 12) : [];
+  const exercises: NewExercise[] = raw.flatMap((e) => {
+    const x = (e && typeof e === 'object' ? e : {}) as Record<string, unknown>;
+    const n = text(x.name, 60);
+    const sets = typeof x.sets === 'number' ? Math.round(x.sets) : NaN;
+    const reps = text(x.reps, 14);
+    if (!n || !Number.isFinite(sets) || sets < 1 || sets > 10 || !reps) return [];
+    const kg = typeof x.kg === 'number' && x.kg > 0 && x.kg < 500 ? Math.round(x.kg * 2) / 2 : undefined;
+    return [{ name: n, sets, reps, ...(kg ? { kg } : {}) }];
+  });
+  if (!exercises.length) return fail('The workout needs at least one exercise with a name, sets (1 to 10) and reps.');
+  const days = (Array.isArray(input.weekdays) ? input.weekdays : []).map((d) => WEEKDAY_KEYS.indexOf(String(d))).filter((d) => d >= 0);
+  let schedule: NewSchedule;
+  if (isDate(input.once_date) && !days.length) {
+    if ((input.once_date as string) < data.today) return fail('The date is in the past.');
+    if (data.plan && (input.once_date as string) > data.plan.race_date) return fail('The date is after the end of the plan.');
+    schedule = { mode: 'once', date: input.once_date as string };
+  } else if (days.length) {
+    const from = isDate(input.from) && (input.from as string) >= data.today ? (input.from as string) : data.today;
+    const until = isDate(input.until) && (input.until as string) >= from ? (input.until as string) : null;
+    schedule = { mode: 'series', days: [...new Set(days)].sort(), from, until };
+  } else {
+    return fail('Give either once_date for a single session or weekdays for a weekly series.');
+  }
+  const when = schedule.mode === 'once' ? `once on ${dayLabel(schedule.date)}` : `every ${schedule.days.map((d) => WEEKDAY_NAMES[d]).join(', ')} from ${schedule.from} until ${schedule.until ?? 'the end of the plan'}`;
+  return pending(state, {
+    tool: 'add_routine',
+    name,
+    exercises,
+    schedule,
+    summary: [`Add workout "${name}": ${when}`, ...exercises.map((x) => `${x.name} ${x.sets} × ${x.reps}${x.kg ? ` · ${x.kg} kg` : ''}`)].join('\n'),
+    reason: text(input.reason, 200),
+  });
 }
 
 function pending(state: ToolState, rest: Record<string, unknown> & { tool: CoachAction['tool']; summary: string; reason: string }): ToolResult {

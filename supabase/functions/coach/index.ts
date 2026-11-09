@@ -10,7 +10,8 @@
 // signed-in user, limited per day, and the data sent to the model is that user's own.
 
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { addDays, buildContext, type CoachActivity, type CoachData, type CoachMetric, type CoachPlan, type CoachWorkout } from '../_shared/coachContext.ts';
+import { addDays, buildContext, type CoachActivity, type CoachData, type CoachMetric, type CoachPlan, type CoachRoutine, type CoachWorkout } from '../_shared/coachContext.ts';
+import { isOwnRoutine, normalizePrefs } from '../_shared/strength.ts';
 import { ApiError, runCoach, streamMessage, type ChatMessage, type CoachEvent } from '../_shared/coachLoop.ts';
 import { systemPrompt } from '../_shared/coachPrompt.ts';
 import type { CoachAction, LapRow } from '../_shared/coachTools.ts';
@@ -92,7 +93,7 @@ function friendly(e: unknown): string {
 
 async function loadData(admin: SupabaseClient, userId: string, today: string): Promise<CoachData> {
   const [{ data: profile }, { data: plan }, { data: activities }, { data: metrics }, { data: conn }] = await Promise.all([
-    admin.from('profiles').select('units, display_name').eq('id', userId).maybeSingle(),
+    admin.from('profiles').select('units, display_name, strength').eq('id', userId).maybeSingle(),
     admin.from('training_plans').select('id, race_name, race_date, start_date, inputs, fitness, weeks').eq('user_id', userId).eq('status', 'active').maybeSingle(),
     admin
       .from('activities')
@@ -113,7 +114,7 @@ async function loadData(admin: SupabaseClient, userId: string, today: string): P
   const { data: workouts } = plan
     ? await admin
         .from('planned_workouts')
-        .select('id, date, kind, title, steps, distance_km, duration_min, key_session, status, note')
+        .select('id, date, kind, title, steps, distance_km, duration_min, key_session, status, note, routine_id')
         .eq('plan_id', (plan as Rec).id as string)
         .limit(1000)
     : { data: [] };
@@ -129,7 +130,23 @@ async function loadData(admin: SupabaseClient, userId: string, today: string): P
     activities: (activities ?? []) as CoachActivity[],
     metrics: (metrics ?? []) as CoachMetric[],
     garminConnected: (conn as Rec | null)?.status === 'connected',
+    strengthWorkouts: strengthWorkouts((profile as Rec | null)?.strength, (workouts ?? []) as CoachWorkout[], today),
   };
+}
+
+const ROUTINE_NAME: Record<string, string> = { lower: 'Lower body', upper: 'Upper body', full: 'Full body', cali: 'Calisthenics' };
+const DAY_NAME = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+/** The athlete's strength workouts for the coach, with how many sessions of each are still planned. */
+function strengthWorkouts(raw: unknown, workouts: CoachWorkout[], today: string): CoachRoutine[] {
+  return normalizePrefs(raw)
+    .routines.filter((r) => r.id in ROUTINE_NAME || isOwnRoutine(r.id))
+    .map((r) => {
+      const s = r.schedule;
+      const schedule = !s ? null : s.mode === 'once' ? `once on ${s.date}` : `every ${s.days.map((d) => DAY_NAME[d]).join(', ')} from ${s.from} until ${s.until ?? 'the end of the plan'}`;
+      const planned = workouts.filter((w) => w.status === 'planned' && w.date >= today && (w.routine_id ? w.routine_id === r.id : w.kind === `strength_${r.id}`)).length;
+      return { id: r.id, name: r.name || ROUTINE_NAME[r.id] || 'Workout', exercises: r.exercises.map((x) => x.name), schedule, planned };
+    });
 }
 
 async function lapsOf(admin: SupabaseClient, userId: string, activityId: string): Promise<LapRow[] | null> {

@@ -14,6 +14,8 @@ import { addDays, daysBetween, mondayOf, weekdayOf } from './planner/dates';
 import { canMove, inBounds, moveBounds, movePatches } from './planner/move';
 import { scaleWorkout } from './planner/scale';
 import { editWorkout, type WorkoutEdit } from './planner/edit';
+import { customExercise } from './strengthPlan';
+import { deleteRoutine, newOwnId, saveOwnRoutine } from './strengthActions';
 
 export type { CoachAction };
 
@@ -100,6 +102,10 @@ export function staleReason(a: CoachAction, ctx: ActionContext): string | null {
       return a.edits.length === 0 || editable(a, ctx).length ? null : tr('ca.editGone');
     case 'change_plan':
       return replanStart(ctx.plan, ctx.activities, ctx.today).tooLate ? tr('ca.tooLate') : null;
+    case 'delete_routine':
+      return normalizePrefs(ctx.profile?.strength).routines.some((r) => r.id === a.routineId) ? null : tr('ca.gone');
+    case 'add_routine':
+      return a.schedule.mode === 'once' && a.schedule.date < ctx.today ? tr('ca.dayGone') : null;
   }
 }
 
@@ -161,6 +167,13 @@ export async function applyAction(a: CoachAction, ctx: ActionContext): Promise<v
       await api.updatePlanInputs(plan.id, inputs);
       if (ctx.profile?.onboarding) await api.saveProfile(plan.user_id, { onboarding: { ...ctx.profile.onboarding, noStridesDays: a.noStridesDays as Weekday[] } });
     }
+  } else if (a.tool === 'delete_routine') {
+    await deleteRoutine({ userId: plan.user_id, plan, profile: ctx.profile, prefs: normalizePrefs(ctx.profile?.strength), id: a.routineId, today });
+  } else if (a.tool === 'add_routine') {
+    // The exercises are matched to the catalogue by name (so the watch can count them and show their figures).
+    const exercises = a.exercises.map((x) => ({ ...customExercise(x.name), sets: x.sets, reps: x.reps, kg: x.kg ?? null }));
+    const routine = { id: newOwnId(), name: a.name, exercises, by: 'own' as const, updatedAt: null, schedule: a.schedule };
+    await saveOwnRoutine({ userId: plan.user_id, plan, workouts: ctx.workouts, prefs: normalizePrefs(ctx.profile?.strength), routine, today });
   } else {
     const inputs = answersFromChanges(plan.inputs, a.changes);
     const start = replanStart(plan, ctx.activities, today);

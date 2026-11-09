@@ -349,6 +349,11 @@ const COACH_RULES: Rule[] = [
   rx('Injury note: "(.*)"', (m) => `Verletzungshinweis: „${m[1]}“`),
   rx('\\(Only (\\d+) days are available, so (\\d+) runs per week\\)', (m) => `(Es sind nur ${m[1]} Tage verfügbar, daher ${m[2]} Läufe pro Woche)`),
   rx(`The weeks from ${DAY} on are rebuilt with these settings\\. Sessions you already did stay in your history\\.`, (m) => `Die Wochen ab ${d3(m[1])} ${m[2]} werden mit diesen Einstellungen neu aufgebaut. Bereits absolvierte Einheiten bleiben in deinem Verlauf.`),
+  rx('Delete workout "(.+)" \\((\\d+) planned sessions from today\\)', (m) => `Workout „${m[1]}“ löschen (${m[2]} geplante Einheiten ab heute)`),
+  rx(`Add workout "(.+)": once on ${DAY}`, (m) => `Workout „${m[1]}“ hinzufügen: einmal am ${d3(m[2])} ${m[3]}`),
+  rx('Add workout "(.+)": every (.+) from (\\d{4}-\\d{2}-\\d{2}) until the end of the plan', (m) => `Workout „${m[1]}“ hinzufügen: jeden ${dayList(m[2])} ab ${m[3]} bis Planende`),
+  rx('Add workout "(.+)": every (.+) from (\\d{4}-\\d{2}-\\d{2}) until (\\d{4}-\\d{2}-\\d{2})', (m) => `Workout „${m[1]}“ hinzufügen: jeden ${dayList(m[2])} ab ${m[3]} bis ${m[4]}`),
+  rx('(.+) (\\d+) × (.+?)(?: · ([\\d.]+) kg)?', (m) => `${exerciseName(m[1], 'de')} ${m[2]} × ${repsText(m[3], 'de')}${m[4] ? ` · ${m[4]} kg` : ''}`),
   rx(`(.+) on ${DAY}: (.+)`, (m) => `${workoutTitle(m[1], 'de')} am ${d3(m[2])} ${m[3]}: ${m[4].split(', ').map(EDIT_PART_DE).join(', ')}`),
   rx('… and (\\d+) more sessions like these', (m) => `… und ${m[1]} weitere Einheiten wie diese`),
 ];

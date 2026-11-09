@@ -155,3 +155,26 @@ describe('proposals that no longer fit', () => {
     expect(previewAction(action({ tool: 'skip_workouts', workoutIds: [w.id], summary: 'Skip A\nSkip B' }), ctx())).toEqual(['Skip A', 'Skip B']);
   });
 });
+
+describe('whole strength workouts from the coach', () => {
+  const profile = { strength: { routines: [{ id: 'own-park', name: 'Park session', exercises: [{ key: 'pull_up', name: 'Pull-up', sets: 3, reps: '6' }], by: 'own', updatedAt: null }] } } as unknown as ActionContext['profile'];
+
+  it('deleting applies while the workout exists, not after it is gone', () => {
+    const del = action({ tool: 'delete_routine', routineId: 'own-park', name: 'Park session' });
+    expect(staleReason(del, ctx({ profile }))).toBeNull();
+    expect(staleReason(del, ctx({ profile: null }))).not.toBeNull();
+  });
+
+  it('adding once applies until its day has passed; a weekly one always', () => {
+    const once = action({ tool: 'add_routine', name: 'Hotel gym', exercises: [{ name: 'Push-up', sets: 3, reps: '12' }], schedule: { mode: 'once', date: '2026-11-04' } });
+    expect(staleReason(once, ctx())).toBeNull();
+    expect(staleReason(once, ctx({ today: '2026-11-05' }))).not.toBeNull();
+    const weekly = action({ tool: 'add_routine', name: 'Core', exercises: [{ name: 'Plank', sets: 3, reps: '45 s' }], schedule: { mode: 'series', days: [1], from: TODAY, until: null } });
+    expect(staleReason(weekly, ctx({ today: '2027-01-01' }))).toBeNull();
+  });
+
+  it('the card shows the lines of the proposal', () => {
+    const a = action({ tool: 'add_routine', name: 'Hotel gym', exercises: [], schedule: { mode: 'once', date: '2026-11-04' }, summary: 'Add workout "Hotel gym": once on Wed 2026-11-04\nPush-up 3 × 12' });
+    expect(previewAction(a, ctx()).length).toBe(2);
+  });
+});
