@@ -60,7 +60,7 @@ export function Button({ variant = 'primary', size = 'md', loading, icon, classN
 // ---------------------------------------------------------------------------
 
 export function Card({ className, children, ...rest }: { className?: string; children: ReactNode } & HTMLAttributes<HTMLDivElement>) {
-  return <div className={cx('rounded-3xl bg-white p-5 shadow-lg shadow-black/10 ring-1 ring-white/10', className)} {...rest}>{children}</div>;
+  return <div className={cx('card rounded-3xl bg-white p-5 shadow-lg shadow-black/10 ring-1 ring-white/10', className)} {...rest}>{children}</div>;
 }
 
 export function CardTitle({ children, action, icon }: { children: ReactNode; action?: ReactNode; icon?: ReactNode }) {
@@ -140,7 +140,8 @@ export function Field({ label, hint, children, className }: { label: ReactNode; 
 }
 
 const inputCls =
-  'w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20';
+  // 16px on a phone: iOS zooms into any field with smaller text
+  'w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base sm:text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20';
 
 export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={cx(inputCls, props.className)} />;
@@ -187,13 +188,14 @@ export function Segmented<T extends string | number>({
 
 export function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange: (v: boolean) => void; label: ReactNode; hint?: ReactNode }) {
   return (
-    <button type="button" onClick={() => onChange(!checked)} className="flex w-full items-start justify-between gap-4 text-left">
+    <button type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)} className="toggle flex w-full items-start justify-between gap-4 text-left">
       <span>
         <span className="block text-sm font-medium text-slate-800">{label}</span>
         {hint && <span className="mt-0.5 block text-xs text-slate-500">{hint}</span>}
       </span>
-      <span className={cx('relative mt-0.5 inline-flex h-6 w-11 shrink-0 rounded-full transition', checked ? 'bg-brand' : 'bg-slate-300')}>
-        <span className={cx('absolute top-0.5 h-5 w-5 rounded-full bg-[#fff] shadow transition', checked ? 'left-5.5' : 'left-0.5')} />
+      {/* like iOS: the knob slides with a soft curve and stretches while the finger is down */}
+      <span className={cx('toggle-track relative mt-0.5 inline-flex h-6 w-11 shrink-0 rounded-full', checked ? 'bg-brand' : 'bg-slate-300')} data-on={checked}>
+        <span className="toggle-knob absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-[#fff] shadow" />
       </span>
     </button>
   );
@@ -238,7 +240,15 @@ export function Modal({ open, onClose, title, children, wide = false }: { open: 
   const close = useCallback((velocity = 0) => {
     if (closing.current) return;
     const el = sheetRef.current;
-    if (!el || !sheetScreen() || reducedMotion()) return onCloseRef.current();
+    if (!el || reducedMotion()) return onCloseRef.current();
+    if (!sheetScreen()) {
+      // larger screens: the window dissolves the way it materialised
+      if (typeof el.animate !== 'function') return onCloseRef.current();
+      closing.current = true;
+      backRef.current?.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: 180, fill: 'forwards' });
+      el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(0.96)' }], { duration: 180, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' }).onfinish = () => onCloseRef.current();
+      return;
+    }
     closing.current = true;
     stop.current?.();
     stop.current = animateSpring({ from: y.current, to: el.offsetHeight + 24, velocity, params: SMOOTH, onUpdate: set, onDone: () => onCloseRef.current() });
@@ -264,7 +274,14 @@ export function Modal({ open, onClose, title, children, wide = false }: { open: 
   // Arrive from the bottom (on a phone, unless the person asked for less motion).
   useLayoutEffect(() => {
     const el = sheetRef.current;
-    if (!open || !el || !sheetScreen() || reducedMotion()) return;
+    if (!open || !el || reducedMotion()) return;
+    if (!sheetScreen()) {
+      // larger screens: the window materialises (grows into place while the backdrop dims), it does not just appear
+      if (typeof el.animate !== 'function') return;
+      backRef.current?.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: 240 });
+      el.animate([{ opacity: 0, transform: 'scale(0.96)' }, { opacity: 1, transform: 'none' }], { duration: 320, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' });
+      return;
+    }
     set(el.offsetHeight);
     stop.current = animateSpring({ from: el.offsetHeight, to: 0, params: SMOOTH, onUpdate: set });
   }, [open, set]);
@@ -333,6 +350,93 @@ export type ToastAction = { label: string; onClick: () => void };
 type Toast = { id: number; message: string; tone: ToastTone; action?: ToastAction };
 const ToastContext = createContext<(message: string, tone?: ToastTone, action?: ToastAction) => void>(() => {});
 
+/**
+ * One toast: it rises in from below, and the finger can throw it away sideways or down. It follows the finger 1:1, and on release
+ * the projected flick decides: gone (continuing at the finger's speed) or back with a little spring. Upwards it resists.
+ */
+function ToastCard({ tone, onDismiss, children }: { tone: ToastTone; onDismiss: () => void; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const pos = useRef({ x: 0, y: 0 });
+  const stops = useRef<(() => void)[]>([]);
+  const drag = useRef<{ id: number; sx: number; sy: number; from: { x: number; y: number }; axis: 'x' | 'y' | null; samples: { t: number; x: number; y: number }[] } | null>(null);
+  const paint = () => {
+    const el = ref.current;
+    if (!el) return;
+    const { x, y } = pos.current;
+    el.style.transform = x || y ? `translate3d(${x}px, ${y}px, 0)` : '';
+    el.style.opacity = String(Math.max(0, 1 - Math.max(Math.abs(x) / (el.offsetWidth || 1), y / 120)));
+  };
+  const halt = () => { stops.current.forEach((s) => s()); stops.current = []; };
+  useEffect(() => halt, []);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || reducedMotion() || typeof el.animate !== 'function') return;
+    el.animate([{ opacity: 0, transform: 'translate3d(0, 24px, 0) scale(0.96)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' });
+  }, []);
+
+  const down = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('button')) return;
+    halt();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { id: e.pointerId, sx: e.clientX, sy: e.clientY, from: { ...pos.current }, axis: null, samples: [{ t: e.timeStamp, x: e.clientX, y: e.clientY }] };
+  };
+  const move = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    const dx = e.clientX - d.sx;
+    const dy = e.clientY - d.sy;
+    // a few pixels of slack first, then it commits to one direction and tracks 1:1
+    if (!d.axis) {
+      if (Math.hypot(dx, dy) < 8) return;
+      d.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+    }
+    if (d.axis === 'x') pos.current = { x: d.from.x + dx, y: 0 };
+    else { const y = d.from.y + dy; pos.current = { x: 0, y: y < 0 ? rubberband(y, 120) : y }; }
+    paint();
+    d.samples = [...d.samples.filter((s) => e.timeStamp - s.t < 100), { t: e.timeStamp, x: e.clientX, y: e.clientY }];
+  };
+  const up = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    drag.current = null;
+    if (!d.axis) return;
+    const a = d.samples[0];
+    const b = d.samples[d.samples.length - 1];
+    const dt = b.t - a.t;
+    const v = dt > 0 ? (((d.axis === 'x' ? b.x - a.x : b.y - a.y) / dt) * 1000) : 0;
+    const w = ref.current?.offsetWidth ?? 320;
+    const now = d.axis === 'x' ? pos.current.x : pos.current.y;
+    const land = now + project(v);
+    const gone = d.axis === 'x' ? Math.abs(land) > w / 2 : land > 60;
+    const target = gone ? (d.axis === 'x' ? Math.sign(land) * (w + 40) : 160) : 0;
+    const axis = d.axis;
+    stops.current.push(animateSpring({
+      from: now, to: target, velocity: v, params: gone ? SMOOTH : SHEET,
+      onUpdate: (n) => { pos.current = axis === 'x' ? { x: n, y: 0 } : { x: 0, y: n }; paint(); },
+      onDone: gone ? onDismiss : undefined,
+    }));
+  };
+
+  return (
+    <div
+      ref={ref}
+      onPointerDown={down}
+      onPointerMove={move}
+      onPointerUp={up}
+      onPointerCancel={up}
+      className={cx(
+        'pointer-events-auto w-full max-w-sm touch-none select-none rounded-2xl px-4 py-3 text-sm shadow-lg ring-1 will-change-transform',
+        tone === 'success' && 'bg-emerald-600 text-white ring-emerald-700',
+        tone === 'error' && 'bg-red-600 text-white ring-red-700',
+        tone === 'info' && 'material text-white ring-white/10',
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const dismiss = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
@@ -349,15 +453,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div className="pointer-events-none fixed inset-x-0 bottom-20 z-[60] flex flex-col items-center gap-2 px-4 sm:bottom-6 sm:items-end">
         {toasts.map((t) => (
-          <div
-            key={t.id}
-            className={cx(
-              'pointer-events-auto w-full max-w-sm rounded-xl px-4 py-3 text-sm shadow-lg ring-1',
-              t.tone === 'success' && 'bg-emerald-600 text-white ring-emerald-700',
-              t.tone === 'error' && 'bg-red-600 text-white ring-red-700',
-              t.tone === 'info' && 'bg-ink text-white ring-slate-800',
-            )}
-          >
+          <ToastCard key={t.id} tone={t.tone} onDismiss={() => dismiss(t.id)}>
             <div className="flex items-center gap-3">
               <span className="min-w-0 flex-1">{t.message}</span>
               {t.action && (
@@ -372,7 +468,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 </button>
               )}
             </div>
-          </div>
+          </ToastCard>
         ))}
       </div>
     </ToastContext.Provider>

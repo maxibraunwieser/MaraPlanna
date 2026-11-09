@@ -1,4 +1,5 @@
-import { useEffect, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { reducedMotion } from '../lib/spring';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { BookOpen, CalendarDays, ClipboardCheck, Dumbbell, Footprints, History, Home, ListChecks, RefreshCw, Salad, Settings, TrendingUp, Utensils, Watch, type LucideIcon } from 'lucide-react';
 import { useData } from '../lib/data';
@@ -102,6 +103,43 @@ function ScrollToTop() {
   return null;
 }
 
+/** True once content scrolls under the header: only then does the header become a material (a scroll edge, not a fixed bar). */
+function useScrolled() {
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const on = () => setScrolled(window.scrollY > 4);
+    on();
+    window.addEventListener('scroll', on, { passive: true });
+    return () => window.removeEventListener('scroll', on);
+  }, []);
+  return scrolled;
+}
+
+/** A new page arrives softly from slightly below (only a fade when less motion is asked for); nothing is remounted for it. */
+function usePageIn(key: string) {
+  const ref = useRef<HTMLDivElement>(null);
+  const first = useRef(true);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (first.current) { first.current = false; return; }
+    if (!el || typeof el.animate !== 'function') return;
+    const frames = reducedMotion() ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: 'translate3d(0, 10px, 0)' }, { opacity: 1, transform: 'none' }];
+    el.animate(frames, { duration: reducedMotion() ? 160 : 380, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' });
+  }, [key]);
+  return ref;
+}
+
+/** The selection of a tab bar: one pill that glides to the chosen tab, so the eye follows where it went. */
+function TabPill({ index, count }: { index: number; count: number }) {
+  return (
+    <span
+      aria-hidden
+      className="tab-pill pointer-events-none absolute inset-y-0 left-0 rounded-full bg-white/15"
+      style={{ width: `calc((100% - ${(count - 1) * 4}px) / ${count})`, transform: `translate3d(calc(${Math.max(0, index)} * (100% + 4px)), 0, 0)`, opacity: index < 0 ? 0 : 1 }}
+    />
+  );
+}
+
 function SyncBadge() {
   const { connection, syncing, syncNow } = useData();
   const { t } = useI18n();
@@ -135,10 +173,13 @@ export function AppLayout() {
   const index = SECTIONS.findIndex((x) => x.owns(pathname));
   const section = index >= 0 ? SECTIONS[index] : null;
   const sub = section?.sub ?? null;
+  const subIndex = sub ? sub.findIndex((x) => x.match(pathname, query)) : -1;
+  const scrolled = useScrolled();
+  const pageRef = usePageIn(pathname + search);
   return (
-    <div className={cx('min-h-dvh sm:pb-0', sub ? 'pb-44' : 'pb-28')} style={{ '--fab-bottom': sub ? '9.3rem' : '6rem' } as CSSProperties}>
+    <div className={cx('fluid min-h-dvh sm:pb-0', sub ? 'pb-44' : 'pb-28')} style={{ '--fab-bottom': sub ? '9.3rem' : '6rem' } as CSSProperties}>
       <ScrollToTop />
-      <header className="sticky top-0 z-40 bg-black/25 pt-[env(safe-area-inset-top)] backdrop-blur-xl">
+      <header className="chrome sticky top-0 z-40 pt-[env(safe-area-inset-top)]" data-scrolled={scrolled}>
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4">
           <NavLink to="/">
             <Logo light className="text-lg" />
@@ -168,17 +209,20 @@ export function AppLayout() {
       </header>
       <main className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
         {section?.sub && <SubTabs section={section} />}
-        <Outlet />
+        <div ref={pageRef}>
+          <Outlet />
+        </div>
       </main>
 
       {/* phone: the child navigation floats above the main navigation, its arrow points at the section it belongs to */}
       {sub && (
         <div className="fixed inset-x-3 bottom-[calc(5.4rem+env(safe-area-inset-bottom))] z-40 sm:hidden" data-testid="child-nav">
-          <nav className="grid grid-cols-3 gap-1 rounded-full bg-black/60 p-1.5 shadow-xl shadow-black/30 ring-1 ring-white/10 backdrop-blur-xl" aria-label={t(section!.label)}>
+          <nav className="tab-bar relative grid grid-cols-3 gap-1 rounded-full p-1.5 ring-1 ring-white/10" aria-label={t(section!.label)}>
+            <div className="pointer-events-none absolute inset-1.5"><TabPill index={subIndex} count={sub.length} /></div>
             {sub.map((x) => {
               const active = x.match(pathname, query);
               return (
-                <Link key={x.to} to={x.to} aria-current={active ? 'page' : undefined} className={cx('flex items-center justify-center gap-1.5 rounded-full py-2 text-xs font-medium transition', active ? 'bg-white/15 text-brand' : 'text-slate-400')}>
+                <Link key={x.to} to={x.to} aria-current={active ? 'page' : undefined} className={cx('tab relative flex items-center justify-center gap-1.5 rounded-full py-2 text-xs font-medium', active ? 'text-brand' : 'text-slate-400')}>
                   <x.icon className="h-4 w-4" />
                   <span className="truncate">{t(x.label)}</span>
                 </Link>
@@ -187,20 +231,21 @@ export function AppLayout() {
           </nav>
           <span
             aria-hidden
-            className="absolute top-full z-10 -mt-px block h-2.5 w-5 bg-brand"
+            className="tab-arrow absolute top-full z-10 -mt-px block h-2.5 w-5 bg-brand"
             style={{ left: `calc(6px + (100% - 12px) * ${(index + 0.5) / SECTIONS.length} - 10px)`, clipPath: 'polygon(0 0, 100% 0, 50% 100%)' }}
           />
         </div>
       )}
 
-      <nav className="fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 rounded-full bg-black/55 p-1.5 shadow-xl shadow-black/30 ring-1 ring-white/10 backdrop-blur-xl sm:hidden">
-        <div className="grid grid-cols-5 gap-1">
+      <nav className="tab-bar fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 rounded-full p-1.5 ring-1 ring-white/10 sm:hidden">
+        <div className="relative grid grid-cols-5 gap-1">
+          <TabPill index={index} count={SECTIONS.length} />
           {SECTIONS.map((n, i) => (
             <Link
               key={n.to}
               to={n.to}
               aria-current={i === index ? 'page' : undefined}
-              className={cx('flex flex-col items-center gap-0.5 rounded-full py-2 text-[11px] font-medium transition', i === index ? 'bg-white/15 text-brand' : 'text-slate-400')}
+              className={cx('tab relative flex flex-col items-center gap-0.5 rounded-full py-2 text-[11px] font-medium', i === index ? 'text-brand' : 'text-slate-400')}
             >
               <n.icon className="h-5 w-5" />
               {t(n.label)}
@@ -215,7 +260,7 @@ export function AppLayout() {
 
 export function CenteredPage({ children, wide }: { children: ReactNode; wide?: boolean }) {
   return (
-    <div className="relative min-h-dvh px-4 pb-10 pt-16 sm:pt-10">
+    <div className="fluid relative min-h-dvh px-4 pb-10 pt-16 sm:pt-10">
       <div className="absolute right-4 top-4 z-10">
         <LanguageSwitch />
       </div>
