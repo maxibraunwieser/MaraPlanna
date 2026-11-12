@@ -35,7 +35,9 @@ class RecordingController {
     var pace as Float? = null;
     // -1 = langsamer laufen, 1 = schneller laufen, 0 = passt / kein Ziel
     var hint as Number = 0;
+    // Runden der Aufzeichnung (je Schritt, Garmins Ansage) und Runden der App (Intervall + Trabpause = eine)
     var laps as Number = 1;
+    var rounds as Number = 1;
     // Zum Anzeigen eines Schrittwechsels für ein paar Sekunden.
     var stepChangedAt as Number = -100000;
     // Zusammenfassung des zuletzt beendeten schnellen Teils: welcher Schritt, seit wann (ms Aufzeichnungszeit)
@@ -160,6 +162,7 @@ class RecordingController {
             stepDone(ms, dist, info);
         } else {
             newLap(ms, dist);
+            rounds += 1;
             restartSection(ms, dist, info);
             Alert.lap();
         }
@@ -168,14 +171,17 @@ class RecordingController {
 
     // Ein Schritt der Einheit ist zu Ende (von selbst oder per Runden-Taste): weiter zum nächsten. Endet ein schneller Teil
     // (Intervall, Abschnitt eines Long Runs), kommt seine Zusammenfassung mit eigenem Signal; nach einer Trabpause nichts.
-    // Eine neue Runde beginnt erst mit dem nächsten Intervall: Intervall und Trabpause sind zusammen eine Runde.
+    // Für die Aufzeichnung ist jeder Schritt eine Runde: Garmin sagt bei jeder Runde deren Zeit (und Pace) an, und nur so sind die
+    // Werte nach dem Intervall die des Intervalls (nach der Trabpause kommt dadurch auch eine kurze Ansage; abschalten lässt sie
+    // sich von der App aus nicht). Die App selbst zählt Intervall + Trabpause als eine Runde (rounds).
     private function stepDone(ms as Number, dist as Float, info as Activity.Info?) as Void {
         var wk = workout as Workout;
         var done = wk.index;
         wk.advance(ms, dist);
         stepChangedAt = ms;
+        newLap(ms, dist);
         if (wk.startsRound()) {
-            newLap(ms, dist);
+            rounds += 1;
         }
         restartSection(ms, dist, info);
         if (wk.isActive(done)) {
@@ -183,7 +189,7 @@ class RecordingController {
             stepSummaryAt = ms;
             splits.hide();
             Alert.stepDone();
-            Demo.logStep(wk, done, laps);
+            Demo.logStep(wk, done, laps, rounds);
         } else {
             Alert.lap();
         }

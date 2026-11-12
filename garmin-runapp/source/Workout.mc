@@ -231,14 +231,25 @@ class Workout {
         return i < index || (finished && i == index);
     }
 
+    // Name des Schritts i für die Anzeige. Eine Trabpause gehört zur Runde des Intervalls davor und trägt dessen Nummer
+    // ("Trabpause 2/3"), damit man sieht, dass Intervall 2 und diese Pause eine Runde sind.
+    function label(i as Number) as String {
+        var n = name(_steps[i]);
+        var all = activeCount();
+        if (isRecovery(i) && all > 1 && n.find("/") == null) {
+            return n + " " + activeNumber(i) + "/" + all;
+        }
+        return n;
+    }
+
     // Trabpause (zwischen zwei Intervallen)
     function isRecovery(i as Number) as Boolean {
         return "r".equals(_steps[i].get("t") as Object?);
     }
 
-    // Beginnt mit dem aktuellen Schritt eine neue Runde? Eine Runde ist ein Intervall samt der Trabpause danach: Der Wechsel in
-    // die Trabpause beginnt keine Runde, erst das nächste Intervall. Einlaufen, Auslaufen und Abschnitte ohne Pause sind je eine
-    // Runde. Nach dem letzten Schritt beginnt eine (für das, was danach noch gelaufen wird).
+    // Beginnt mit dem aktuellen Schritt eine neue Runde (Zählung der App)? Eine Runde ist ein Intervall samt der Trabpause danach:
+    // Der Wechsel in die Trabpause beginnt keine, erst das nächste Intervall. Einlaufen, Auslaufen und Abschnitte ohne Pause sind
+    // je eine Runde. Die Runden der Aufzeichnung (FIT, Garmins Ansage) bleiben je Schritt, siehe RecordingController.stepDone.
     function startsRound() as Boolean {
         return finished || !isRecovery(index);
     }

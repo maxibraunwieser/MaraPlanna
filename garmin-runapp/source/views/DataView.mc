@@ -95,7 +95,7 @@ class DataView extends WatchUi.View {
         Draw.recDot(dc, paused);
         // Gerade beendeter schneller Teil: sein Name mit "geschafft", grün
         if (c.stepSummaryShowing(ms)) {
-            var name = (c.workout as Workout).name((c.workout as Workout).step(c.summaryStep));
+            var name = (c.workout as Workout).label(c.summaryStep);
             Draw.lineAlt(dc, h * HEADER_Y, Graphics.FONT_XTINY, Draw.GREEN, [name + " geschafft", name] as Array<String>);
             return;
         }
@@ -113,7 +113,7 @@ class DataView extends WatchUi.View {
             color = Draw.GREEN;
         } else if (c.workout != null && main) {
             var wk = c.workout as Workout;
-            texts = [wk.finished ? "Einheit geschafft" : wk.name(wk.current())] as Array<String>;
+            texts = [wk.finished ? "Einheit geschafft" : wk.label(wk.index)] as Array<String>;
             color = ms - c.stepChangedAt < 5000 ? Draw.GREEN : Draw.GRAY;
         }
         Draw.lineAlt(dc, h * HEADER_Y, Graphics.FONT_XTINY, color, texts);

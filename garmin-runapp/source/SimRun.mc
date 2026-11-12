@@ -91,9 +91,9 @@ class SimRun {
         if (_stepSec > 25 && _stepSec % 10 != 0) {
             return;
         }
-        var name = wk == null ? "Lauf" : ((wk as Workout).finished ? "fertig" : (wk as Workout).name((wk as Workout).current()));
+        var name = wk == null ? "Lauf" : ((wk as Workout).finished ? "fertig" : (wk as Workout).label((wk as Workout).index));
         System.println("SIM " + Pace.time(ms) + "  " + name + " +" + _stepSec + "s  echt " + Pace.format(1000.0 / _true, false)
             + "  Uhr-Tempo " + Pace.format(_watch > 0.5 ? 1000.0 / _watch : null, false) + "  ANZEIGE " + Pace.format(c.pace, false)
-            + "  Runde " + c.laps);
+            + "  Runde (App) " + c.rounds + "  Garmin-Runde " + c.laps);
     }
 }

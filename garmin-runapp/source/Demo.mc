@@ -88,14 +88,14 @@ module Demo {
 
     // Ein schneller Teil ist fertig: was die Zusammenfassung zeigt, in die Konsole
     (:live)
-    function logStep(wk as Workout, i as Number, laps as Number) as Void {
+    function logStep(wk as Workout, i as Number, laps as Number, rounds as Number) as Void {
     }
 
     (:demo)
-    function logStep(wk as Workout, i as Number, laps as Number) as Void {
-        System.println(">>> " + wk.name(wk.step(i)) + " geschafft: " + PageViews.shortDist(wk.doneMeters(i), false)
+    function logStep(wk as Workout, i as Number, laps as Number, rounds as Number) as Void {
+        System.println(">>> " + wk.label(i) + " geschafft: " + PageViews.shortDist(wk.doneMeters(i), false)
             + "  Zeit " + Pace.time(wk.doneMs(i)) + "  Ø Pace " + Pace.format(Pace.fromDelta(wk.doneMs(i), wk.doneMeters(i)), false)
-            + "  Ø alle " + Pace.format(wk.activeAveragePace(i), false) + "  (Runde jetzt " + laps + ")");
+            + "  Ø alle " + Pace.format(wk.activeAveragePace(i), false) + "  (Garmin sagt jetzt Runde " + (laps - 1) + " an)");
     }
 
     (:live)

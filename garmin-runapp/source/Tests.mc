@@ -980,6 +980,11 @@ function testRoundsIntervalWithRecovery(logger as Logger) as Boolean {
     // Einlaufen 1, Intervall 1 + Pause 2, Intervall 2 + Pause 3, Intervall 3 4, Auslaufen 5
     Test.assertEqual(rounds.toString(), [1, 2, 2, 3, 3, 4, 5].toString());
     Test.assert(w.finished);
+    // Die Trabpause trägt die Nummer ihres Intervalls
+    Test.assertEqual(w.label(2), "Trabpause 1/3");
+    Test.assertEqual(w.label(4), "Trabpause 2/3");
+    Test.assertEqual(w.label(3), "Interval 2/3");
+    Test.assertEqual(w.label(0), "Einlaufen");
     return true;
 }
 

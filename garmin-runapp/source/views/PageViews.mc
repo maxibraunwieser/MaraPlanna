@@ -425,7 +425,7 @@ module PageViews {
         var bh = Draw.barHeight(dc);
         // Schrittname, Rest (groß), Fortschritt, aktuelle Pace, darunter zentriert das Ziel
         var r = Draw.rows(top, bottom, [fhM, 0, bh * 2, fhS, fhX] as Array<Number>, gapOf(top, bottom));
-        Draw.fitLine(dc, r[0], fhM, TITLE, Graphics.COLOR_WHITE, wk.name(step));
+        Draw.fitLine(dc, r[0], fhM, TITLE, Graphics.COLOR_WHITE, wk.label(wk.index));
 
         // Rest des Schritts groß: Meter, Kilometer oder Zeit
         var left = wk.remaining(ms, dist);
