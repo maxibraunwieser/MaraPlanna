@@ -11,6 +11,10 @@
 //      lang ist; danach gleitet es normal weiter. Schon ab dem zweiten Messpunkt gibt es einen Wert.
 //   3. Anlauf: Die ersten Sekunden nach dem Neubeginn (RUNUP_S, höchstens die Hälfte der bisherigen Zeit) zählen
 //      nicht mit. Man beschleunigt dort noch; sie würden den Durchschnitt zu langsam machen, bis das Fenster voll ist.
+//   4. Junger Abschnitt: Die Geschwindigkeit, die die Uhr liefert, ist von der Uhr selbst schon geglättet und hinkt nach einem
+//      Tempowechsel einige Sekunden hinterher (beim Intervalllauf am 12.11. auf der Uhr gesehen: nach 20 s Intervall war noch deutlich die Trabpause zu spüren).
+//      Solange das Fenster noch Sekunden aus den ersten 12 nach dem Neubeginn enthält, gilt deshalb die Strecke seit dem
+//      Neubeginn. Die Strecke gehört nur zum neuen Abschnitt; die alte Pace kann nicht mehr hineinwirken.
 //   Dazu der automatische Neubeginn für Läufe ohne Schritte: Weichen die letzten CHANGE_S Sekunden um mehr als
 //   CHANGE_RATIO vom Rest des Fensters ab (ein Spurt, Stehenbleiben), beginnt das Fenster dort neu.
 // Reine Logik ohne Zugriff auf die Uhr, damit sie testbar bleibt; die Puffer sind fest angelegt.
@@ -30,6 +34,13 @@ class PaceSmoother {
     private const CHANGE_S = 6;
     private const CHANGE_REF_S = 20;
     private const CHANGE_RATIO = 0.12;
+    // Junger Abschnitt: Strecke statt Uhr-Geschwindigkeit, solange das Fenster Sekunden aus den ersten SETTLE_S nach dem Neubeginn
+    // enthält (so lange hinkt die Uhr-Geschwindigkeit dem Wechsel nach). Erst ab DIST_MIN_S Sekunden Strecke, darunter ist der
+    // GPS-Fehler zu groß. Danach ist die Uhr-Geschwindigkeit wieder die ruhigere Quelle.
+    private const SETTLE_S = 12;
+    private const DIST_MIN_S = 2;
+    // So lange nach einem ausdrücklichen Neubeginn gibt es keinen automatischen
+    private const QUIET_AFTER_RESET_S = 30;
 
     private var _ms as Array<Number> = new [SIZE] as Array<Number>;
     private var _dist as Array<Float> = new [SIZE] as Array<Float>;
@@ -40,9 +51,13 @@ class PaceSmoother {
     // Messpunkte seit dem letzten Neubeginn
     private var _n as Number = 0;
 
+    // Messpunkte seit dem letzten ausdrücklichen Neubeginn (Schritt, Runde, Pause)
+    private var _since as Number = 0;
+
     // Neubeginn (neuer Schritt, Runde, nach der Pause): alte Messpunkte sind nichts mehr wert.
     function reset() as Void {
         _n = 0;
+        _since = 0;
     }
 
     // Ein Messpunkt pro Sekunde: Zeit (ms), Strecke (m) und die gemessene Geschwindigkeit (m/s) oder null.
@@ -53,7 +68,12 @@ class PaceSmoother {
         _speed[i] = speed == null || speed != speed || speed < 0.0 ? -1.0 : speed;
         _total += 1;
         _n += 1;
-        checkChange();
+        _since += 1;
+        // Direkt nach einem Schrittwechsel ist der Wechsel schon bekannt: Die Uhr-Geschwindigkeit, die noch dem alten Tempo
+        // nachläuft, darf das Fenster dann nicht immer wieder abschneiden (sonst bliebe nur ihr nachhinkender Rest übrig).
+        if (_since > QUIET_AFTER_RESET_S) {
+            checkChange();
+        }
     }
 
     // Dauerhafter Tempowechsel ohne Schrittwechsel: Das Fenster beginnt bei den letzten CHANGE_S Sekunden neu.
@@ -129,17 +149,28 @@ class PaceSmoother {
                 valid += 1;
             }
         }
+        // Strecke über Zeit zwischen dem ältesten und dem neuesten Messpunkt desselben Fensters
+        var byDist = null as Float?;
+        if (use >= 2) {
+            var newest = (_total - 1) % SIZE;
+            var oldest = (_total - use) % SIZE;
+            byDist = Pace.fromDelta(_ms[newest] - _ms[oldest], _dist[newest] - _dist[oldest]);
+        }
         if (valid >= 1 && valid * 2 >= use) {
             var mean = sum / valid;
-            return mean < MIN_SPEED ? null : 1000.0 / mean;
+            if (mean < MIN_SPEED) {
+                return null;
+            }
+            // Junger Abschnitt (neuer Schritt, Runde, Tempowechsel): Die Geschwindigkeit der Uhr ist selbst schon geglättet und
+            // trägt in den ersten SETTLE_S Sekunden noch das alte Tempo in sich (bei der Trabpause vor dem Intervall: viel zu
+            // langsam). Solange das Fenster solche Sekunden enthält, gilt die Strecke seit dem Neubeginn: Sie gehört nur zum
+            // neuen Abschnitt.
+            if (byDist != null && use - 1 >= DIST_MIN_S && _n - use < SETTLE_S) {
+                return byDist;
+            }
+            return 1000.0 / mean;
         }
-
-        // Ersatz ohne Geschwindigkeit: Strecke über Zeit zwischen dem ältesten und dem neuesten Messpunkt
-        if (use < 2) {
-            return null;
-        }
-        var newest = (_total - 1) % SIZE;
-        var oldest = (_total - use) % SIZE;
-        return Pace.fromDelta(_ms[newest] - _ms[oldest], _dist[newest] - _dist[oldest]);
+        // Ersatz ohne Geschwindigkeit: die Strecke
+        return byDist;
     }
 }

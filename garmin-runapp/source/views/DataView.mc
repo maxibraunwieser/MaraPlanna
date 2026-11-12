@@ -31,6 +31,7 @@ class DataView extends WatchUi.View {
         at = at < 0 ? 0 : at;
         page = ids[(at + step + ids.size()) % ids.size()];
         c.splits.hide();
+        c.hideStepSummary();
         WatchUi.requestUpdate();
     }
 
@@ -40,7 +41,7 @@ class DataView extends WatchUi.View {
         Draw.background(dc, true);
         var app = getApp();
         var c = app.controller as RecordingController;
-        var info = Activity.getActivityInfo();
+        var info = Demo.info(Activity.getActivityInfo());
         var ms = c.timerMs(info);
 
         var ids = Pages.active(c.workout);
@@ -59,7 +60,9 @@ class DataView extends WatchUi.View {
     }
 
     private function body(dc as Graphics.Dc, c as RecordingController, top as Float, bottom as Float, info as Activity.Info?, ms as Number) as Void {
-        if (c.summaryShowing(ms)) {
+        if (c.stepSummaryShowing(ms)) {
+            PageViews.stepSummary(dc, c, top, bottom);
+        } else if (c.summaryShowing(ms)) {
             PageViews.kmSummary(dc, c, top, bottom, info, ms);
         } else if (page == Pages.PACE) {
             PageViews.pace(dc, c, top, bottom, info, ms);
@@ -90,6 +93,12 @@ class DataView extends WatchUi.View {
         var h = dc.getHeight();
         var paused = c.state == Rec.PAUSED;
         Draw.recDot(dc, paused);
+        // Gerade beendeter schneller Teil: sein Name mit "geschafft", grün
+        if (c.stepSummaryShowing(ms)) {
+            var name = (c.workout as Workout).name((c.workout as Workout).step(c.summaryStep));
+            Draw.lineAlt(dc, h * HEADER_Y, Graphics.FONT_XTINY, Draw.GREEN, [name + " geschafft", name] as Array<String>);
+            return;
+        }
         // Intervall-Seite: ganz klein der Puls statt des Seitennamens
         if (page == Pages.INTERVAL && !c.summaryShowing(ms)) {
             Draw.pulse(dc, h * HEADER_Y, info != null ? info.currentHeartRate : null);

@@ -231,6 +231,49 @@ class Workout {
         return i < index || (finished && i == index);
     }
 
+    // Trabpause (zwischen zwei Intervallen)
+    function isRecovery(i as Number) as Boolean {
+        return "r".equals(_steps[i].get("t") as Object?);
+    }
+
+    // Beginnt mit dem aktuellen Schritt eine neue Runde? Eine Runde ist ein Intervall samt der Trabpause danach: Der Wechsel in
+    // die Trabpause beginnt keine Runde, erst das nächste Intervall. Einlaufen, Auslaufen und Abschnitte ohne Pause sind je eine
+    // Runde. Nach dem letzten Schritt beginnt eine (für das, was danach noch gelaufen wird).
+    function startsRound() as Boolean {
+        return finished || !isRecovery(index);
+    }
+
+    // Gelaufene Strecke (m) und Zeit (ms) des abgeschlossenen Schritts i
+    function doneMeters(i as Number) as Float {
+        return _doneM[i];
+    }
+
+    function doneMs(i as Number) as Number {
+        return _doneMs[i];
+    }
+
+    // Ø-Pace aller abgeschlossenen schnellen Teile bis einschließlich Schritt i (null ohne Strecke)
+    function activeAveragePace(upTo as Number) as Float? {
+        var ms = 0;
+        var m = 0.0;
+        for (var i = 0; i <= upTo && i < _steps.size(); i++) {
+            if (isActive(i) && isDone(i)) {
+                ms += _doneMs[i];
+                m += _doneM[i];
+            }
+        }
+        return Pace.fromDelta(ms, m);
+    }
+
+    // Wievieltes schnelles Teil ist Schritt i (1 = erstes)?
+    function activeNumber(i as Number) as Number {
+        var n = 0;
+        for (var k = 0; k <= i && k < _steps.size(); k++) {
+            n += isActive(k) ? 1 : 0;
+        }
+        return n;
+    }
+
     // --- Plan: geplante Zeit für die Prognose ----------------------------------
 
     // Mittlere Pace des Schritts i: Zielbereich, sonst Zone des Schritts, sonst Standardwert.

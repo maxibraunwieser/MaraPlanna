@@ -38,6 +38,10 @@ class RecordingController {
     var laps as Number = 1;
     // Zum Anzeigen eines Schrittwechsels für ein paar Sekunden.
     var stepChangedAt as Number = -100000;
+    // Zusammenfassung des zuletzt beendeten schnellen Teils: welcher Schritt, seit wann (ms Aufzeichnungszeit)
+    var summaryStep as Number = -1;
+    var stepSummaryAt as Number = -100000;
+    private const STEP_SUMMARY_MS = 10000;
     // Verlauf (Diagramme) und gelaufene Strecke (Karte)
     var history as History = new History();
     var track as Track = new Track();
@@ -118,7 +122,8 @@ class RecordingController {
         _session = session;
         state = Rec.RECORDING;
         _timer = new Timer.Timer();
-        (_timer as Timer.Timer).start(method(:tick), 1000, true);
+        // eine Messung pro Sekunde (die Lauf-Simulation des Demo-Builds spielt schneller ab)
+        (_timer as Timer.Timer).start(method(:tick), Demo.tickMs(), true);
         Alert.start();
     }
 
@@ -148,17 +153,49 @@ class RecordingController {
         if (state != Rec.RECORDING || _session == null) {
             return;
         }
-        var info = Activity.getActivityInfo();
+        var info = Demo.info(Activity.getActivityInfo());
         var ms = timerMs(info);
         var dist = distance(info);
         if (workout != null && !(workout as Workout).finished) {
-            (workout as Workout).advance(ms, dist);
-            stepChangedAt = ms;
+            stepDone(ms, dist, info);
+        } else {
+            newLap(ms, dist);
+            restartSection(ms, dist, info);
+            Alert.lap();
         }
-        newLap(ms, dist);
-        restartSection(ms, dist, info);
-        Alert.lap();
         WatchUi.requestUpdate();
+    }
+
+    // Ein Schritt der Einheit ist zu Ende (von selbst oder per Runden-Taste): weiter zum nächsten. Endet ein schneller Teil
+    // (Intervall, Abschnitt eines Long Runs), kommt seine Zusammenfassung mit eigenem Signal; nach einer Trabpause nichts.
+    // Eine neue Runde beginnt erst mit dem nächsten Intervall: Intervall und Trabpause sind zusammen eine Runde.
+    private function stepDone(ms as Number, dist as Float, info as Activity.Info?) as Void {
+        var wk = workout as Workout;
+        var done = wk.index;
+        wk.advance(ms, dist);
+        stepChangedAt = ms;
+        if (wk.startsRound()) {
+            newLap(ms, dist);
+        }
+        restartSection(ms, dist, info);
+        if (wk.isActive(done)) {
+            summaryStep = done;
+            stepSummaryAt = ms;
+            splits.hide();
+            Alert.stepDone();
+            Demo.logStep(wk, done, laps);
+        } else {
+            Alert.lap();
+        }
+    }
+
+    // Zusammenfassung des gerade beendeten schnellen Teils gerade sichtbar?
+    function stepSummaryShowing(ms as Number) as Boolean {
+        return summaryStep >= 0 && ms - stepSummaryAt < STEP_SUMMARY_MS;
+    }
+
+    function hideStepSummary() as Void {
+        stepSummaryAt = -100000;
     }
 
     // Neuer Schritt oder neue Runde: die Glättung der Pace beginnt bei null, mit dem aktuellen Messpunkt als erstem.
@@ -174,7 +211,7 @@ class RecordingController {
 
     // Kilometer-Zusammenfassung gerade sichtbar? (in den Einstellungen abschaltbar)
     function summaryShowing(ms as Number) as Boolean {
-        return Prefs.kmSummary() && splits.showing(ms);
+        return !stepSummaryShowing(ms) && Prefs.kmSummary() && splits.showing(ms);
     }
 
     function save() as Void {
@@ -184,7 +221,7 @@ class RecordingController {
                 session.stop();
             }
             // Der Lauf zählt sofort zu den Wochenkilometern, auch bevor MaraPlanna ihn über Garmin Connect kennt.
-            var info = Activity.getActivityInfo();
+            var info = Demo.info(Activity.getActivityInfo());
             WeekPlan.logRun(distance(info), WeekPlan.today());
             if (distance(info) >= 100.0) {
                 var hr = info != null ? info.averageHeartRate : null;
@@ -222,7 +259,8 @@ class RecordingController {
             WatchUi.requestUpdate();
             return;
         }
-        var info = Activity.getActivityInfo();
+        Demo.simTick(self);
+        var info = Demo.info(Activity.getActivityInfo());
         var ms = timerMs(info);
         var dist = distance(info);
 
@@ -239,6 +277,7 @@ class RecordingController {
         // Aktuelle Pace: Geschwindigkeit des GPS-Chips, gemittelt über das eingestellte Fenster (Ringpuffer).
         _smooth.add(ms, dist, info != null ? info.currentSpeed : null);
         pace = _smooth.pace(Prefs.paceSeconds());
+        Demo.simLog(self);
 
         // Verlauf und Strecke für Diagramme und Karte
         history.add(info != null ? info.currentHeartRate : null, pace == null ? 0.0 : 1000.0 / (pace as Float));
@@ -260,11 +299,11 @@ class RecordingController {
         if (workout != null) {
             (workout as Workout).addHeartRate(info != null ? info.currentHeartRate : null);
         }
-        if (workout != null && (workout as Workout).update(ms, dist)) {
-            stepChangedAt = ms;
-            newLap(ms, dist);
-            restartSection(ms, dist, info);
-            Alert.lap();
+        if (workout != null && !(workout as Workout).finished) {
+            var left = (workout as Workout).remaining(ms, dist);
+            if (left != null && (left[0] as Numeric) <= 0) {
+                stepDone(ms, dist, info);
+            }
         }
 
         // Countdown: in den letzten 5 Sekunden vor dem Wechsel zum nächsten Schritt je ein Impuls.
@@ -324,11 +363,11 @@ class RecordingController {
     }
 
     function lapMs() as Number {
-        return timerMs(Activity.getActivityInfo()) - _lapMs;
+        return timerMs(Demo.info(Activity.getActivityInfo())) - _lapMs;
     }
 
     function lapDistance() as Float {
-        return distance(Activity.getActivityInfo()) - _lapDist;
+        return distance(Demo.info(Activity.getActivityInfo())) - _lapDist;
     }
 
     function lapPace() as Float? {
@@ -336,7 +375,7 @@ class RecordingController {
     }
 
     function averagePace() as Float? {
-        var info = Activity.getActivityInfo();
+        var info = Demo.info(Activity.getActivityInfo());
         return Pace.fromDelta(timerMs(info), distance(info));
     }
 }

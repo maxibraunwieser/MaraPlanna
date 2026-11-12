@@ -47,6 +47,15 @@ module Alert {
         }
     }
 
+    // Ein schneller Teil (Intervall, Abschnitt eines Long Runs) ist geschafft: zwei lange Impulse und der Intervall-Ton, deutlich
+    // anders als der eine Impuls eines Schrittwechsels, damit man ohne Hinsehen weiß, dass jetzt die Zusammenfassung dasteht.
+    function stepDone() as Void {
+        tone(Attention.TONE_INTERVAL_ALERT);
+        if (canVibrate()) {
+            Attention.vibrate([new Attention.VibeProfile(100, 250), new Attention.VibeProfile(0, 150), new Attention.VibeProfile(100, 250)]);
+        }
+    }
+
     function saved() as Void {
         tone(Attention.TONE_SUCCESS);
         vibrate(500);

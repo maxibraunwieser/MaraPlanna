@@ -914,6 +914,96 @@ function testPaceSmootherRestartAtStep(logger as Logger) as Boolean {
     return true;
 }
 
+// Die Uhr glättet ihre Geschwindigkeit selbst (currentSpeed hinkt hinterher). Nach der Trabpause darf davon im Intervall nichts
+// mehr zu sehen sein: Modell wie SimRun (Zeitkonstante 6 s, 3 s Beschleunigung), Trab 6:30, Intervall 4:00.
+(:test)
+function testPaceSmootherLaggingWatchSpeed(logger as Logger) as Boolean {
+    var s = new PaceSmoother();
+    var dist = 0.0;
+    var watch = 1000.0 / 390.0;
+    var jog = 1000.0 / 390.0;
+    var rep = 1000.0 / 240.0;
+    var k = 1.0 - Math.pow(Math.E, -1.0 / 6.0).toFloat();
+    for (var t = 1; t <= 60; t++) {
+        dist += jog;
+        s.add(t * 1000, dist, watch);
+    }
+    // neuer Schritt: Intervall
+    s.reset();
+    s.add(60000, dist, watch);
+    var worstAfter8 = 0.0;
+    for (var sec = 1; sec <= 40; sec++) {
+        var v = sec <= 3 ? jog + (rep - jog) * sec / 3.0 : rep;
+        dist += v;
+        watch += (v - watch) * k;
+        s.add((60 + sec) * 1000, dist, watch);
+        var p = s.pace(20) as Float;
+        var off = (p - 240.0).abs() / 240.0;
+        if (sec == 10 || sec == 20) {
+            logger.debug("rep +" + sec + " s: shown " + p + " s/km, watch speed alone " + (1000.0 / watch) + " s/km");
+        }
+        if (sec >= 8) {
+            worstAfter8 = off > worstAfter8 ? off : worstAfter8;
+        }
+    }
+    logger.debug("worst from 8 s on: " + (worstAfter8 * 100) + " %");
+    // ab 8 s im Intervall höchstens 3 % neben 4:00 (7 s/km)
+    Test.assert(worstAfter8 < 0.03);
+    return true;
+}
+
+// Eine Runde ist Intervall + Trabpause; Einlaufen und Auslaufen sind eigene Runden.
+(:test)
+function testRoundsIntervalWithRecovery(logger as Logger) as Boolean {
+    var w = new Workout("3x400", 6, [
+        { "n" => "Einlaufen", "t" => "w", "d" => 400 },
+        { "n" => "Interval 1/3", "t" => "a", "d" => 400, "lo" => 235, "hi" => 245 },
+        { "n" => "Trabpause", "t" => "r", "s" => 60 },
+        { "n" => "Interval 2/3", "t" => "a", "d" => 400, "lo" => 235, "hi" => 245 },
+        { "n" => "Trabpause", "t" => "r", "s" => 60 },
+        { "n" => "Interval 3/3", "t" => "a", "d" => 400, "lo" => 235, "hi" => 245 },
+        { "n" => "Auslaufen", "t" => "c", "d" => 300 }
+    ] as Array<Dictionary>);
+    var laps = 1;
+    var rounds = [] as Array<Number>;
+    var ms = 0;
+    var dist = 0.0;
+    for (var i = 0; i < 7; i++) {
+        rounds.add(laps);
+        ms += 100000;
+        dist += 400.0;
+        w.advance(ms, dist);
+        if (w.startsRound()) {
+            laps += 1;
+        }
+    }
+    // Einlaufen 1, Intervall 1 + Pause 2, Intervall 2 + Pause 3, Intervall 3 4, Auslaufen 5
+    Test.assertEqual(rounds.toString(), [1, 2, 2, 3, 3, 4, 5].toString());
+    Test.assert(w.finished);
+    return true;
+}
+
+// Zusammenfassung eines schnellen Teils: Strecke, Zeit, Ø-Pace des Teils und Ø-Pace aller schnellen Teile bis dahin.
+(:test)
+function testStepSummaryValues(logger as Logger) as Boolean {
+    var w = new Workout("Long", 4, [
+        { "n" => "Long run", "t" => "a", "d" => 20000 },
+        { "n" => "Marathon pace", "t" => "a", "d" => 5000 }
+    ] as Array<Dictionary>);
+    // 20 km in 1:50:00 (5:30), dann 5 km in 25:00 (5:00)
+    w.advance(6600000, 20000.0);
+    Test.assertEqual(w.doneMeters(0), 20000.0);
+    Test.assertEqual(w.doneMs(0), 6600000);
+    Test.assert(((w.activeAveragePace(0) as Float) - 330.0).abs() < 0.1);
+    Test.assert(w.startsRound());
+    w.advance(6600000 + 1500000, 25000.0);
+    Test.assert(((Pace.fromDelta(w.doneMs(1), w.doneMeters(1)) as Float) - 300.0).abs() < 0.1);
+    // Ø beider Abschnitte: 2:15:00 auf 25 km = 5:24
+    Test.assert(((w.activeAveragePace(1) as Float) - 324.0).abs() < 0.1);
+    Test.assertEqual(w.activeNumber(1), 2);
+    return true;
+}
+
 // Läufe ohne Schritte: ein Spurt oder Stehenbleiben beginnt das Fenster von selbst neu; Rauschen nicht.
 (:test)
 function testPaceSmootherFollowsChanges(logger as Logger) as Boolean {

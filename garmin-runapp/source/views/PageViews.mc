@@ -181,6 +181,31 @@ module PageViews {
         Draw.grid(dc, top, bottom, labels, values, colors);
     }
 
+    // --- Zusammenfassung des gerade beendeten schnellen Teils (Intervall, Abschnitt eines Long Runs) ----------
+    // Gelaufene Strecke, Zeit, Ø-Pace dieses Teils (grün im Zielbereich, orange zu schnell, blau zu langsam) und die Ø-Pace
+    // aller schnellen Teile bis hierher. Nach Trabpausen gibt es keine.
+
+    function stepSummary(dc as Graphics.Dc, c as RecordingController, top as Float, bottom as Float) as Void {
+        var wk = c.workout as Workout;
+        var i = c.summaryStep;
+        var miles = c.zones.miles;
+        var white = Graphics.COLOR_WHITE;
+        var pace = Pace.fromDelta(wk.doneMs(i), wk.doneMeters(i));
+        var color = white;
+        var tgt = wk.stepTarget(i);
+        if (pace != null && tgt != null) {
+            var off = Math.round(Pace.offRange(pace as Float, tgt)).toNumber();
+            color = off < 0 ? Draw.ORANGE : (off > 0 ? Draw.BLUE : Draw.GREEN);
+        }
+        // Zahlenschriften haben keine Buchstaben: die Einheit steht in der Beschriftung
+        var m = wk.doneMeters(i);
+        var short = !miles && m < 1000.0;
+        Draw.grid(dc, top, bottom,
+            [short ? "METER" : (miles ? "MEILEN" : "KM"), "ZEIT", "Ø PACE", "Ø ALLE"] as Array<String>,
+            [short ? m.toNumber().format("%d") : Pace.distance(m, miles), Pace.time(wk.doneMs(i)), Pace.format(pace, miles), Pace.format(wk.activeAveragePace(i), miles)] as Array<String>,
+            [white, white, color, white] as Array<Number>);
+    }
+
     // --- Pace: aktuelle Pace groß, Skala mit Zielbereich ----------------------------
 
     function pace(dc as Graphics.Dc, c as RecordingController, top as Float, bottom as Float, info as Activity.Info?, ms as Number) as Void {

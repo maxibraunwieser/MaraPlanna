@@ -29,12 +29,85 @@ module Demo {
     (:demo)
     var timer as Timer.Timer? = null;
 
+    // Lauf-Simulation (SimRun.mc): "" = aus, "intervals" = 3 × 400 m mit 60 s Trabpause, "long" = Long Run mit 2 km locker und
+    // 1 km Marathon-Pace. Mit einer Simulation startet der Autopilot die Einheit von selbst, und die Messungen laufen 4× schneller.
+    // Gebaut wird sie mit tools/sim-run.ps1, das diese Zeile vorübergehend setzt.
+    (:demo)
+    const SIM = "";
+    (:demo)
+    var sim as SimRun? = null;
+
+    (:live)
+    function info(real as Activity.Info?) as Activity.Info? {
+        return real;
+    }
+
+    (:demo)
+    function info(real as Activity.Info?) as Activity.Info? {
+        return sim != null ? (sim as SimRun).info() : real;
+    }
+
+    (:live)
+    function tickMs() as Number {
+        return 1000;
+    }
+
+    (:demo)
+    function tickMs() as Number {
+        return SIM.length() > 0 ? 250 : 1000;
+    }
+
+    // Vor jeder Messung des Controllers: die Simulation läuft eine Sekunde weiter.
+    (:live)
+    function simTick(c as RecordingController) as Void {
+    }
+
+    (:demo)
+    function simTick(c as RecordingController) as Void {
+        if (SIM.length() == 0) {
+            return;
+        }
+        if (sim == null) {
+            sim = new SimRun();
+            System.println("SIM start: " + SIM + " (eine Sekunde Lauf je 0,25 s)");
+        }
+        (sim as SimRun).step(c);
+    }
+
+    // Nach der Glättung: die Zeile der Simulation in der Konsole
+    (:live)
+    function simLog(c as RecordingController) as Void {
+    }
+
+    (:demo)
+    function simLog(c as RecordingController) as Void {
+        if (sim != null) {
+            (sim as SimRun).log(c, c.workout);
+        }
+    }
+
+    // Ein schneller Teil ist fertig: was die Zusammenfassung zeigt, in die Konsole
+    (:live)
+    function logStep(wk as Workout, i as Number, laps as Number) as Void {
+    }
+
+    (:demo)
+    function logStep(wk as Workout, i as Number, laps as Number) as Void {
+        System.println(">>> " + wk.name(wk.step(i)) + " geschafft: " + PageViews.shortDist(wk.doneMeters(i), false)
+            + "  Zeit " + Pace.time(wk.doneMs(i)) + "  Ø Pace " + Pace.format(Pace.fromDelta(wk.doneMs(i), wk.doneMeters(i)), false)
+            + "  Ø alle " + Pace.format(wk.activeAveragePace(i), false) + "  (Runde jetzt " + laps + ")");
+    }
+
     (:live)
     function autopilot() as Void {
     }
 
     (:demo)
     function steps() as Array<String> {
+        if (SIM.length() > 0) {
+            // Menü → Bereit-Bildschirm → Start; dann läuft die Simulation von selbst
+            return ["select", "select"] as Array<String>;
+        }
         return PILOT.equals("strength") ? STRENGTH_STEPS : (PILOT.equals("run") ? STEPS : [] as Array<String>);
     }
 
@@ -214,6 +287,31 @@ module Demo {
                 ]
             }
         } as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>;
+        // Für die Lauf-Simulation kurze Einheiten, damit ein Durchlauf ein paar Minuten dauert
+        if (SIM.equals("intervals")) {
+            feed.put("workout", {
+                "title" => "Intervalle 3x400",
+                "z" => 6,
+                "steps" => [
+                    { "n" => "Einlaufen", "t" => "w", "d" => 400, "lo" => 326, "hi" => 360, "z" => 1 },
+                    { "n" => "Interval 1/3", "t" => "a", "d" => 400, "lo" => 235, "hi" => 245, "z" => 6 },
+                    { "n" => "Trabpause", "t" => "r", "s" => 60, "z" => 3 },
+                    { "n" => "Interval 2/3", "t" => "a", "d" => 400, "lo" => 235, "hi" => 245, "z" => 6 },
+                    { "n" => "Trabpause", "t" => "r", "s" => 60, "z" => 3 },
+                    { "n" => "Interval 3/3", "t" => "a", "d" => 400, "lo" => 235, "hi" => 245, "z" => 6 },
+                    { "n" => "Auslaufen", "t" => "c", "d" => 300, "lo" => 326, "hi" => 360, "z" => 1 }
+                ]
+            } as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>);
+        } else if (SIM.equals("long")) {
+            feed.put("workout", {
+                "title" => "Long Run mit MP",
+                "z" => 4,
+                "steps" => [
+                    { "n" => "Long run", "t" => "a", "d" => 2000, "lo" => 330, "hi" => 360, "z" => 2 },
+                    { "n" => "Marathon pace", "t" => "a", "d" => 1000, "lo" => 292, "hi" => 302, "z" => 4 }
+                ]
+            } as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>);
+        }
         seedWeek(feed);
         seedStrength(feed);
         seedPlan(feed);

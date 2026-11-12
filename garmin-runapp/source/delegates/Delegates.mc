@@ -159,7 +159,7 @@ class PauseMenuDelegate extends CardMenuListener {
             PagesMenu.show();
         } else if (id == :save) {
             // Werte vor dem Speichern festhalten – danach ist die Sitzung beendet.
-            var info = Activity.getActivityInfo();
+            var info = Demo.info(Activity.getActivityInfo());
             // Trainingseffekt (aerob) der Uhr, falls das Gerät ihn liefert
             var effect = null as Float?;
             if (info != null && (info has :trainingEffect)) {
