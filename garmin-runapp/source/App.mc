@@ -3,8 +3,11 @@
 import Toybox.Application;
 import Toybox.Lang;
 import Toybox.Position;
+import Toybox.System;
 import Toybox.WatchUi;
 
+// (:background): die App-Klasse gehört auch zum Hintergrund (BgSync), Garmin verlangt das für getServiceDelegate.
+(:background)
 class RunApp extends Application.AppBase {
     var zones as PaceZones?;
     var controller as RecordingController?;
@@ -29,6 +32,7 @@ class RunApp extends Application.AppBase {
     private var _gpsOn as Boolean = false;
 
     // GPS einschalten (idempotent): Bereit-Bildschirm und Start des Laufs.
+    (:typecheck(disableBackgroundCheck))
     function startGps() as Void {
         if (!_gpsOn) {
             _gpsOn = true;
@@ -37,6 +41,7 @@ class RunApp extends Application.AppBase {
     }
 
     // GPS ausschalten, wenn man den Bereit-Bildschirm verlässt, ohne zu laufen.
+    (:typecheck(disableBackgroundCheck))
     function stopGps() as Void {
         if (_gpsOn) {
             _gpsOn = false;
@@ -45,6 +50,7 @@ class RunApp extends Application.AppBase {
         }
     }
 
+    (:typecheck(disableBackgroundCheck))
     function onStop(state as Dictionary?) as Void {
         // Wird die App während einer Aufzeichnung beendet, wird gespeichert statt verworfen
         // (in onStop ist keine Rückfrage mehr möglich – so gehen keine Daten verloren).
@@ -60,6 +66,7 @@ class RunApp extends Application.AppBase {
         stopGps();
     }
 
+    (:typecheck(disableBackgroundCheck))
     function getInitialView() as [WatchUi.Views] or [WatchUi.Views, WatchUi.InputDelegates] {
         Demo.seed();
         var z = new PaceZones();
@@ -72,10 +79,26 @@ class RunApp extends Application.AppBase {
         if (!Demo.active()) {
             s.start();
         }
+        // Automatisch laden: den nächsten Termin (6:30, dann alle 30 Minuten) bei der Uhr anmelden
+        Demo.scheduleBackground();
         Demo.autopilot();
         return [view, new HomeDelegate()];
     }
 
+    // Der Hintergrund-Abgleich (BgSync.mc), von der Uhr zu den angemeldeten Zeiten geweckt
+    function getServiceDelegate() as [System.ServiceDelegate] {
+        return [new BgSync()];
+    }
+
+    // Ein Hintergrund-Durchgang ist fertig, während die App offen ist: neue Daten anzeigen
+    (:typecheck(disableBackgroundCheck))
+    function onBackgroundData(data as Application.PersistableType) as Void {
+        if (data instanceof Lang.Boolean && data) {
+            onFeedChanged();
+        }
+    }
+
+    (:typecheck(disableBackgroundCheck))
     function onPosition(info as Position.Info) as Void {
         gps = info.accuracy;
         if (controller != null && info.heading != null) {
@@ -84,6 +107,7 @@ class RunApp extends Application.AppBase {
     }
 
     // Neue Daten von MaraPlanna (oder neuer Kopplungscode): Paces neu laden, Anzeigen auffrischen.
+    (:typecheck(disableBackgroundCheck))
     function onFeedChanged() as Void {
         if (startView != null) {
             (startView as StartView).onSync();
@@ -94,6 +118,7 @@ class RunApp extends Application.AppBase {
     }
 
     // Paces in der Garmin Connect App geändert.
+    (:typecheck(disableBackgroundCheck))
     function onSettingsChanged() as Void {
         onFeedChanged();
     }

@@ -10,6 +10,8 @@
 
 import Toybox.Application;
 import Toybox.Lang;
+import Toybox.Time;
+import Toybox.Time.Gregorian;
 import Toybox.WatchUi;
 
 module MainMenu {
@@ -186,6 +188,24 @@ module SettingsMenu {
         return item;
     }
 
+    // Automatisch laden: Schalter, darunter wann zuletzt im Hintergrund geladen wurde (bzw. wann es losgeht)
+    function autoItem() as CardItem {
+        var item = toggle(:auto, "Automatisch laden", Prefs.autoSync());
+        var raw = Application.Storage.getValue("bgLast") as Object?;
+        var last = raw instanceof Array && raw.size() == 2 ? raw as Array : null;
+        if (!Prefs.autoSync()) {
+            item.sub = "aus";
+        } else if (last == null || !(last[0] instanceof Number)) {
+            item.sub = "ab 6:30, alle 30 Min.";
+        } else {
+            var t = Gregorian.info(new Time.Moment(last[0] as Number), Time.FORMAT_SHORT);
+            var code = last[1] instanceof Number ? last[1] as Number : 0;
+            var ok = code == 200;
+            item.sub = (ok ? "zuletzt " : "Fehler ") + (t.hour as Number).format("%d") + ":" + (t.min as Number).format("%02d") + (ok ? "" : " (" + code + ")");
+        }
+        return item;
+    }
+
     function show() as Void {
         var items = [
             new CardItem(:pages, MainMenu.text(Rez.Strings.Pages), MainMenu.text(Rez.Strings.PagesInfo), Draw.BLUE),
@@ -197,6 +217,7 @@ module SettingsMenu {
             toggle(:vibe, MainMenu.text(Rez.Strings.SetVibration), Prefs.vibration()),
             toggle(:countdown, MainMenu.text(Rez.Strings.SetCountdown), Prefs.countdown()),
             toggle(:weather, MainMenu.text(Rez.Strings.SetWeather), Prefs.weather()),
+            autoItem(),
             new CardItem(:unlink, MainMenu.text(Rez.Strings.SetUnlink), linkText(), Draw.RED)
         ] as Array<CardItem>;
         Cards.show(MainMenu.text(Rez.Strings.MenuSettings), items, new SettingsMenuDelegate(), WatchUi.SLIDE_LEFT);
@@ -230,6 +251,13 @@ class SettingsMenuDelegate extends CardMenuListener {
             if (Demo.active() || (sync != null && (sync as Sync).paired())) {
                 WatchUi.pushView(new WatchUi.Confirmation(MainMenu.text(Rez.Strings.UnlinkConfirm)), new UnlinkDelegate(item), WatchUi.SLIDE_IMMEDIATE);
             }
+        } else if (id == :auto) {
+            Prefs.set("auto", !Prefs.autoSync());
+            AutoSync.schedule();
+            var fresh = SettingsMenu.autoItem();
+            item.toggle = fresh.toggle;
+            item.sub = fresh.sub;
+            WatchUi.requestUpdate();
         } else {
             item.toggle = item.toggle == 1 ? 0 : 1;
             var key = id == :km ? "km" : (id == :pace ? "pace" : (id == :tones ? "tones" : (id == :vibe ? "vibe" : (id == :countdown ? "countdown" : "weather"))));

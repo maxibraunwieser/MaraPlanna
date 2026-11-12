@@ -122,6 +122,7 @@
             <iq:uses-permission id="Sensor"/>
             <iq:uses-permission id="Communications"/>
             <iq:uses-permission id="UserProfile"/>
+            <iq:uses-permission id="Background"/>
         </iq:permissions>
         <iq:languages>
             <iq:language>deu</iq:language>

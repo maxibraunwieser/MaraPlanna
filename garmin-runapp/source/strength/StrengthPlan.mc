@@ -196,25 +196,8 @@ class StrengthPlan {
     // Den Kraft-Feed vom Server speichern ("an" = Figuren hat der Aufrufer schon herausgenommen): die Workouts einzeln,
     // ihre Liste unter "wom", der Rest unter "str".
     static function storeFeed(data as Dictionary) as Void {
-        var wo = g(data, "wo");
-        data.remove("wo");
-        var list = [] as Array<Application.Storage.ValueType>;
-        if (wo instanceof Array) {
-            for (var i = 0; i < wo.size() && list.size() < MAX_WORKOUTS; i++) {
-                var w = wo[i];
-                if (w instanceof Dictionary) {
-                    var ex = g(w, "ex");
-                    Application.Storage.setValue("wo" + list.size(), w as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>);
-                    list.add({ "t" => str(g(w, "t")), "n" => ex instanceof Array ? ex.size() : 0, "id" => str(g(w, "id")) } as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>);
-                }
-            }
-        }
-        for (var i = list.size(); i < MAX_WORKOUTS; i++) {
-            Application.Storage.deleteValue("wo" + i);
-        }
-        var d = g(data, "d");
-        Application.Storage.setValue("wom", { "d" => d instanceof String ? d : "", "l" => list } as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>);
-        Application.Storage.setValue("str", data as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>);
+        // gemeinsam mit dem Hintergrund-Abgleich (BgStore.mc)
+        Bg.storeFeed(data);
     }
 
     // Die Workouts der Website für das Menü (Titel, Zahl der Übungen, ob eins davon heute geplant ist). Sie gelten jeden Tag;

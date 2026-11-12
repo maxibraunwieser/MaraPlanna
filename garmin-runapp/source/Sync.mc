@@ -13,7 +13,7 @@ import Toybox.Timer;
 import Toybox.WatchUi;
 
 class Sync {
-    private const BASE = "https://rynujdcggyafilncmcbr.supabase.co/functions/v1/watch";
+    private const BASE = Bg.BASE;
     // Nach dieser Zeit gelten die geladenen Daten als veraltet (Startbildschirm lädt dann neu).
     private const STALE_S = 900;
     private var _timer as Timer.Timer?;
@@ -258,14 +258,7 @@ class Sync {
             Application.Storage.deleteValue("strErr");
         }
         if (code == 200 && data instanceof Dictionary && data.hasKey("ready")) {
-            var an = data.get("an");
-            data.remove("an");
-            StrengthPlan.storeFeed(data as Dictionary);
-            if (an instanceof Dictionary) {
-                Application.Storage.setValue("figs", an as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>);
-            } else {
-                Application.Storage.deleteValue("figs");
-            }
+            Bg.storeStrength(data as Dictionary);
             // danach die Übungslisten der Muskelgruppen für "Kraft frei" (die von heute sind schon da)
             _libQueue = [] as Array<String>;
             for (var i = 0; i < StrengthLibrary.GROUPS.size(); i++) {

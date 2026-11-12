@@ -35,6 +35,9 @@ const sigs = {
   bicep_curl: [5, 19, 147, 19, 100, 151, 186, ...spread],
 };
 
+// The mock server of the background sync (tools/mock-watch-server.cjs) builds today's feed from the same sample data.
+module.exports = { prefs, workouts, sigs };
+if (require.main === module) {
 const feed = capFigures(buildStrengthFeed({ prefs, workouts, lastKg: {}, sigs, date: '2026-11-07' }), 60000);
 // short pauses and a short hold, for the demonstration
 for (const s of [...feed.sess, ...(feed.wo ?? [])]) for (const e of s.ex) {
@@ -81,3 +84,4 @@ ${Object.entries(libGroups).map(([g, rows]) => `        if (group.equals("${g}")
 `;
 fs.writeFileSync(path.join(__dirname, '..', 'source', 'DemoStrength.mc'), code);
 console.log('source/DemoStrength.mc written:', feed.sess.map((s) => `${s.t} (${s.ex.length})`).join(', '), '· workouts:', (feed.wo ?? []).map((w) => w.t).join(', '), '·', Object.keys(an).length, 'figures,', JSON.stringify(an).length, 'bytes');
+}

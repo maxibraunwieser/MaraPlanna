@@ -952,6 +952,26 @@ function testPaceSmootherLaggingWatchSpeed(logger as Logger) as Boolean {
     return true;
 }
 
+// Automatisch laden: 6:30, dann alle 30 Minuten bis 22:00, nachts nicht.
+(:test)
+function testAutoSyncSlots(logger as Logger) as Boolean {
+    var h = 3600;
+    var m = 60;
+    Test.assertEqual(AutoSync.secondsToNext(0), 6 * h + 30 * m);              // Mitternacht → 6:30
+    Test.assertEqual(AutoSync.secondsToNext(6 * h + 29 * m), 1 * m);          // 6:29 → 6:30
+    Test.assertEqual(AutoSync.secondsToNext(6 * h + 30 * m), 30 * m);         // 6:30 (läuft gerade) → 7:00
+    Test.assertEqual(AutoSync.secondsToNext(6 * h + 45 * m), 15 * m);         // 6:45 → 7:00
+    Test.assertEqual(AutoSync.secondsToNext(12 * h + 1 * m), 29 * m);         // 12:01 → 12:30
+    Test.assertEqual(AutoSync.secondsToNext(21 * h + 45 * m), 15 * m);        // 21:45 → 22:00
+    Test.assertEqual(AutoSync.secondsToNext(22 * h), 8 * h + 30 * m);         // 22:00 → 6:30 am nächsten Morgen
+    Test.assertEqual(AutoSync.secondsToNext(23 * h + 10 * m), 7 * h + 20 * m); // 23:10 → 6:30
+    Test.assert(AutoSync.inWindow(6 * h + 30 * m));
+    Test.assert(AutoSync.inWindow(22 * h + 1 * m));
+    Test.assert(!AutoSync.inWindow(3 * h));
+    Test.assert(!AutoSync.inWindow(6 * h));
+    return true;
+}
+
 // Eine Runde ist Intervall + Trabpause; Einlaufen und Auslaufen sind eigene Runden.
 (:test)
 function testRoundsIntervalWithRecovery(logger as Logger) as Boolean {

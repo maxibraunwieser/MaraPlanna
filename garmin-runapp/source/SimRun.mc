@@ -15,7 +15,7 @@ import Toybox.Lang;
 import Toybox.Math;
 import Toybox.System;
 
-(:demo)
+(:demo :strength)
 class SimRun {
     private const LAG_S = 6.0;
     private const RAMP_S = 3;

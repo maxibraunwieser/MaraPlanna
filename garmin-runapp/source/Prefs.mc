@@ -84,6 +84,11 @@ module Prefs {
         return flag("countdown", true);
     }
 
+    // Automatisch laden im Hintergrund (6:30, dann alle 30 Minuten bis 22:00; siehe BgSync.mc)
+    function autoSync() as Boolean {
+        return flag("auto", true);
+    }
+
     // Wetter auf dem Startbildschirm
     function weather() as Boolean {
         return flag("weather", true);

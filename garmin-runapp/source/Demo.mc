@@ -3,6 +3,7 @@
 
 import Toybox.Activity;
 import Toybox.Application;
+import Toybox.Background;
 import Toybox.Lang;
 import Toybox.Math;
 import Toybox.System;
@@ -34,15 +35,34 @@ module Demo {
     // Gebaut wird sie mit tools/sim-run.ps1, das diese Zeile vorübergehend setzt.
     (:demo)
     const SIM = "";
-    (:demo)
+    (:demo :strength)
     var sim as SimRun? = null;
+
+    // Automatisch laden anmelden. Im Demo-Build der erste Durchgang schon 20 s nach dem Start (statt um 6:30), damit man ihn im
+    // Simulator sieht; er lädt vom Test-Server tools/mock-watch-server.cjs (Bg.base). Danach geht es im normalen Takt weiter.
+    (:live)
+    function scheduleBackground() as Void {
+        AutoSync.schedule();
+    }
+
+    (:demo)
+    function scheduleBackground() as Void {
+        if (!(Toybox has :Background)) {
+            return;
+        }
+        // eine Kopplung wie nach dem Code-Eingeben, damit der Hintergrund lädt (der Test-Server prüft das Geheimnis nicht)
+        Application.Storage.setValue("secret", "demo-secret");
+        Application.Storage.deleteValue("code");
+        Background.registerForTemporalEvent(Time.now().add(new Time.Duration(20)));
+        System.println("bg: erster Hintergrund-Durchgang in 20 s angemeldet");
+    }
 
     (:live)
     function info(real as Activity.Info?) as Activity.Info? {
         return real;
     }
 
-    (:demo)
+    (:demo :strength)
     function info(real as Activity.Info?) as Activity.Info? {
         return sim != null ? (sim as SimRun).info() : real;
     }
@@ -52,7 +72,7 @@ module Demo {
         return 1000;
     }
 
-    (:demo)
+    (:demo :strength)
     function tickMs() as Number {
         return SIM.length() > 0 ? 250 : 1000;
     }
@@ -62,7 +82,7 @@ module Demo {
     function simTick(c as RecordingController) as Void {
     }
 
-    (:demo)
+    (:demo :strength)
     function simTick(c as RecordingController) as Void {
         if (SIM.length() == 0) {
             return;
@@ -79,11 +99,30 @@ module Demo {
     function simLog(c as RecordingController) as Void {
     }
 
-    (:demo)
+    (:demo :strength)
     function simLog(c as RecordingController) as Void {
         if (sim != null) {
             (sim as SimRun).log(c, c.workout);
         }
+    }
+
+// Demo-Build der kleinen Uhren (128 KB): ohne Lauf-Simulation, sonst passt die App nicht in den Speicher
+    (:demo :nostrength)
+    function info(real as Activity.Info?) as Activity.Info? {
+        return real;
+    }
+
+    (:demo :nostrength)
+    function tickMs() as Number {
+        return 1000;
+    }
+
+    (:demo :nostrength)
+    function simTick(c as RecordingController) as Void {
+    }
+
+    (:demo :nostrength)
+    function simLog(c as RecordingController) as Void {
     }
 
     // Ein schneller Teil ist fertig: was die Zusammenfassung zeigt, in die Konsole
