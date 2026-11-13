@@ -127,7 +127,10 @@ module TrainMenu {
         out.add(head);
         var rows = TodayCards.runRows(workout, miles);
         for (var i = 0; i < rows.size(); i++) {
-            out.add(new CardItem(Choices.TODAY, rows[i][0], rows[i][1], Draw.DIM));
+            var row = new CardItem(:info, rows[i][0], rows[i][1], Draw.ORANGE);
+            row.info = true;
+            row.enabled = false;
+            out.add(row);
         }
     }
 

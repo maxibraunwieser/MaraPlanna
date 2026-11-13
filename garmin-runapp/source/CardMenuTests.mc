@@ -38,6 +38,30 @@ function testCardMenuMovesWithinTheList(logger as Logger) as Boolean {
     return true;
 }
 
+// Infozeilen (Einzelheiten einer Einheit) bekommen nie den Fokus: AUF/AB springt von Karte zu Karte
+(:test)
+function testCardMenuSkipsInfoRows(logger as Logger) as Boolean {
+    var run = new CardItem(:run, "Lauf", "7 km", Draw.ORANGE);
+    var i1 = new CardItem(:info, "Einlaufen", "2 km", Draw.ORANGE);
+    var i2 = new CardItem(:info, "3 × 1000 m", "4:05", Draw.ORANGE);
+    i1.info = true;
+    i2.info = true;
+    var lift = new CardItem(:lift, "Kraft", "3 Übungen", Draw.VIOLET);
+    var i3 = new CardItem(:info, "Bankdrücken", "3 × 8", Draw.VIOLET);
+    i3.info = true;
+    var m = new CardMenu("Test", [] as Array<String>, [[run, i1, i2, lift, i3]] as Array<Array<CardItem>>);
+    Test.assertEqual(m.index, 0);
+    m.move(1);
+    Test.assertEqual(m.index, 3);
+    m.move(1);
+    Test.assertEqual(m.index, 3);
+    m.move(-1);
+    Test.assertEqual(m.index, 0);
+    m.move(9);
+    Test.assertEqual(m.index, 3);
+    return true;
+}
+
 (:test)
 function testCardMenuTabBarIsAboveTheFirstCard(logger as Logger) as Boolean {
     var m = sampleMenu(true);

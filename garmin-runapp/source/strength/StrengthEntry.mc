@@ -47,7 +47,7 @@ module StrengthEntry {
     }
 
     // Reiter "Heute" ausführlich: je Krafteinheit von heute die Kopfzeile (mit Haken, wenn erledigt), darunter jede Übung
-    // ("Kniebeuge", "3 × 8 · 60 kg"); jede Zeile startet die Einheit.
+    // ("Kniebeuge", "3 × 8 · 60 kg") als Infozeile, nicht wählbar.
     (:strength :details)
     function todayDetail(feed as Dictionary?, out as Array<CardItem>) as Void {
         if (StrengthPlan.status(feed) != StrengthStatus.READY) {
@@ -75,7 +75,10 @@ module StrengthEntry {
                     var whole = p.kg.toNumber();
                     amount += " · " + ((p.kg - whole).abs() < 0.05 ? whole.format("%d") : p.kg.format("%.1f")) + " " + unit;
                 }
-                out.add(new CardItem(IDS[i], p.name, amount, Draw.DIM));
+                var row = new CardItem(:info, p.name, amount, Draw.VIOLET);
+                row.info = true;
+                row.enabled = false;
+                out.add(row);
             }
         }
     }

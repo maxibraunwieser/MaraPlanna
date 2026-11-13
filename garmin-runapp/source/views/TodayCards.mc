@@ -3,7 +3,7 @@
 //          ("5 × 1000 m", darunter "4:05-4:15 /km"; danach "Trabpause", "2 min · locker")
 //   Kraft  jede Übung eine Zeile: Name, darunter Sätze × Wiederholungen und Gewicht ("3 × 8 · 60 kg", "2 × 45 s")
 // Ist die Einheit erledigt (vom Server oder von der Uhr selbst gespeichert), trägt ihre Kopfzeile den grünen Haken und
-// "Erledigt". Jede Zeile einer Einheit startet sie (START oder Tippen). Auf den Uhren mit 128 KB gibt es nur die Kopfzeilen.
+// "Erledigt". Die Einzelheiten sind reine Infozeilen (CardItem.info): nicht wählbar, der Fokus springt von Einheit zu Einheit. Auf den Uhren mit 128 KB gibt es nur die Kopfzeilen.
 
 import Toybox.Lang;
 

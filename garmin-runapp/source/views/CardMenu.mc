@@ -34,6 +34,8 @@ class CardItem {
     var mark as Number = -1;
     // false: nur zur Anzeige (z. B. "Heute kein Training"), START tut nichts
     var enabled as Boolean = true;
+    // Infozeile unter einer Karte (z. B. ein Abschnitt der Einheit): niedriger, eingerückt, nie im Fokus, nicht wählbar
+    var info as Boolean = false;
 
     function initialize(id as Object, title as String, sub as String?, tone as Number) {
         self.id = id;
@@ -68,7 +70,8 @@ class CardMenu extends WatchUi.View {
     var index as Number = 0;
     // Geometrie des letzten Zeichnens, für Tippen
     private var _top as Float = 0.0;
-    private var _pitch as Float = 1.0;
+    private var _rh as Float = 1.0;
+    private var _gap as Float = 0.0;
     private var _scroll as Float = 0.0;
     private var _tabsBottom as Float = 0.0;
     private var _showTabs as Boolean = false;
@@ -99,6 +102,9 @@ class CardMenu extends WatchUi.View {
         tab = tab < pages.size() ? tab : 0;
         var last = pages[tab].size() - 1;
         index = index > last ? last : index;
+        if (index >= 0 && pages[tab][index].info) {
+            index = firstIndex();
+        }
         WatchUi.requestUpdate();
     }
 
@@ -107,7 +113,18 @@ class CardMenu extends WatchUi.View {
     }
 
     private function firstIndex() as Number {
-        return pages[tab].size() > 0 ? 0 : (hasTabs() ? -1 : 0);
+        var list = pages[tab];
+        for (var i = 0; i < list.size(); i++) {
+            if (!list[i].info) {
+                return i;
+            }
+        }
+        return hasTabs() ? -1 : 0;
+    }
+
+    // Höhe einer Zeile: Infozeilen sind niedriger
+    private function heightOf(item as CardItem, rh as Float) as Float {
+        return item.info ? rh * 0.74 : rh;
     }
 
     function current() as CardItem? {
@@ -116,12 +133,28 @@ class CardMenu extends WatchUi.View {
     }
 
     // Eine Karte weiter (+1) oder zurück (-1); oberhalb der ersten Karte liegt die Reiterleiste.
+    // Infozeilen werden übersprungen (sie sind nur zum Lesen da).
     function move(step as Number) as Void {
-        var last = pages[tab].size() - 1;
+        var list = pages[tab];
+        var last = list.size() - 1;
         var lo = hasTabs() ? -1 : 0;
+        var dir = step < 0 ? -1 : 1;
         var i = index + step;
         i = i > last ? last : i;
         i = i < lo ? lo : i;
+        // auf einer Infozeile gelandet: in Laufrichtung weiter, am Ende zurück zur letzten wählbaren Karte
+        while (i >= 0 && i <= last && list[i].info) {
+            i += dir;
+        }
+        if (i > last) {
+            i = last;
+            while (i > index && list[i].info) {
+                i -= 1;
+            }
+        }
+        if (i < lo || (i >= 0 && list[i].info)) {
+            i = hasTabs() ? -1 : index;
+        }
         index = i;
         WatchUi.requestUpdate();
     }
@@ -157,12 +190,29 @@ class CardMenu extends WatchUi.View {
             setTab(((x - w * 0.1) / (w * 0.8) * tabs.size()).toNumber());
             return;
         }
-        var row = ((y - _top + _scroll) / _pitch).toNumber();
-        if (y >= _top && row >= 0 && row < pages[tab].size()) {
+        if (y < _top) {
+            return;
+        }
+        var row = rowAt((y - _top + _scroll).toFloat());
+        if (row >= 0 && !pages[tab][row].info) {
             index = row;
             WatchUi.requestUpdate();
             pick(listener);
         }
+    }
+
+    // Zeile an der Stelle (Abstand von der Oberkante der Liste), -1 außerhalb
+    private function rowAt(pos as Float) as Number {
+        var list = pages[tab];
+        var y = 0.0;
+        for (var i = 0; i < list.size(); i++) {
+            var hh = heightOf(list[i], _rh);
+            if (pos >= y && pos < y + hh + _gap) {
+                return i;
+            }
+            y += hh + _gap;
+        }
+        return -1;
     }
 
     function onUpdate(dc as Graphics.Dc) as Void {
@@ -185,18 +235,33 @@ class CardMenu extends WatchUi.View {
         var n = items.size();
         var view = bottom - top;
         var sel = index < 0 ? 0 : index;
-        var scroll = sel * (rh + gap) + rh / 2.0 - view / 2.0;
-        var most = n * (rh + gap) - gap - view;
+        // Lage jeder Zeile (Infozeilen sind niedriger); die Karte im Fokus steht möglichst in der Mitte, ihre Infozeilen darunter
+        var ys = [] as Array<Float>;
+        var pos = 0.0;
+        for (var i = 0; i < n; i++) {
+            ys.add(pos);
+            pos += heightOf(items[i], rh) + gap;
+        }
+        var selY = n > 0 ? ys[sel < n ? sel : n - 1] : 0.0;
+        var withInfo = sel + 1 < n && items[sel + 1].info;
+        var scroll = selY + rh / 2.0 - (withInfo ? view / 3.0 : view / 2.0);
+        var most = pos - gap - view;
         scroll = scroll > most ? most : scroll;
         scroll = scroll < 0 ? 0.0 : scroll;
         _top = top;
-        _pitch = rh + gap;
+        _rh = rh;
+        _gap = gap;
         _scroll = scroll;
         dc.setClip(0, top.toNumber(), w, view.toNumber());
         for (var i = 0; i < n; i++) {
-            var y = top + i * (rh + gap) - scroll;
-            if (y + rh >= top && y <= bottom) {
-                row(dc, items[i], y, rh, i == index);
+            var y = top + ys[i] - scroll;
+            var hh = heightOf(items[i], rh);
+            if (y + hh >= top && y <= bottom) {
+                if (items[i].info) {
+                    infoRow(dc, items[i], y, hh);
+                } else {
+                    row(dc, items[i], y, rh, i == index);
+                }
             }
         }
         dc.clearClip();
@@ -262,6 +327,27 @@ class CardMenu extends WatchUi.View {
         // dünne Trennlinie unter der Zeile
         dc.setColor(Draw.TRACK, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(x + cw * 0.04, y + rh + 1, x + cw * 0.96, y + rh + 1);
+    }
+
+    // Infozeile: eingerückt unter ihrer Karte, kleine Schrift, Titel und Untertitel nebeneinander bzw. untereinander,
+    // ein dünner Strich in der Farbe der Karte links zeigt, wozu sie gehört. Kein Fokus, keine Trennlinie.
+    private function infoRow(dc as Graphics.Dc, item as CardItem, y as Float, hh as Float) as Void {
+        var w = dc.getWidth();
+        var cy = y + hh / 2.0;
+        var cw = Draw.widthAt(dc, cy, hh) * 0.95;
+        cw = cw > w * 0.9 ? w * 0.9 : (cw < w * 0.74 ? w * 0.74 : cw);
+        var x = (w - cw) / 2.0;
+        var tx = x + cw * 0.16;
+        var room = (cw - (tx - x) - cw * 0.05).toNumber();
+        dc.setColor(item.tone, Graphics.COLOR_TRANSPARENT);
+        dc.fillRectangle(x + cw * 0.09, y + hh * 0.12, 2, hh * 0.76);
+        var f = Graphics.FONT_XTINY;
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(tx, y + hh * 0.27, f, Draw.fit(dc, item.title, f, room), Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        if (item.sub != null) {
+            dc.setColor(Draw.DIM, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(tx, y + hh * 0.75, f, Draw.fit(dc, item.sub as String, f, room), Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        }
     }
 
     // Schalter wie in der App: grün mit Knopf rechts (an), grau mit Knopf links (aus).
