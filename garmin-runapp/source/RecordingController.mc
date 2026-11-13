@@ -18,15 +18,10 @@ module Rec {
 }
 
 class RecordingController {
-    // Mindestabstand der Pace-Alarme. Ein Alarm kommt erst, wenn die Pace so viele Sekunden am Stück
-    // außerhalb des Zielbereichs liegt (kurze Ausreißer lösen nichts aus).
-    private const ALARM_GAP_MS = 30000;
-    private const OFF_SECONDS = 8;
+    // Wann der Pace-Alarm kommt (Anlauf, Dauer daneben, Abstand, Kulanz) steht je nach Art des Abschnitts in PaceAlarm.mc.
     // Kommt so lange kein Puls aus der Aktivität, wird der Pulssensor ausdrücklich eingeschaltet (Sicherheitsnetz
     // für Uhren, die ihn nicht von selbst starten). Normalerweise passiert das nie: ANT+ stört Bluetooth-Musik.
     private const HR_WAIT_S = 20;
-    // In den ersten Sekunden eines Schritts beschleunigt man noch: kein Alarm.
-    private const SETTLE_S = 20;
 
     var state as Number = Rec.IDLE;
     var zone as Number = 0;
@@ -67,7 +62,7 @@ class RecordingController {
     private var _noHrTicks as Number = 0;
     private var _offTicks as Number = 0;
     private var _offSign as Number = 0;
-    private var _lastAlarm as Number = -ALARM_GAP_MS;
+    private var _lastAlarm as Number = -10000000;
     // Startzeit des Laufs (Sekunden seit 1970) für die Liste "Absolviert"
     private var _startedAt as Number = 0;
     private var _lapMs as Number = 0;
@@ -325,20 +320,22 @@ class RecordingController {
             }
         }
 
-        // Zielbereich prüfen; Alarm höchstens alle 30 s und nicht direkt nach einem Schrittwechsel.
+        // Zielbereich prüfen: der Hinweis auf dem Display sofort, der Alarm nach den Regeln der Art des Abschnitts (PaceAlarm)
         var range = target();
         hint = Pace.compare(pace, range);
-        // Wie lange liegt die Pace schon auf derselben Seite außerhalb des Bereichs?
-        if (hint != 0 && hint == _offSign) {
+        var zoneNow = currentZone();
+        var side = PaceAlarm.side(pace, range, PaceAlarm.rules(zoneNow)[PaceAlarm.GRACE]);
+        // Wie lange liegt die Pace schon auf derselben Seite außerhalb des Bereichs (mit Kulanz)?
+        if (side != 0 && side == _offSign) {
             _offTicks += 1;
         } else {
-            _offTicks = hint != 0 ? 1 : 0;
-            _offSign = hint;
+            _offTicks = side != 0 ? 1 : 0;
+            _offSign = side;
         }
-        var settled = workout != null ? (workout as Workout).stepSeconds(ms) >= SETTLE_S : (ms - _zoneStartMs) / 1000 >= SETTLE_S;
-        if (hint != 0 && _offTicks >= OFF_SECONDS && settled && ms - _lastAlarm >= ALARM_GAP_MS && Prefs.paceAlert()) {
+        var stepS = workout != null ? (workout as Workout).stepSeconds(ms) : (ms - _zoneStartMs) / 1000;
+        if (side != 0 && Prefs.paceAlert() && PaceAlarm.due(zoneNow, stepS, _offTicks, (ms - _lastAlarm) / 1000)) {
             _lastAlarm = ms;
-            Alert.pace(hint < 0);
+            Alert.pace(side < 0);
         }
 
         if (_fit != null) {

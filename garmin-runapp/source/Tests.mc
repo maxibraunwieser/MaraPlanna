@@ -952,6 +952,33 @@ function testPaceSmootherLaggingWatchSpeed(logger as Logger) as Boolean {
     return true;
 }
 
+// Pace-Alarm: bei ruhigen Läufen spät, mit Kulanz und selten; bei harten Abschnitten nach 30 s, 10 s am Stück, jede Minute.
+(:test)
+function testPaceAlarmRules(logger as Logger) as Boolean {
+    var easy = 1;
+    var interval = 6;
+    var range = [326, 360] as Array<Number>;
+    // Kulanz bei Easy: 3 s/km zu langsam zählt nicht, 8 s/km schon
+    Test.assertEqual(PaceAlarm.side(363.0, range, PaceAlarm.rules(easy)[PaceAlarm.GRACE]), 0);
+    Test.assertEqual(PaceAlarm.side(368.0, range, PaceAlarm.rules(easy)[PaceAlarm.GRACE]), 1);
+    Test.assertEqual(PaceAlarm.side(310.0, range, PaceAlarm.rules(easy)[PaceAlarm.GRACE]), -1);
+    Test.assertEqual(PaceAlarm.side(null, range, 5), 0);
+    Test.assertEqual(PaceAlarm.side(300.0, null, 5), 0);
+    // Easy: nicht in den ersten 3 Minuten, erst nach 30 s am Stück, dann höchstens alle 3 Minuten
+    Test.assert(!PaceAlarm.due(easy, 179, 60, 9999));
+    Test.assert(!PaceAlarm.due(easy, 400, 29, 9999));
+    Test.assert(PaceAlarm.due(easy, 400, 30, 9999));
+    Test.assert(!PaceAlarm.due(easy, 400, 60, 179));
+    Test.assert(PaceAlarm.due(easy, 400, 60, 180));
+    // Intervall: ab 30 s im Abschnitt, 10 s am Stück, dann jede Minute
+    Test.assert(!PaceAlarm.due(interval, 29, 20, 9999));
+    Test.assert(!PaceAlarm.due(interval, 40, 9, 9999));
+    Test.assert(PaceAlarm.due(interval, 40, 10, 9999));
+    Test.assert(!PaceAlarm.due(interval, 100, 30, 59));
+    Test.assert(PaceAlarm.due(interval, 100, 30, 60));
+    return true;
+}
+
 // Automatisch laden: 6:30, dann alle 30 Minuten bis 22:00, nachts nicht.
 (:test)
 function testAutoSyncSlots(logger as Logger) as Boolean {
