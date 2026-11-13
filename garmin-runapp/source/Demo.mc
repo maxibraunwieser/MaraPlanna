@@ -148,8 +148,8 @@ module Demo {
             return ["select", "select"] as Array<String>;
         }
         if (PILOT.equals("views")) {
-            // Training → Heute durchblättern, zurück, Fortschritt öffnen und zwei Säulen weiter
-            return ["menu", "next", "next", "next", "next", "next", "next", "back", "progress", "up", "up"] as Array<String>;
+            // Training → Heute: den Lauf aufklappen und durchblättern, zurück, Fortschritt öffnen und zwei Säulen weiter
+            return ["menu", "select", "next", "next", "next", "back", "progress", "up", "up"] as Array<String>;
         }
         return PILOT.equals("strength") ? STRENGTH_STEPS : (PILOT.equals("run") ? STEPS : [] as Array<String>);
     }

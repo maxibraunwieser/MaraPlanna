@@ -116,39 +116,56 @@ module TrainMenu {
         return out;
     }
 
-    // Heute: der Lauf mit seinen Abschnitten (Kopfzeile mit Haken, wenn erledigt)
+    // Heute: der Lauf (Kopfzeile mit Haken, wenn erledigt); aufgeklappt darunter sein Inhalt und "Einheit starten"
     (:details)
-    function todayRunCards(workout as Workout, feed as Dictionary?, miles as Boolean, out as Array<CardItem>) as Void {
+    function todayRunCards(workout as Workout, feed as Dictionary?, miles as Boolean, out as Array<CardItem>, expanded as Object?) as Void {
         var head = todayRun(workout, feed, miles);
         if (head.mark != Mark.DONE && TodayCards.runDone(WeekPlan.today())) {
             head.mark = Mark.DONE;
             head.sub = MainMenu.text(Rez.Strings.TrainDone) + " · " + head.sub;
         }
         out.add(head);
-        // der Inhalt der Einheit als ein Kasten darunter (nicht wählbar)
-        var rows = TodayCards.runRows(workout, miles);
+        if (expanded == head.id) {
+            addDropdown(out, head, TodayCards.runRows(workout, miles));
+        }
+    }
+
+    (:nodetails)
+    function todayRunCards(workout as Workout, feed as Dictionary?, miles as Boolean, out as Array<CardItem>, expanded as Object?) as Void {
+        out.add(todayRun(workout, feed, miles));
+    }
+
+    // Aufgeklappte Einheit: ihr Inhalt als Kasten (nicht wählbar), darunter die Zeile, die sie startet
+    function addDropdown(out as Array<CardItem>, head as CardItem, rows as Array<Array<String>>) as Void {
         if (rows.size() > 0) {
-            var box = new CardItem(:info, "", null, Draw.ORANGE);
+            var box = new CardItem(:info, "", null, head.tone);
             box.info = true;
             box.enabled = false;
             box.lines = rows;
             out.add(box);
         }
+        out.add(new CardItem([:go, head.id] as Array<Object>, "Einheit starten", head.title, head.tone));
+    }
+
+    // Kann "Heute" aufklappen? (die kleinen Uhren starten die Einheit gleich)
+    (:details)
+    function canExpand() as Boolean {
+        return true;
     }
 
     (:nodetails)
-    function todayRunCards(workout as Workout, feed as Dictionary?, miles as Boolean, out as Array<CardItem>) as Void {
-        out.add(todayRun(workout, feed, miles));
+    function canExpand() as Boolean {
+        return false;
     }
 
     function show() as Void {
-        var built = build();
+        var built = build(null);
         Cards.showTabs(MainMenu.text(Rez.Strings.MenuTrain), built[0] as Array<String>, built[1] as Array<Array<CardItem>>, new TrainMenuDelegate(), WatchUi.SLIDE_LEFT);
     }
 
     // Reiter und Karten aus den aktuellen Daten: [Reiter, Seiten]. Wird bei jedem Zeigen neu gebaut (nach einem Training, einem
-    // Abgleich im Hintergrund), damit "Heute" den Stand zeigt.
-    function build() as Array {
+    // Abgleich im Hintergrund), damit "Heute" den Stand zeigt. expanded: die aufgeklappte Einheit von heute (ihre Kennung) oder null.
+    function build(expanded as Object?) as Array {
         var app = getApp();
         var feed = WeekPlan.feed();
         var workout = Workout.fromFeed(feed);
@@ -161,9 +178,9 @@ module TrainMenu {
         // Heute: die geplanten Einheiten von heute mit ihren Einzelheiten, gewählt wird direkt die, die gemacht wird
         var today = [] as Array<CardItem>;
         if (workout != null) {
-            todayRunCards(workout as Workout, feed, miles, today);
+            todayRunCards(workout as Workout, feed, miles, today, expanded);
         }
-        StrengthEntry.todayDetail(feed, today);
+        StrengthEntry.todayDetail(feed, today, expanded);
         if (today.size() == 0) {
             var none = new CardItem(:none, MainMenu.text(Rez.Strings.TodayNone), MainMenu.text(Rez.Strings.TodayNoneHint), Draw.GRAY);
             none.enabled = false;
@@ -188,17 +205,35 @@ class TrainMenuDelegate extends CardMenuListener {
 
     // Wieder sichtbar (zurück vom Training, neue Daten): die Karten neu bauen
     function onShow(menu as CardMenu) as Void {
-        var built = TrainMenu.build();
+        var built = TrainMenu.build(_expanded);
         menu.refresh(built[0] as Array<String>, built[1] as Array<Array<CardItem>>);
     }
 
-    // Gewählte Einheit → Startbildschirm (GPS-Suche, START beginnt den Lauf) bzw. das Krafttraining.
+    // Die aufgeklappte Einheit im Reiter Heute (null: alle zu)
+    private var _expanded as Object? = null;
+
+    // Heute: eine Einheit antippen klappt ihren Inhalt auf (nochmal: zu); "Einheit starten" darunter startet sie.
+    // Laufen, Kraft: gewählte Einheit → Startbildschirm (GPS-Suche, START beginnt den Lauf) bzw. das Krafttraining.
     function onPick(menu as CardMenu, item as CardItem) as Void {
-        if (StrengthEntry.handles(item.id)) {
-            StrengthEntry.open(item.id, WeekPlan.feed());
+        var id = item.id;
+        if (id instanceof Array) {
+            start((id as Array)[1] as Object);
             return;
         }
-        var view = new StartView(item.id as Number);
+        if (menu.tab == 0 && TrainMenu.canExpand()) {
+            _expanded = _expanded == id ? null : id;
+            onShow(menu);
+            return;
+        }
+        start(id);
+    }
+
+    private function start(id as Object) as Void {
+        if (StrengthEntry.handles(id)) {
+            StrengthEntry.open(id, WeekPlan.feed());
+            return;
+        }
+        var view = new StartView(id as Number);
         WatchUi.pushView(view, new StartDelegate(view), WatchUi.SLIDE_LEFT);
     }
 }

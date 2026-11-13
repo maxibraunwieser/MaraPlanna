@@ -49,7 +49,7 @@ module StrengthEntry {
     // Reiter "Heute" ausführlich: je Krafteinheit von heute die Kopfzeile (mit Haken, wenn erledigt), darunter jede Übung
     // ("Kniebeuge", "3 × 8 · 60 kg") als Infozeile, nicht wählbar.
     (:strength :details)
-    function todayDetail(feed as Dictionary?, out as Array<CardItem>) as Void {
+    function todayDetail(feed as Dictionary?, out as Array<CardItem>, expanded as Object?) as Void {
         if (StrengthPlan.status(feed) != StrengthStatus.READY) {
             return;
         }
@@ -62,6 +62,10 @@ module StrengthEntry {
                 head.sub = MainMenu.text(Rez.Strings.TrainDone) + " · " + head.sub;
             }
             out.add(head);
+            // zugeklappt: nur die Kopfzeile
+            if (expanded != head.id) {
+                continue;
+            }
             var plan = StrengthPlan.fromFeed(feed, i);
             if (plan == null) {
                 continue;
@@ -78,23 +82,17 @@ module StrengthEntry {
                 }
                 rows.add([p.name, amount] as Array<String>);
             }
-            // die Übungen als ein Kasten unter der Einheit (nicht wählbar)
-            if (rows.size() > 0) {
-                var box = new CardItem(:info, "", null, Draw.VIOLET);
-                box.info = true;
-                box.enabled = false;
-                box.lines = rows;
-                out.add(box);
-            }
+            // die Übungen als Kasten unter der Einheit (nicht wählbar), darunter "Einheit starten"
+            TrainMenu.addDropdown(out, head, rows);
         }
     }
 
     (:nostrength)
-    function todayDetail(feed as Dictionary?, out as Array<CardItem>) as Void {
+    function todayDetail(feed as Dictionary?, out as Array<CardItem>, expanded as Object?) as Void {
     }
 
     (:strength :nodetails)
-    function todayDetail(feed as Dictionary?, out as Array<CardItem>) as Void {
+    function todayDetail(feed as Dictionary?, out as Array<CardItem>, expanded as Object?) as Void {
         todayItems(feed, out);
     }
 
