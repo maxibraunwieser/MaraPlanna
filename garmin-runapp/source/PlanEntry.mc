@@ -30,6 +30,26 @@ module PlanEntry {
         WatchUi.pushView(new PlanView(), new PlanDelegate(), WatchUi.SLIDE_LEFT);
     }
 
+    // Hauptmenü: "Fortschritt" (Säulendiagramm der letzten 7 Tage); die kleinen Uhren haben es nicht
+    (:details)
+    function addProgress(items as Array<CardItem>) as Void {
+        items.add(new CardItem(:progress, "Fortschritt", ProgressData.summary(ProgressData.load(WeekPlan.today())), Draw.LIME));
+    }
+
+    (:nodetails)
+    function addProgress(items as Array<CardItem>) as Void {
+    }
+
+    (:details)
+    function showProgress() as Void {
+        var view = new ProgressView();
+        WatchUi.pushView(view, new ProgressDelegate(view), WatchUi.SLIDE_LEFT);
+    }
+
+    (:nodetails)
+    function showProgress() as Void {
+    }
+
     // Eigener Lauf gespeichert: für die Liste "Absolviert" merken, bis der Server ihn kennt.
     (:details)
     function logRun(startedAt as Number, meters as Float, seconds as Number, hr as Number?, title as String) as Void {
@@ -38,5 +58,15 @@ module PlanEntry {
 
     (:nodetails)
     function logRun(startedAt as Number, meters as Float, seconds as Number, hr as Number?, title as String) as Void {
+    }
+
+    // Eigenes Krafttraining gespeichert: gilt sofort als erledigt (Trainingsplan, Heute, Absolviert), bis der Server es kennt.
+    (:details)
+    function logStrength(startedAt as Number, seconds as Number, title as String, lines as Array) as Void {
+        StrengthLog.add(startedAt, seconds, title, lines);
+    }
+
+    (:nodetails)
+    function logStrength(startedAt as Number, seconds as Number, title as String, lines as Array) as Void {
     }
 }

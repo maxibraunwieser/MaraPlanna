@@ -46,6 +46,49 @@ module StrengthEntry {
     function todayItems(feed as Dictionary?, out as Array<CardItem>) as Void {
     }
 
+    // Reiter "Heute" ausführlich: je Krafteinheit von heute die Kopfzeile (mit Haken, wenn erledigt), darunter jede Übung
+    // ("Kniebeuge", "3 × 8 · 60 kg"); jede Zeile startet die Einheit.
+    (:strength :details)
+    function todayDetail(feed as Dictionary?, out as Array<CardItem>) as Void {
+        if (StrengthPlan.status(feed) != StrengthStatus.READY) {
+            return;
+        }
+        var sess = StrengthPlan.sessions(feed);
+        var today = WeekPlan.today();
+        for (var i = 0; i < sess.size() && i < IDS.size(); i++) {
+            var head = sessionCard(feed, i) as CardItem;
+            if (TodayCards.strengthDone(today, head.title, i)) {
+                head.mark = Mark.DONE;
+                head.sub = MainMenu.text(Rez.Strings.TrainDone) + " · " + head.sub;
+            }
+            out.add(head);
+            var plan = StrengthPlan.fromFeed(feed, i);
+            if (plan == null) {
+                continue;
+            }
+            var unit = (plan as StrengthPlan).unit;
+            var list = (plan as StrengthPlan).items;
+            for (var k = 0; k < list.size(); k++) {
+                var p = list[k];
+                var amount = p.sets + " × " + (p.hold > 0 ? p.hold + " s" : p.reps.format("%d"));
+                if (p.kg > 0.0) {
+                    var whole = p.kg.toNumber();
+                    amount += " · " + ((p.kg - whole).abs() < 0.05 ? whole.format("%d") : p.kg.format("%.1f")) + " " + unit;
+                }
+                out.add(new CardItem(IDS[i], p.name, amount, Draw.DIM));
+            }
+        }
+    }
+
+    (:nostrength)
+    function todayDetail(feed as Dictionary?, out as Array<CardItem>) as Void {
+    }
+
+    (:strength :nodetails)
+    function todayDetail(feed as Dictionary?, out as Array<CardItem>) as Void {
+        todayItems(feed, out);
+    }
+
     // Reiter "Kraft": die Einheiten von heute und das freie Training, oder der Hinweis zur Einrichtung. Leer, wenn es Kraft nicht gibt.
     (:strength)
     function items(feed as Dictionary?) as Array<CardItem> {

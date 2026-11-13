@@ -177,3 +177,86 @@ function testRunLogKeepsTheLatest(logger as Logger) as Boolean {
     if (saved == null) { Application.Storage.deleteValue("runLog"); } else { Application.Storage.setValue("runLog", saved); }
     return true;
 }
+
+
+// Trainingsplan, Heute: Ein Lauf und ein Krafttraining, die die Uhr selbst gespeichert hat, gelten sofort als erledigt, auch
+// wenn der Server sie noch nicht kennt; jede erledigte Einheit zählt nur einmal, künftige Tage bleiben offen.
+(:test)
+function testLocalDoneMarksThePlan(logger as Logger) as Boolean {
+    var keys = ["plan", "runLog", "strLog", "run"] as Array<String>;
+    var saved = [] as Array;
+    for (var i = 0; i < keys.size(); i++) {
+        saved.add(Application.Storage.getValue(keys[i]));
+        Application.Storage.deleteValue(keys[i]);
+    }
+    var today = WeekPlan.today();
+    var monday = WeekPlan.monday(today);
+    Application.Storage.setValue("plan", { "start" => WeekPlan.iso(monday), "days" => [] as Array<Application.Storage.ValueType>, "done" => [] as Array<Application.Storage.ValueType> } as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>);
+    var now = Time.now().value();
+    RunLog.add(now - 600, 10200.0, 3100, 150, "Intervalle 5x1000");
+    StrengthLog.add(now - 300, 2400, "Oberkörper", [["Bankdrücken", "3 × 8 · 60 kg"]] as Array);
+    var planned = [
+        { "day" => today, "t" => "Intervalle 5x1000", "k" => 10.0, "s" => "p" },
+        { "day" => today, "t" => "Oberkörper", "k" => 0.0, "s" => "p" },
+        { "day" => today, "t" => "Zweiter Lauf", "k" => 5.0, "s" => "p" },
+        { "day" => today + 1, "t" => "Morgen", "k" => 8.0, "s" => "p" }
+    ] as Array<Dictionary>;
+    PlanData.applyDone(planned, today);
+    Test.assertEqual(planned[0].get("s") as Object, "c");
+    Test.assertEqual(planned[1].get("s") as Object, "c");
+    Test.assertEqual(planned[2].get("s") as Object, "p");
+    Test.assertEqual(planned[3].get("s") as Object, "p");
+    // Absolviert zeigt beide, Heute sieht sie
+    Test.assertEqual(PlanData.doneOn(PlanData.finished(today), today).toString(), [1, 1].toString());
+    Test.assert(TodayCards.runDone(today));
+    Test.assert(TodayCards.strengthDone(today, "Oberkörper", 0));
+    Test.assert(!TodayCards.strengthDone(today, "Unterkörper", 1));
+    for (var i = 0; i < keys.size(); i++) {
+        if (saved[i] == null) { Application.Storage.deleteValue(keys[i]); } else { Application.Storage.setValue(keys[i], saved[i] as Application.Storage.ValueType); }
+    }
+    return true;
+}
+
+// Heute: Wiederholungen werden eine Zeile ("3 × 1000 m", Ziel darunter) und die Trabpause eine eigene, alles andere je eine Zeile.
+(:test)
+function testTodayRunRows(logger as Logger) as Boolean {
+    var w = new Workout("3x1000", 6, [
+        { "n" => "Einlaufen", "t" => "w", "d" => 2000, "lo" => 326, "hi" => 360 },
+        { "n" => "Interval 1/3", "t" => "a", "d" => 1000, "lo" => 245, "hi" => 255 },
+        { "n" => "Trabpause", "t" => "r", "s" => 120 },
+        { "n" => "Interval 2/3", "t" => "a", "d" => 1000, "lo" => 245, "hi" => 255 },
+        { "n" => "Trabpause", "t" => "r", "s" => 120 },
+        { "n" => "Interval 3/3", "t" => "a", "d" => 1000, "lo" => 245, "hi" => 255 },
+        { "n" => "Auslaufen", "t" => "c", "d" => 1500, "lo" => 326, "hi" => 360 }
+    ] as Array<Dictionary>);
+    var rows = TodayCards.runRows(w, false);
+    Test.assertEqual(rows.size(), 4);
+    Test.assertEqual(rows[0][0], "Einlaufen · 2 km");
+    Test.assertEqual(rows[0][1], "5:26-6:00 /km");
+    Test.assertEqual(rows[1][0], "3 × 1000 m");
+    Test.assertEqual(rows[1][1], "4:05-4:15 /km");
+    Test.assertEqual(rows[2][0], "Trabpause");
+    Test.assertEqual(rows[2][1], "2 min · locker");
+    Test.assertEqual(rows[3][0], "Auslaufen · 1,5 km");
+    return true;
+}
+
+// Fortschritt: Art des Laufs aus dem Titel, Startzeiten in Garmin-Sekunden, Dauer als Text.
+(:test)
+function testProgressData(logger as Logger) as Boolean {
+    Test.assertEqual(ProgressData.kindOf("Intervalle 5x1000"), ProgressData.K_INTERVAL);
+    Test.assertEqual(ProgressData.kindOf("Long Run"), ProgressData.K_LONG);
+    Test.assertEqual(ProgressData.kindOf("Easy Run"), ProgressData.K_EASY);
+    Test.assertEqual(ProgressData.kindOf("Tempolauf"), ProgressData.K_TEMPO);
+    Test.assertEqual(ProgressData.kindOf("Fahrtspiel 6x2"), ProgressData.K_FARTLEK);
+    Test.assertEqual(ProgressData.kindOf("Recovery"), ProgressData.K_RECOVERY);
+    Test.assertEqual(ProgressData.kindOf("Marathon pace"), ProgressData.K_MARATHON);
+    Test.assertEqual(ProgressData.kindOf("Freier Lauf"), ProgressData.K_NONE);
+    Test.assertEqual(ProgressData.kindOf(null), ProgressData.K_NONE);
+    var now = 1794500000;
+    Test.assertEqual(ProgressData.unixOf(now - 3600, now), now - 3600);
+    Test.assertEqual(ProgressData.unixOf(now - 3600 - ProgressData.GARMIN_EPOCH, now), now - 3600);
+    Test.assertEqual(ProgressData.duration(3120), "52 min");
+    Test.assertEqual(ProgressData.duration(5100), "1:25 h");
+    return true;
+}

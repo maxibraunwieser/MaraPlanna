@@ -738,6 +738,7 @@ class StrengthController {
         if (sets.size() == 0) {
             return;
         }
+        logLocally();
         var rows = [] as Array<Dictionary>;
         for (var i = 0; i < sets.size(); i++) {
             var s = sets[i];
@@ -762,6 +763,45 @@ class StrengthController {
             upload = 1;
             (sync as Sync).postStrength(payload as Dictionary<Application.Storage.KeyType, Application.Storage.ValueType>, method(:onUploaded));
         }
+    }
+
+    // Das Training auf der Uhr merken (Übungen zusammengefasst wie auf der Website: "3 × 8 · 60 kg"), damit es sofort als
+    // erledigt gilt, auch ohne Verbindung zum Handy.
+    private function logLocally() as Void {
+        var names = [] as Array<String>;
+        var count = [] as Array<Number>;
+        var reps = [] as Array<Number>;
+        var kg = [] as Array<Float>;
+        for (var i = 0; i < sets.size(); i++) {
+            var at = names.indexOf(sets[i].name);
+            if (at < 0) {
+                names.add(sets[i].name);
+                count.add(0);
+                reps.add(sets[i].reps);
+                kg.add(0.0);
+                at = names.size() - 1;
+            }
+            count[at] += 1;
+            kg[at] = sets[i].kg > kg[at] ? sets[i].kg : kg[at];
+        }
+        var lines = [] as Array;
+        for (var i = 0; i < names.size(); i++) {
+            var text = count[i] + " × " + reps[i] + (kg[i] > 0.0 ? " · " + kgText(kg[i]) + " " + plan.unit : "");
+            lines.add([names[i], text] as Array<String>);
+        }
+        var title = plan.title.length() > 0 ? plan.title : WatchUi.loadResource(Rez.Strings.StrengthName) as String;
+        PlanEntry.logStrength(_startEpoch, Time.now().value() - _startEpoch, title, lines);
+    }
+
+    // 60 → "60", 22.5 → "22,5"
+    private function kgText(v as Float) as String {
+        var whole = v.toNumber();
+        if ((v - whole).abs() < 0.05) {
+            return whole.format("%d");
+        }
+        var t = v.format("%.1f");
+        var dot = t.find(".");
+        return dot == null ? t : t.substring(0, dot) + "," + t.substring(dot + 1, t.length());
     }
 
     function onUploaded(ok as Boolean) as Void {

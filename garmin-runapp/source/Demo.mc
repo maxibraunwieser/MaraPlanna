@@ -147,6 +147,10 @@ module Demo {
             // Menü → Bereit-Bildschirm → Start; dann läuft die Simulation von selbst
             return ["select", "select"] as Array<String>;
         }
+        if (PILOT.equals("views")) {
+            // Training → Heute durchblättern, zurück, Fortschritt öffnen und zwei Säulen weiter
+            return ["menu", "next", "next", "next", "next", "next", "next", "back", "progress", "up", "up"] as Array<String>;
+        }
         return PILOT.equals("strength") ? STRENGTH_STEPS : (PILOT.equals("run") ? STEPS : [] as Array<String>);
     }
 
@@ -176,6 +180,17 @@ module Demo {
         }
         if (action.equals("menu")) {
             TrainMenu.show();
+            System.println("autopilot " + stepIndex + ": Training geöffnet");
+            autopilot();
+            return;
+        }
+        if (action.equals("progress")) {
+            PlanEntry.showProgress();
+            autopilot();
+            return;
+        }
+        if (action.equals("up") && d instanceof WatchUi.BehaviorDelegate) {
+            (d as WatchUi.BehaviorDelegate).onPreviousPage();
             autopilot();
             return;
         }

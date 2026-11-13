@@ -114,6 +114,11 @@ class RunApp extends Application.AppBase {
         } else if (zones != null) {
             (zones as PaceZones).load();
         }
+        // Das Menü Training ist offen: "Heute" gleich mit den neuen Daten zeigen
+        var top = WatchUi.getCurrentView()[0];
+        if (top instanceof CardMenu && (top as CardMenu).listener instanceof TrainMenuDelegate) {
+            ((top as CardMenu).listener as TrainMenuDelegate).onShow(top as CardMenu);
+        }
         WatchUi.requestUpdate();
     }
 

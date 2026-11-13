@@ -25,9 +25,10 @@ module MainMenu {
         var items = [
             new CardItem(:train, text(Rez.Strings.MenuTrain), trainInfo(feed), Draw.ORANGE),
             new CardItem(:week, text(Rez.Strings.MenuWeek), weekInfo(feed, today), Draw.GREEN),
-            new CardItem(:plan, text(Rez.Strings.MenuPlan), planInfo(feed, today), Draw.BLUE),
-            new CardItem(:settings, text(Rez.Strings.MenuSettings), null, Draw.GRAY)
+            new CardItem(:plan, text(Rez.Strings.MenuPlan), planInfo(feed, today), Draw.BLUE)
         ] as Array<CardItem>;
+        PlanEntry.addProgress(items);
+        items.add(new CardItem(:settings, text(Rez.Strings.MenuSettings), null, Draw.GRAY));
         Cards.show(text(Rez.Strings.AppName), items, new MainMenuDelegate(), WatchUi.SLIDE_UP);
     }
 
@@ -74,6 +75,8 @@ class MainMenuDelegate extends CardMenuListener {
             PlanEntry.showDone();
         } else if (id == :plan) {
             PlanEntry.openPlan();
+        } else if (id == :progress) {
+            PlanEntry.showProgress();
         } else if (id == :settings) {
             SettingsMenu.show();
         }
@@ -92,10 +95,13 @@ module TrainMenu {
     function todayRun(workout as Workout, feed as Dictionary?, miles as Boolean) as CardItem {
         var minutes = (workout.plannedTotal() / 60.0 + 0.5).toNumber();
         var info = Pace.distance1(workout.plannedMeters(), miles) + (miles ? " mi" : " km") + " · " + minutes + " min";
-        if (WeekPlan.allDone(WeekPlan.sessions(feed, WeekPlan.today()))) {
+        var done = WeekPlan.allDone(WeekPlan.sessions(feed, WeekPlan.today()));
+        if (done) {
             info = MainMenu.text(Rez.Strings.TrainDone) + " · " + info;
         }
-        return new CardItem(Choices.TODAY, workout.title, info, Draw.ORANGE);
+        var card = new CardItem(Choices.TODAY, workout.title, info, Draw.ORANGE);
+        card.mark = done ? Mark.DONE : Mark.NONE;
+        return card;
     }
 
     // Alle Lauftypen mit bekannter Pace und der freie Lauf
@@ -110,7 +116,34 @@ module TrainMenu {
         return out;
     }
 
+    // Heute: der Lauf mit seinen Abschnitten (Kopfzeile mit Haken, wenn erledigt)
+    (:details)
+    function todayRunCards(workout as Workout, feed as Dictionary?, miles as Boolean, out as Array<CardItem>) as Void {
+        var head = todayRun(workout, feed, miles);
+        if (head.mark != Mark.DONE && TodayCards.runDone(WeekPlan.today())) {
+            head.mark = Mark.DONE;
+            head.sub = MainMenu.text(Rez.Strings.TrainDone) + " · " + head.sub;
+        }
+        out.add(head);
+        var rows = TodayCards.runRows(workout, miles);
+        for (var i = 0; i < rows.size(); i++) {
+            out.add(new CardItem(Choices.TODAY, rows[i][0], rows[i][1], Draw.DIM));
+        }
+    }
+
+    (:nodetails)
+    function todayRunCards(workout as Workout, feed as Dictionary?, miles as Boolean, out as Array<CardItem>) as Void {
+        out.add(todayRun(workout, feed, miles));
+    }
+
     function show() as Void {
+        var built = build();
+        Cards.showTabs(MainMenu.text(Rez.Strings.MenuTrain), built[0] as Array<String>, built[1] as Array<Array<CardItem>>, new TrainMenuDelegate(), WatchUi.SLIDE_LEFT);
+    }
+
+    // Reiter und Karten aus den aktuellen Daten: [Reiter, Seiten]. Wird bei jedem Zeigen neu gebaut (nach einem Training, einem
+    // Abgleich im Hintergrund), damit "Heute" den Stand zeigt.
+    function build() as Array {
         var app = getApp();
         var feed = WeekPlan.feed();
         var workout = Workout.fromFeed(feed);
@@ -120,12 +153,12 @@ module TrainMenu {
         }
         var miles = zones != null && (zones as PaceZones).miles;
 
-        // Heute: die geplanten Einheiten von heute, gewählt wird direkt die, die gemacht wird
+        // Heute: die geplanten Einheiten von heute mit ihren Einzelheiten, gewählt wird direkt die, die gemacht wird
         var today = [] as Array<CardItem>;
         if (workout != null) {
-            today.add(todayRun(workout as Workout, feed, miles));
+            todayRunCards(workout as Workout, feed, miles, today);
         }
-        StrengthEntry.todayItems(feed, today);
+        StrengthEntry.todayDetail(feed, today);
         if (today.size() == 0) {
             var none = new CardItem(:none, MainMenu.text(Rez.Strings.TodayNone), MainMenu.text(Rez.Strings.TodayNoneHint), Draw.GRAY);
             none.enabled = false;
@@ -139,13 +172,19 @@ module TrainMenu {
             tabs.add(MainMenu.text(Rez.Strings.StrengthName));
             pages.add(strength);
         }
-        Cards.showTabs(MainMenu.text(Rez.Strings.MenuTrain), tabs, pages, new TrainMenuDelegate(), WatchUi.SLIDE_LEFT);
+        return [tabs, pages];
     }
 }
 
 class TrainMenuDelegate extends CardMenuListener {
     function initialize() {
         CardMenuListener.initialize();
+    }
+
+    // Wieder sichtbar (zurück vom Training, neue Daten): die Karten neu bauen
+    function onShow(menu as CardMenu) as Void {
+        var built = TrainMenu.build();
+        menu.refresh(built[0] as Array<String>, built[1] as Array<Array<CardItem>>);
     }
 
     // Gewählte Einheit → Startbildschirm (GPS-Suche, START beginnt den Lauf) bzw. das Krafttraining.

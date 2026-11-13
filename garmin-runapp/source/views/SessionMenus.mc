@@ -148,6 +148,7 @@ module SessionMenus {
         var items = [] as Array<CardItem>;
         var detail = PlanData.planned(today);
         var steps = [] as Array<Dictionary?>;
+        var entries = [] as Array<Dictionary>;
         if (monday != null && sessions instanceof Array) {
             for (var i = 0; i < sessions.size(); i++) {
                 var row = sessions[i];
@@ -155,14 +156,22 @@ module SessionMenus {
                     continue;
                 }
                 var day = (monday as Number) + (Pace.toNum(row[0] as Object?) as Number);
-                var entry = { "day" => day, "s" => row[4] } as Dictionary;
                 var km = WeekPlan.toFloat(row[2] as Object?);
+                var entry = { "day" => day, "s" => row[4], "k" => km != null ? km : 0.0 } as Dictionary;
                 var min = Pace.toNum(row[3] as Object?);
                 var amount = km != null && km > 0 ? SessionText.meters((km * 1000.0).toNumber(), mi, false) : (min != null && min > 0 ? min + " min" : "");
                 var card = new CardItem(items.size(), row[1] as String, SessionRow.dayName(day) + (amount.length() > 0 ? " · " + amount : ""), Draw.GRAY);
-                card.mark = markOf(entry, today);
                 items.add(card);
+                entries.add(entry);
                 steps.add(withSteps(detail, day, row[1] as String));
+            }
+        }
+        // Was die Uhr schon als erledigt kennt (eigene Läufe und Krafttrainings), auch bevor der Server es weiß
+        PlanData.applyDone(entries, today);
+        for (var i = 0; i < entries.size(); i++) {
+            items[i].mark = markOf(entries[i], today);
+            if (steps[i] != null && "c".equals(entries[i].get("s") as Object?)) {
+                (steps[i] as Dictionary).put("s", "c");
             }
         }
         if (items.size() == 0) {
@@ -187,6 +196,7 @@ module SessionMenus {
     // Ohne Wochendaten: die Einheiten dieser und der nächsten Woche als Liste
     function showPlanList(feed as Dictionary?, today as Number, mi as Boolean) as Void {
         var list = PlanData.planned(today);
+        PlanData.applyDone(list, today);
         var items = [] as Array<CardItem>;
         for (var i = 0; i < list.size(); i++) {
             var card = new CardItem(i, title(list[i]), subLabel(list[i], today, mi), Draw.GRAY);

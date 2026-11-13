@@ -110,7 +110,76 @@ module PlanData {
                 out.add(mine[i]);
             }
         }
+        // Eigene Krafttrainings, die der Server noch nicht kennt (ohne Verbindung gespeichert)
+        var lifts = StrengthLog.list();
+        for (var i = 0; i < lifts.size(); i++) {
+            if (!StrengthLog.known(out, lifts[i])) {
+                lifts[i].put("day", RunLog.dayOf(lifts[i]));
+                out.add(lifts[i]);
+            }
+        }
         return sortNewest(out);
+    }
+
+    // Wie viele Läufe und Krafttrainings an einem Tag erledigt sind: [Läufe, Krafttrainings], aus derselben Liste wie
+    // "Absolviert" (Server, dazu die eigenen Läufe und Krafttrainings der Uhr). So zeigen Trainingsplan, Heute und Absolviert
+    // dasselbe, auch bevor der Server von einer Einheit weiß.
+    function doneOn(finished as Array<Dictionary>, day as Number) as Array<Number> {
+        var runs = 0;
+        var lifts = 0;
+        for (var i = 0; i < finished.size(); i++) {
+            if (finished[i].get("day") != day) {
+                continue;
+            }
+            if (finished[i].get("x") instanceof Array) {
+                lifts += 1;
+            } else if (WeekPlan.toFloat(finished[i].get("k") as Object?) != null) {
+                runs += 1;
+            }
+        }
+        return [runs, lifts] as Array<Number>;
+    }
+
+    // Erledigt-Status in eine Liste geplanter Einheiten eintragen ("s" = "c"), wenn an ihrem Tag (bis heute) ein passender Lauf
+    // bzw. ein Krafttraining erledigt ist, das der Server noch nicht zugeordnet hat. Jede erledigte Einheit zählt nur einmal.
+    // isRun(Eintrag): Lauf (mit Kilometern) oder nicht.
+    function applyDone(planned as Array<Dictionary>, today as Number) as Void {
+        var done = finished(today);
+        var left = {} as Dictionary<Number, Array<Number>>;
+        // erst die Einheiten, die der Server schon als erledigt kennt, abziehen
+        for (var i = 0; i < planned.size(); i++) {
+            var day = planned[i].get("day");
+            if (!(day instanceof Number) || day > today) {
+                continue;
+            }
+            if (!left.hasKey(day)) {
+                left.put(day, doneOn(done, day));
+            }
+            if ("c".equals(planned[i].get("s") as Object?)) {
+                var c = left.get(day) as Array<Number>;
+                var k = isRun(planned[i]) ? 0 : 1;
+                c[k] = c[k] > 0 ? c[k] - 1 : 0;
+            }
+        }
+        for (var i = 0; i < planned.size(); i++) {
+            var day = planned[i].get("day");
+            var s = planned[i].get("s");
+            if (!(day instanceof Number) || day > today || "c".equals(s as Object?) || "x".equals(s as Object?)) {
+                continue;
+            }
+            var c = left.get(day) as Array<Number>;
+            var k = isRun(planned[i]) ? 0 : 1;
+            if (c[k] > 0) {
+                c[k] -= 1;
+                planned[i].put("s", "c");
+            }
+        }
+    }
+
+    // Lauf (hat Kilometer) oder etwas anderes (Kraft, Mobilität)
+    function isRun(item as Dictionary) as Boolean {
+        var k = WeekPlan.toFloat(item.get("k") as Object?);
+        return k != null && k > 0;
     }
 
     // Absteigend nach "ts" (Einfügesortierung: die Listen sind kurz).
@@ -192,6 +261,56 @@ module RunLog {
     function dayOf(e as Dictionary) as Number {
         var t = Gregorian.info(new Time.Moment(PlanData.tsOf(e)), Time.FORMAT_SHORT);
         return WeekPlan.dayNumber(t.year, t.month as Number, t.day);
+    }
+}
+
+// Krafttrainings, die diese App gespeichert hat: Startzeit "ts", Sekunden "s", Titel "t", Übungen "x" (Zeilen "Übung",
+// "3 × 8 · 60 kg"). Wie RunLog: höchstens KEEP Stück, bis der Server das Training kennt (gleicher Tag und Titel oder Startzeit
+// innerhalb von MATCH_S). Damit gilt ein Krafttraining auf der Uhr sofort als erledigt, auch ohne Verbindung.
+(:details)
+module StrengthLog {
+    const KEEP = 6;
+    const MATCH_S = 1800;
+
+    function list() as Array<Dictionary> {
+        var out = [] as Array<Dictionary>;
+        var saved = Application.Storage.getValue("strLog");
+        if (saved instanceof Array) {
+            var now = Time.now().value();
+            for (var i = 0; i < saved.size(); i++) {
+                var e = saved[i];
+                if (e instanceof Dictionary && e.get("ts") instanceof Lang.Number && now - (e.get("ts") as Number) < RunLog.MAX_AGE_S) {
+                    out.add(e as Dictionary);
+                }
+            }
+        }
+        return out;
+    }
+
+    function add(ts as Number, seconds as Number, title as String, lines as Array) as Void {
+        var all = list();
+        all.add({ "ts" => ts, "s" => seconds, "t" => title.length() > 26 ? title.substring(0, 26) : title, "x" => lines } as Dictionary);
+        while (all.size() > KEEP) {
+            all = all.slice(1, null) as Array<Dictionary>;
+        }
+        Application.Storage.setValue("strLog", all as Array<Application.Storage.ValueType>);
+    }
+
+    // Kennt die Liste (vom Server) dieses Krafttraining schon?
+    function known(server as Array<Dictionary>, mine as Dictionary) as Boolean {
+        var ts = PlanData.tsOf(mine);
+        var day = RunLog.dayOf(mine);
+        for (var i = 0; i < server.size(); i++) {
+            var s = server[i];
+            if (!(s.get("x") instanceof Array) || s == mine) {
+                continue;
+            }
+            var t = s.get("t");
+            if ((PlanData.tsOf(s) - ts).abs() <= MATCH_S || (s.get("day") == day && t instanceof String && t.equals(mine.get("t") as Object?))) {
+                return true;
+            }
+        }
+        return false;
     }
 }
 

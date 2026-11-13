@@ -50,6 +50,10 @@ class CardMenuListener {
     function onPick(menu as CardMenu, item as CardItem) as Void {
     }
 
+    // Das Menü ist wieder sichtbar (nach dem ersten Zeigen), z. B. zurück aus einem Training: Karten bei Bedarf neu bauen
+    function onShow(menu as CardMenu) as Void {
+    }
+
     function onClose(menu as CardMenu) as Void {
         WatchUi.popView(WatchUi.SLIDE_RIGHT);
     }
@@ -75,6 +79,27 @@ class CardMenu extends WatchUi.View {
         self.tabs = tabs;
         self.pages = pages;
         index = firstIndex();
+    }
+
+    // Wer auf die Karten reagiert (für onShow)
+    var listener as CardMenuListener? = null;
+    private var _shown as Boolean = false;
+
+    function onShow() as Void {
+        if (_shown && listener != null) {
+            (listener as CardMenuListener).onShow(self);
+        }
+        _shown = true;
+    }
+
+    // Neue Karten (gleicher Reiter, Fokus bleibt, soweit es ihn noch gibt)
+    function refresh(newTabs as Array<String>, newPages as Array<Array<CardItem>>) as Void {
+        tabs = newTabs;
+        pages = newPages;
+        tab = tab < pages.size() ? tab : 0;
+        var last = pages[tab].size() - 1;
+        index = index > last ? last : index;
+        WatchUi.requestUpdate();
     }
 
     function hasTabs() as Boolean {
@@ -316,6 +341,7 @@ module Cards {
 
     function showTabs(title as String, tabs as Array<String>, pages as Array<Array<CardItem>>, listener as CardMenuListener, transition as WatchUi.SlideType) as CardMenu {
         var menu = new CardMenu(title, tabs, pages);
+        menu.listener = listener;
         WatchUi.pushView(menu, new CardMenuDelegate(menu, listener), transition);
         return menu;
     }
