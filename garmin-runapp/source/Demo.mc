@@ -23,8 +23,10 @@ module Demo {
     // die erste öffnen, beginnen; der Satz läuft dann mit den Beispielbewegungen von selbst). Leer = der Autopilot tut nichts.
     (:demo)
     const PILOT = "";
+    // Kraft: Menü, erste Einheit öffnen, beginnen; warten, bis der erste Beispielsatz zu Ende ist (Karte), dann zum Gewicht,
+    // ein Kilo mehr, bestätigen (Pause mit dem Satz)
     (:demo)
-    const STRENGTH_STEPS = ["menu", "open0", "select"] as Array<String>;
+    const STRENGTH_STEPS = ["menu", "open0", "select", "wait", "wait", "wait", "wait", "select", "up", "select"] as Array<String>;
     (:demo)
     var stepIndex as Number = 0;
     (:demo)
@@ -181,6 +183,10 @@ module Demo {
         if (action.equals("menu")) {
             TrainMenu.show();
             System.println("autopilot " + stepIndex + ": Training geöffnet");
+            autopilot();
+            return;
+        }
+        if (action.equals("wait")) {
             autopilot();
             return;
         }

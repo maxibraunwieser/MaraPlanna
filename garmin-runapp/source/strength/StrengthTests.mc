@@ -194,6 +194,78 @@ function testStrengthControllerNextPlanned(logger as Logger) as Boolean {
     return true;
 }
 
+// Ein Satz beginnt erst nach drei gleichmäßigen Wiederholungen: der schnelle Armschwung beim Gehen (etwa 1 s) und eine
+// unregelmäßige Bewegung sind keiner, gleichmäßige Wiederholungen von 2 s schon.
+(:test)
+function testRepCounterNeedsSteadyReps(logger as Logger) as Boolean {
+    // Gehen: Armschwung mit 0,95 Hz, 20 s lang
+    var walk = new RepCounter(25);
+    var at = feedSet(walk, 2, 0, 0.5, 0.0, 0);
+    var steady = false;
+    for (var s = 0; s < 20; s++) {
+        at = feedSet(walk, 1, 1, 0.95, 300.0, at);
+        steady = steady || walk.regular();
+    }
+    Test.assert(!steady);
+    // Bizepscurl: 2 s je Wiederholung; nach drei Wiederholungen gleichmäßig
+    var curl = new RepCounter(25);
+    at = feedSet(curl, 2, 0, 0.5, 0.0, 0);
+    at = feedSet(curl, 4, 2, 0.5, 300.0, at);
+    Test.assert(!curl.regular());
+    var c2 = new RepCounter(25);
+    at = feedSet(c2, 2, 0, 0.5, 0.0, 0);
+    // die ersten 7 s: 3 Wiederholungen und eine halbe
+    at = feedSet(c2, 7, 6, 0.5, 300.0, at);
+    logger.debug("curl reps=" + c2.reps() + " regular=" + c2.regular());
+    Test.assert(c2.regular());
+    return true;
+}
+
+// Die Karte nach dem Satz: erst die Wiederholungen (AUF/AB), START wechselt zum Gewicht (1er-Schritte), START noch einmal
+// bestätigt; danach läuft die Pause mit dem eben gemachten Satz. Herumgehen dazwischen startet keinen Satz.
+(:test)
+function testStrengthSetCardAndRest(logger as Logger) as Boolean {
+    var plan = StrengthPlan.fromFeed(seedStr(null), 0) as StrengthPlan;
+    var c = new StrengthController(plan);
+    c.state = Str.REST;
+    // Gehen: kein Satz
+    var at = feedSet(c.counter, 1, 0, 0.5, 0.0, 0);
+    for (var s = 0; s < 12; s++) {
+        at = feedSet(c.counter, 1, 1, 0.95, 300.0, at);
+        c.tick();
+        Test.assertEqual(c.state, Str.REST);
+    }
+    // Ruhe, dann ein Satz mit 6 Wiederholungen zu 2 s
+    at = feedSet(c.counter, 3, 0, 0.5, 0.0, at);
+    c.tick();
+    at = feedSet(c.counter, 8, 6, 0.5, 300.0, at);
+    c.tick();
+    Test.assertEqual(c.state, Str.SET);
+    at = feedSet(c.counter, 10, 0, 0.5, 0.0, at);
+    c.tick();
+    Test.assertEqual(c.state, Str.CONFIRM);
+    var reps = c.cReps;
+    Test.assertEqual(c.field, 0);
+    c.onAdjust(1);
+    Test.assertEqual(c.cReps, reps + 1);
+    c.onStart();
+    Test.assertEqual(c.field, 1);
+    var kg = c.cKg;
+    c.onAdjust(1);
+    c.onAdjust(1);
+    Test.assert((c.cKg - kg - 2.0).abs() < 0.001);
+    c.onStart();
+    Test.assertEqual(c.state, Str.REST);
+    Test.assert(c.resting());
+    var last = c.lastSet() as LoggedSet;
+    Test.assertEqual(last.reps, reps + 1);
+    Test.assertEqual(c.lastSetNumbers()[0], 1);
+    // eine andere Übung von Hand als nächste wählen
+    c.chooseNext(2);
+    Test.assertEqual(c.expectedIdx(), 2);
+    return true;
+}
+
 // Vor einer Halteübung zählt nur START: Bewegung davor ist kein Satz; vor einer gezählten Übung beginnt die Bewegung den Satz.
 (:test)
 function testMotionBeforeAHoldIsNotASet(logger as Logger) as Boolean {

@@ -28,6 +28,12 @@ class RepCounter {
     private const QUIET_S = 2.0;
     // Zwei Wechsel auf derselben Achse liegen mindestens so weit auseinander (Sekunden)
     private const MIN_FLIP_S = 0.3;
+    // Gleichmäßige Wiederholungen (regular()): die letzten zwei Abstände zwischen drei Wiederholungen unterscheiden sich höchstens um
+    // diesen Faktor, und eine Wiederholung dauert mindestens MIN_REP_S (der Armschwung beim Gehen ist schneller, etwa 1 s) und
+    // höchstens MAX_REP_S Sekunden.
+    private const STEADY_RATIO = 1.5;
+    private const MIN_REP_S = 1.2;
+    private const MAX_REP_S = 8.0;
 
     // Läuft gerade ein Satz?
     var active as Boolean = false;
@@ -67,6 +73,10 @@ class RepCounter {
     private var _energy as Float = 0.0;
     private var _quiet as Number = 0;
     private var _activeN as Number = 0;
+    // Laufende Nummer des Messpunkts und je Achse die Messpunkte, an denen die letzten drei Wiederholungen fertig wurden
+    // (je Achse drei Plätze hintereinander; -1 = noch keine)
+    private var _t as Number = 0;
+    private var _repAt as Array<Number> = [-1, -1, -1, -1, -1, -1, -1, -1, -1] as Array<Number>;
 
     // fs: Messpunkte pro Sekunde
     function initialize(fs as Number) {
@@ -96,6 +106,7 @@ class RepCounter {
     }
 
     function add(x as Numeric, y as Numeric, z as Numeric) as Void {
+        _t += 1;
         var fx = x.toFloat();
         var fy = y.toFloat();
         var fz = z.toFloat();
@@ -169,11 +180,20 @@ class RepCounter {
                 _pol[k] = p;
                 _flips[k] += 1;
                 _since[k] = 0;
+                // jeder zweite Wechsel (1, 3, 5 …) macht eine Wiederholung voll: den Zeitpunkt merken
+                if (_flips[k] % 2 == 1) {
+                    _repAt[k * 3] = _repAt[k * 3 + 1];
+                    _repAt[k * 3 + 1] = _repAt[k * 3 + 2];
+                    _repAt[k * 3 + 2] = _t;
+                }
             }
         }
     }
 
     private function clearCounts() as Void {
+        for (var i = 0; i < 9; i++) {
+            _repAt[i] = -1;
+        }
         for (var k = 0; k < 3; k++) {
             _flips[k] = 0;
             _pol[k] = 0;
@@ -217,6 +237,26 @@ class RepCounter {
     function reps() as Number {
         var f = _flips[busiest()];
         return f <= 0 ? 0 : (f + 1) / 2;
+    }
+
+    // Drei gleichmäßige Wiederholungen hintereinander auf der Achse mit der meisten Bewegung? Erst dann ist es ein Satz (eine
+    // Übung) und nicht eine zufällige Bewegung, etwa Herumgehen zwischen den Geräten oder Zurechtlegen der Hantel.
+    function regular() as Boolean {
+        var b = busiest();
+        var a = _repAt[b * 3];
+        var m = _repAt[b * 3 + 1];
+        var z = _repAt[b * 3 + 2];
+        if (a < 0 || m < 0 || z < 0) {
+            return false;
+        }
+        var i1 = (m - a).toFloat();
+        var i2 = (z - m).toFloat();
+        if (i1 <= 0.0 || i2 <= 0.0) {
+            return false;
+        }
+        var ratio = i1 > i2 ? i1 / i2 : i2 / i1;
+        var mean = (i1 + i2) / 2.0 / _fs;
+        return ratio <= STEADY_RATIO && mean >= MIN_REP_S && mean <= MAX_REP_S;
     }
 
     // Sekunden seit Satzbeginn

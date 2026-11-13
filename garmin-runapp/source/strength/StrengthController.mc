@@ -1,17 +1,20 @@
 // Krafttraining aufzeichnen: Zustandsmaschine, Sensoren, Sätze, Aufzeichnung und Upload.
 //
 //   READY    Bereit-Bildschirm (nichts läuft), START beginnt
-//   REST     zwischen den Sätzen: nächste geplante Übung und Pausenzähler
-//   SET      Bewegung erkannt: Wiederholungen zählen
-//   CONFIRM  Satz beendet: Übung, Wiederholungen und Gewicht bestätigen oder anpassen
+//   REST     zwischen den Sätzen: erst die Pause (der letzte Satz und der Pausenzähler), ist sie um, die nächste Übung des
+//            Workouts; AB öffnet die Liste der Übungen, dort lässt sich die nächste von Hand wählen
+//   SET      ein Satz läuft: Wiederholungen zählen. Er beginnt erst, wenn die Bewegung drei gleichmäßige Wiederholungen
+//            ergeben hat (RepCounter.regular), damit Herumgehen zwischen den Geräten kein Satz wird
+//   CONFIRM  Satz beendet: links die Wiederholungen, rechts das Gewicht. AUF/AB ändert, START springt von den Wiederholungen zum
+//            Gewicht (1er-Schritte, vorbelegt vom letzten Mal; ohne bekanntes Gewicht leer) und dann in die Pause
 //   PAUSED   Aufzeichnung angehalten (Menü)
 //   DONE     gespeichert, Zusammenfassung
 //
-// Die Übung eines Satzes erkennt die Uhr aus den Übungen der gewählten Einheit (Recognizer.mc): Reihenfolge des Plans, was die
-// Übungen dieser Person am Handgelenk bisher ergeben haben (vom Server) und was in dieser Einheit schon bestätigt wurde.
-// Stimmt die Erkennung mit dem Plan überein und ist sie sicher, schließt sich der Satz von selbst; sonst bleibt die Karte stehen
-// und zeigt die erkannte Übung (AUF/AB wählt eine andere). Gezählt wird aus der Bewegung (CountMode.AUTO), bei Maschinen und Übungen
-// am Boden fragt die Uhr immer nach (ASSIST: START beginnt und beendet den Satz von Hand), ein Halten (Plank) läuft mit der Zeit.
+// Die Übung eines Satzes erkennt die Uhr aus den Übungen des heutigen Workouts (Recognizer.mc): Reihenfolge des Plans (oder die
+// von Hand gewählte nächste Übung), was die Übungen dieser Person am Handgelenk bisher ergeben haben (vom Server) und was in
+// dieser Einheit schon bestätigt wurde. Liegt sie falsch, wählt MENÜ auf der Karte die richtige. Gezählt wird aus der Bewegung
+// (CountMode.AUTO), bei Maschinen und Übungen am Boden beginnt und beendet START den Satz (ASSIST), ein Halten (Plank) läuft
+// mit der Zeit. Beginnt der nächste Satz, während die Karte noch steht, gilt sie als bestätigt.
 //
 // Sensoren laufen nur während des Krafttrainings (nicht beim Laufen und nicht im Menü): Beschleunigung und,
 // wo die Uhr es hat, Gyroskop, ein Mal pro Sekunde geliefert. Es werden keine Töne gespielt (Vibration),
@@ -72,10 +75,9 @@ class LoggedSet {
 class StrengthController {
     // Weniger Wiederholungen sind eine Bewegung, kein Satz
     private const MIN_REPS = 3;
-    // So viele Sekunden wartet die Bestätigungskarte, bevor sie sich von selbst schließt
-    private const AUTO_S = 5;
     private const MAX_RATE = 25;
-    private const FIELDS = 3;
+    // Gewicht auf der Karte: Schritt je Druck (in der Einheit des Nutzers)
+    const WEIGHT_STEP = 1.0;
 
     var state as Number = Str.READY;
     var plan as StrengthPlan;
@@ -86,10 +88,10 @@ class StrengthController {
     var optIdx as Number = 0;
     var cReps as Number = 0;
     var cKg as Float = 0.0;
-    var editing as Boolean = false;
-    // 0 Gewicht, 1 Wiederholungen, 2 Übung
+    // Das Feld zum Anpassen: 0 Wiederholungen, 1 Gewicht
     var field as Number = 0;
-    var autoLeft as Number = 0;
+    // Die von Hand gewählte nächste Übung (Index in plan.options), -1 = nach dem Plan
+    var chosen as Number = -1;
 
     // Pause zwischen den Sätzen (ms auf der Systemuhr, 0 = keine)
     var restUntil as Number = 0;
@@ -306,12 +308,18 @@ class StrengthController {
             // Vor einem Halten zählt nur START: Bewegung davor (Hinlegen, Zurechtrücken) ist kein Satz
             counter.nextSet();
         }
-        if (state == Str.REST || state == Str.SET) {
-            if (counter.finished) {
-                endSet();
-            } else if (state == Str.REST && counter.active && counter.activeSeconds() >= 1.0) {
-                state = Str.SET;
+        if ((state == Str.REST || state == Str.CONFIRM) && counter.active && counter.regular() && !_manual) {
+            // Drei gleichmäßige Wiederholungen: ein Satz beginnt (eine noch offene Karte gilt als bestätigt)
+            if (state == Str.CONFIRM) {
+                commit();
             }
+            state = Str.SET;
+        } else if (state != Str.SET && counter.finished) {
+            // Bewegung ohne gleichmäßige Wiederholungen (Herumgehen, Hantel holen): kein Satz
+            counter.nextSet();
+        }
+        if (state == Str.SET && counter.finished) {
+            endSet();
         }
         if (state == Str.SET) {
             liveGuess();
@@ -324,12 +332,6 @@ class StrengthController {
             _restAlerted = true;
             Alert.vibrate(300);
         }
-        if (state == Str.CONFIRM && autoOn()) {
-            autoLeft -= 1;
-            if (autoLeft <= 0) {
-                commit();
-            }
-        }
         WatchUi.requestUpdate();
     }
 
@@ -339,14 +341,9 @@ class StrengthController {
         return null;
     }
 
-    // Darf die Karte sich selbst schließen: eingeschaltet, nicht beim Anpassen, und die Erkennung ist sicher und passt zum Plan.
-    function autoOn() as Boolean {
-        return plan.auto && !editing && _autoOk;
-    }
-
-    // Die Karte zeigt eine Übung, die die Uhr erkannt hat und die nicht die vom Plan erwartete ist
+    // Die Karte zeigt eine Übung, die die Uhr erkannt hat und die nicht die erwartete ist
     function recognized() as Boolean {
-        return state == Str.CONFIRM && !editing && optIdx == _recIdx && _recIdx != _expIdx;
+        return state == Str.CONFIRM && optIdx == _recIdx && _recIdx != _expIdx;
     }
 
     // Zählart der Übung, die als Nächstes dran ist (CountMode.AUTO ohne Plan)
@@ -360,7 +357,7 @@ class StrengthController {
     // Die Kandidaten für einen Satz: alle Übungen der Auswahl (die geplanten zuerst), mit Vorwissen und dem, was sie bisher ergeben haben.
     function candidates() as Array<Cand> {
         var out = [] as Array<Cand>;
-        var next = nextPlanned();
+        var next = expectedIdx();
         var lastId = sets.size() > 0 ? sets[sets.size() - 1].id : "";
         var lastName = sets.size() > 0 ? sets[sets.size() - 1].name : "";
         for (var i = 0; i < plan.options.size(); i++) {
@@ -385,10 +382,31 @@ class StrengthController {
         return out;
     }
 
-    // Die Übung, die der Plan als Nächstes erwartet (Index in plan.options); ohne Plan die des letzten Satzes
-    private function expectedIdx() as Number {
+    // Die Übung, die als Nächstes erwartet wird (Index in plan.options): die von Hand gewählte, sonst die nächste des Plans,
+    // ohne Plan die des letzten Satzes
+    function expectedIdx() as Number {
+        if (chosen >= 0 && chosen < plan.options.size()) {
+            return chosen;
+        }
         var n = nextPlanned();
         return n >= 0 ? n : guessLast();
+    }
+
+    // Von Hand die nächste Übung setzen (Liste der Übungen in der Pause)
+    function chooseNext(i as Number) as Void {
+        if (i >= 0 && i < plan.options.size()) {
+            chosen = i;
+            WatchUi.requestUpdate();
+        }
+    }
+
+    // Die Übung des Satzes auf der Karte ändern (MENÜ auf der Karte, wenn die Erkennung danebenlag)
+    function setExercise(i as Number) as Void {
+        if (state == Str.CONFIRM && i >= 0 && i < plan.options.size()) {
+            optIdx = i;
+            cKg = defaultKg(plan.options[i]);
+            WatchUi.requestUpdate();
+        }
     }
 
     private function guessLast() as Number {
@@ -450,9 +468,7 @@ class StrengthController {
         _autoOk = secs >= target;
         optIdx = _holdIdx;
         cKg = defaultKg(plan.options[optIdx]);
-        editing = false;
         field = 0;
-        autoLeft = AUTO_S;
         state = Str.CONFIRM;
         Alert.vibrate(300);
     }
@@ -515,15 +531,17 @@ class StrengthController {
         _autoOk = !manual && mode == CountMode.AUTO && rec == exp && conf >= Recognizer.SURE;
         optIdx = rec;
         cKg = defaultKg(plan.options[optIdx]);
-        editing = false;
         field = 0;
-        autoLeft = AUTO_S;
         state = Str.CONFIRM;
         Alert.vibrate(150);
     }
 
-    // Index der ersten geplanten Übung mit offenen Sätzen, -1 wenn alles erledigt oder nichts geplant ist
+    // Index der nächsten geplanten Übung mit offenen Sätzen (die von Hand gewählte, solange sie noch offene hat, sonst die erste
+    // des Plans), -1 wenn alles erledigt oder nichts geplant ist
     function nextPlanned() as Number {
+        if (chosen >= 0 && chosen < plan.items.size() && doneSets(chosen) < plan.items[chosen].sets) {
+            return chosen;
+        }
         for (var i = 0; i < plan.items.size(); i++) {
             if (doneSets(i) < plan.items[i].sets) {
                 return i;
@@ -574,8 +592,44 @@ class StrengthController {
         restTotalMs = restSeconds(e) * 1000;
         restUntil = System.getTimer() + restTotalMs;
         _restAlerted = false;
-        editing = false;
+        // die von Hand gewählte Übung gilt, bis ihre Sätze gemacht sind (oder eine andere gewählt wird)
+        if (chosen >= 0 && chosen < plan.items.size() && doneSets(chosen) >= plan.items[chosen].sets) {
+            chosen = -1;
+        }
         state = Str.REST;
+    }
+
+    // Der zuletzt bestätigte Satz (für die Pause), null vor dem ersten
+    function lastSet() as LoggedSet? {
+        return sets.size() > 0 ? sets[sets.size() - 1] : null;
+    }
+
+    // Der wievielte Satz seiner Übung war der letzte, und wie viele hat der Plan dafür (0 = nicht geplant)
+    function lastSetNumbers() as Array<Number> {
+        var last = lastSet();
+        if (last == null) {
+            return [0, 0] as Array<Number>;
+        }
+        var s = last as LoggedSet;
+        var n = 0;
+        for (var k = 0; k < sets.size(); k++) {
+            if (s.id.length() > 0 ? s.id.equals(sets[k].id) : s.name.equals(sets[k].name)) {
+                n += 1;
+            }
+        }
+        var total = 0;
+        for (var i = 0; i < plan.items.size(); i++) {
+            if (s.id.length() > 0 ? s.id.equals(plan.items[i].id) : s.name.equals(plan.items[i].name)) {
+                total = plan.items[i].sets;
+            }
+        }
+        return [n, total] as Array<Number>;
+    }
+
+    // Läuft gerade die Pause nach einem Satz (dann zeigt die Uhr den letzten Satz und den Zähler, danach die nächste Übung)?
+    function resting() as Boolean {
+        var left = restLeftS();
+        return state == Str.REST && sets.size() > 0 && left != null && (left as Number) > 0;
     }
 
     // ---------------------------------------------------------------- Bedienung
@@ -603,8 +657,9 @@ class StrengthController {
             counter.lastDiag = counter.diag();
             endSet();
         } else if (state == Str.CONFIRM) {
-            if (editing && field < FIELDS - 1) {
-                field += 1;
+            // erst die Wiederholungen, dann das Gewicht, dann in die Pause
+            if (field == 0) {
+                field = 1;
             } else {
                 commit();
             }
@@ -631,7 +686,6 @@ class StrengthController {
             state = Str.REST;
         } else if (state == Str.CONFIRM) {
             // Satz verwerfen
-            editing = false;
             state = Str.REST;
         } else if (state == Str.DONE) {
             System.exit();
@@ -639,30 +693,24 @@ class StrengthController {
         WatchUi.requestUpdate();
     }
 
-    // AUF = +1, AB = -1 (auf der Karte: erster Druck beginnt das Anpassen, bei den Gewichten)
+    // Auf der Karte: AUF = +1, AB = -1 am gewählten Feld (Wiederholungen bzw. Gewicht in 1er-Schritten)
     function onAdjust(dir as Number) as Void {
         if (state != Str.CONFIRM) {
             return;
         }
-        editing = true;
         if (field == 0) {
-            var v = cKg + dir * plan.step();
-            cKg = v < 0.0 ? 0.0 : v;
-        } else if (field == 1) {
             var r = cReps + dir;
             cReps = r < 0 ? 0 : (r > 99 ? 99 : r);
         } else {
-            var n = plan.options.size();
-            optIdx = (optIdx + dir + n) % n;
-            cKg = defaultKg(plan.options[optIdx]);
+            var v = cKg + dir * WEIGHT_STEP;
+            cKg = v < 0.0 ? 0.0 : (v > 999.0 ? 999.0 : v);
         }
         WatchUi.requestUpdate();
     }
 
-    // Tippen auf eine Zeile der Karte stellt sie zum Anpassen ein.
+    // Tippen auf eine Hälfte der Karte stellt sie zum Anpassen ein (0 links Wiederholungen, 1 rechts Gewicht).
     function focus(f as Number) as Void {
         if (state == Str.CONFIRM) {
-            editing = true;
             field = f;
             WatchUi.requestUpdate();
         }

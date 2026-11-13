@@ -110,7 +110,7 @@
     <string id="StrengthRunning">läuft</string>
     <string id="StrengthAllDone">Alles erledigt</string>
     <string id="StrengthFinishHint">START: beenden</string>
-    <string id="StrengthStartHint">Satz beginnen</string>
+    <string id="StrengthStartHint">Einfach loslegen</string>
     <string id="StrengthStartManual">START: beginnen</string>
     <string id="StrengthStartHold">START: halten</string>
     <string id="StrengthSecondsShort">s</string>

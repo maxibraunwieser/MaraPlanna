@@ -1,9 +1,10 @@
 // Anzeige und Bedienung des Krafttrainings (Zustände siehe StrengthController).
-//   Tasten:  START  bereit: beginnen · Pause: Menü, bei Maschine oder Halten: Satz beginnen · Satz/Halten: beenden · Karte: bestätigen
-//            MENÜ (lang AUF) Pause, Speichern, Verwerfen
-//            AUF/AB Karte: Wert ändern (zuerst Gewicht)
+//   Tasten:  START  bereit: beginnen · nächste Übung: Menü, bei Maschine oder Halten: Satz beginnen · Satz/Halten: beenden ·
+//                   Karte: von den Wiederholungen zum Gewicht, dann bestätigen (Pause)
+//            MENÜ (lang AUF) Pause, Speichern, Verwerfen · auf der Karte: Übung des Satzes ändern
+//            AUF/AB Karte: Wiederholungen bzw. Gewicht (1er-Schritte) ändern · Pause/nächste Übung: AB öffnet die Übungsliste
 //            BACK   bereit: zurück · Pause: Übung auslassen · Satz: verwerfen · Karte: Satz verwerfen
-//   Tippen:  auf der Karte stellt eine Zeile zum Anpassen ein.
+//   Tippen:  auf der Karte links Wiederholungen, rechts Gewicht zum Anpassen wählen.
 
 import Toybox.Graphics;
 import Toybox.Lang;
@@ -112,7 +113,35 @@ class StrengthView extends WatchUi.View {
         return e.mode == CountMode.ASSIST ? t(Rez.Strings.StrengthStartManual) : t(Rez.Strings.StrengthStartHint);
     }
 
+    // Pause nach einem Satz: der Satz (Übung, welcher Satz, Wiederholungen und Gewicht) und der Pausenzähler, unten die Übung,
+    // die danach kommt. Ist die Pause um, zeigt drawRest die nächste Übung.
+    private function drawResting(dc as Graphics.Dc) as Void {
+        var h = dc.getHeight();
+        var last = _c.lastSet() as LoggedSet;
+        var nums = _c.lastSetNumbers();
+        Draw.line(dc, h * 0.13, Graphics.FONT_XTINY, Draw.GRAY, "PAUSE");
+        Draw.lineAny(dc, h * 0.25, [Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY] as Array<Graphics.FontDefinition>, Graphics.COLOR_WHITE, [last.name] as Array<String>);
+        var setText = t(Rez.Strings.StrengthSet) + " " + nums[0] + (nums[1] > 0 ? " / " + nums[1] : "");
+        var done = last.reps + " " + t(Rez.Strings.StrengthReps) + (last.kg > 0.0 ? " · " + num(last.kg) + " " + unitText() : "");
+        Draw.lineAlt(dc, h * 0.36, Graphics.FONT_XTINY, Draw.LIME, [setText + " · " + done, done] as Array<String>);
+        var left = _c.restLeftS() as Number;
+        Draw.valueUnit(dc, h * 0.56, clock(left), "", [Graphics.FONT_NUMBER_MEDIUM, Graphics.FONT_NUMBER_MILD, Graphics.FONT_MEDIUM] as Array<Graphics.FontDefinition>, (h * 0.2).toNumber(), Graphics.COLOR_WHITE);
+        Draw.bar(dc, h * 0.7, left * 1000.0 / (_c.restTotalMs > 0 ? _c.restTotalMs : 1), Draw.LIME);
+        var next = _c.expectedIdx();
+        var plan = _c.plan;
+        if (plan.planned() && _c.nextPlanned() < 0 && _c.chosen < 0) {
+            Draw.line(dc, h * 0.785, Graphics.FONT_XTINY, Draw.GRAY, t(Rez.Strings.StrengthAllDone));
+        } else if (next >= 0 && next < plan.options.size()) {
+            Draw.lineAlt(dc, h * 0.785, Graphics.FONT_XTINY, Draw.GRAY, ["Danach: " + plan.options[next].name, plan.options[next].name] as Array<String>);
+        }
+        Draw.lineAlt(dc, h * 0.865, Graphics.FONT_XTINY, Draw.DIM, ["AB: Übung wählen", "AB: Übungen", "AB"] as Array<String>);
+    }
+
     private function drawRest(dc as Graphics.Dc) as Void {
+        if (_c.resting()) {
+            drawResting(dc);
+            return;
+        }
         var m = _c.currentMove();
         if (m != null) {
             drawRestFigure(dc, m);
@@ -123,6 +152,14 @@ class StrengthView extends WatchUi.View {
         Draw.pulse(dc, h * 0.13, Vitals.heartRate());
         var n = _c.nextPlanned();
         var paused = _c.state == Str.PAUSED;
+        // von Hand gewählte Übung außerhalb des Plans (Kraft frei): sie steht oben
+        if (_c.chosen >= plan.items.size() && _c.chosen < plan.options.size() && !paused) {
+            Draw.line(dc, h * 0.27, Graphics.FONT_XTINY, Draw.GRAY, t(Rez.Strings.StrengthSet) + " " + (_c.sets.size() + 1));
+            Draw.lineAny(dc, h * 0.40, [Graphics.FONT_MEDIUM, Graphics.FONT_SMALL, Graphics.FONT_TINY] as Array<Graphics.FontDefinition>, Graphics.COLOR_WHITE, [plan.options[_c.chosen].name] as Array<String>);
+            Draw.line(dc, h * 0.74, Graphics.FONT_XTINY, Draw.GRAY, t(Rez.Strings.StrengthStartHint));
+            Draw.lineAlt(dc, h * 0.865, Graphics.FONT_XTINY, Draw.DIM, ["AB: Übung wählen", "AB: Übungen", "AB"] as Array<String>);
+            return;
+        }
         if (plan.planned() && n < 0) {
             Draw.line(dc, h * 0.38, Graphics.FONT_SMALL, Draw.LIME, t(Rez.Strings.StrengthAllDone));
             Draw.line(dc, h * 0.52, Graphics.FONT_XTINY, Draw.GRAY, _c.sets.size() + " " + t(Rez.Strings.StrengthSets) + " · " + _c.totalReps() + " " + t(Rez.Strings.StrengthReps));
@@ -137,16 +174,14 @@ class StrengthView extends WatchUi.View {
             Draw.line(dc, h * 0.30, Graphics.FONT_XTINY, Draw.GRAY, t(Rez.Strings.StrengthSet) + " " + (_c.sets.size() + 1));
             Draw.line(dc, h * 0.44, Graphics.FONT_SMALL, Graphics.COLOR_WHITE, t(Rez.Strings.StrengthReady));
         }
-        var left = _c.restLeftS();
+        // die Pause ist um (oder es gab noch keinen Satz): die nächste Übung mit dem Hinweis, wie es losgeht
         if (paused) {
             Draw.line(dc, h * 0.74, Graphics.FONT_SMALL, Draw.ORANGE, t(Rez.Strings.StrengthPaused));
-        } else if (left != null) {
-            Draw.valueUnit(dc, h * 0.74, clock(left), "", [Graphics.FONT_NUMBER_MEDIUM, Graphics.FONT_NUMBER_MILD, Graphics.FONT_MEDIUM] as Array<Graphics.FontDefinition>, (h * 0.2).toNumber(), left > 0 ? Graphics.COLOR_WHITE : Draw.ORANGE);
-            if (left > 0) {
-                Draw.bar(dc, h * 0.88, left * 1000.0 / (_c.restTotalMs > 0 ? _c.restTotalMs : 1), Draw.LIME);
-            }
         } else {
             Draw.line(dc, h * 0.74, Graphics.FONT_XTINY, Draw.GRAY, plan.planned() && n < 0 ? t(Rez.Strings.StrengthFinishHint) : (n >= 0 ? startHint(plan.items[n]) : t(Rez.Strings.StrengthStartHint)));
+        }
+        if (!paused && plan.options.size() > 1) {
+            Draw.lineAlt(dc, h * 0.865, Graphics.FONT_XTINY, Draw.DIM, ["AB: Übung wählen", "AB: Übungen", "AB"] as Array<String>);
         }
     }
 
@@ -178,21 +213,48 @@ class StrengthView extends WatchUi.View {
         Draw.line(dc, h * 0.85, Graphics.FONT_XTINY, Draw.GRAY, t(Rez.Strings.StrengthFinishHint));
     }
 
+    // Satz beendet: oben die (erkannte) Übung, darunter links die Wiederholungen und rechts das Gewicht nebeneinander. Das Feld,
+    // das AUF/AB gerade ändert, ist orange und unterstrichen; START springt von den Wiederholungen zum Gewicht, dann in die Pause.
     private function drawConfirm(dc as Graphics.Dc) as Void {
         var h = dc.getHeight();
+        var w = dc.getWidth();
         var c = _c;
         var e = c.plan.options[c.optIdx];
-        Draw.line(dc, h * 0.14, Graphics.FONT_XTINY, c.recognized() ? Draw.LIME : Draw.GRAY, c.editing ? t(Rez.Strings.StrengthAdjust) : (c.recognized() ? t(Rez.Strings.StrengthRecognized) : t(Rez.Strings.StrengthSetEnded)));
-        Draw.lineAny(dc, h * 0.29, [Graphics.FONT_MEDIUM, Graphics.FONT_SMALL, Graphics.FONT_TINY] as Array<Graphics.FontDefinition>, c.editing && c.field == 2 ? Draw.ORANGE : Graphics.COLOR_WHITE, [e.name] as Array<String>);
-        Draw.valueUnit(dc, h * 0.47, c.cReps.toString(), e.mode == CountMode.TIME ? t(Rez.Strings.StrengthSecondsShort) : t(Rez.Strings.StrengthReps), [Graphics.FONT_NUMBER_MEDIUM, Graphics.FONT_NUMBER_MILD, Graphics.FONT_MEDIUM] as Array<Graphics.FontDefinition>, (h * 0.17).toNumber(), c.editing && c.field == 1 ? Draw.ORANGE : Draw.LIME);
-        Draw.valueUnit(dc, h * 0.65, c.cKg > 0.0 ? num(c.cKg) : "–", unitText(), [Graphics.FONT_NUMBER_MEDIUM, Graphics.FONT_NUMBER_MILD, Graphics.FONT_MEDIUM] as Array<Graphics.FontDefinition>, (h * 0.17).toNumber(), c.editing && c.field == 0 ? Draw.ORANGE : Graphics.COLOR_WHITE);
-        var hint = [t(Rez.Strings.StrengthHintConfirm), t(Rez.Strings.StrengthHintConfirmShort)] as Array<String>;
-        if (c.editing) {
-            hint = [t(Rez.Strings.StrengthHintEdit), t(Rez.Strings.StrengthHintEditShort)] as Array<String>;
-        } else if (c.autoOn()) {
-            hint = [t(Rez.Strings.StrengthAutoIn) + " " + c.autoLeft + " s"] as Array<String>;
+        Draw.line(dc, h * 0.14, Graphics.FONT_XTINY, c.recognized() ? Draw.LIME : Draw.GRAY, c.recognized() ? t(Rez.Strings.StrengthRecognized) : t(Rez.Strings.StrengthSetEnded));
+        Draw.lineAny(dc, h * 0.27, [Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY] as Array<Graphics.FontDefinition>, Graphics.COLOR_WHITE, [e.name] as Array<String>);
+        // links die Wiederholungen (bzw. Sekunden beim Halten), rechts das Gewicht ("–", solange keins bekannt ist)
+        var timed = e.mode == CountMode.TIME;
+        bigValue(dc, w * 0.3, h * 0.52, c.cReps.toString(), c.field == 0);
+        bigValue(dc, w * 0.7, h * 0.52, c.cKg > 0.0 ? num(c.cKg) : "–", c.field == 1);
+        dc.setColor(Draw.GRAY, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(w * 0.3, h * 0.68, Graphics.FONT_XTINY, timed ? t(Rez.Strings.StrengthSecondsShort) : t(Rez.Strings.StrengthReps), Draw.CENTER);
+        dc.drawText(w * 0.7, h * 0.68, Graphics.FONT_XTINY, unitText(), Draw.CENTER);
+        // feine Linie zwischen den beiden Werten
+        dc.setColor(Draw.EDGE, Graphics.COLOR_TRANSPARENT);
+        dc.drawLine(w * 0.5, h * 0.42, w * 0.5, h * 0.7);
+        var hint = c.field == 0 ? ["AUF/AB Wdh · START Gewicht", "START: Gewicht"] : ["AUF/AB Gewicht · START fertig", "START: fertig"];
+        Draw.lineAlt(dc, h * 0.83, Graphics.FONT_XTINY, Draw.GRAY, hint as Array<String>);
+    }
+
+    // Eine große Zahl der Karte, im Fokus orange und unterstrichen
+    private function bigValue(dc as Graphics.Dc, x as Float, y as Float, value as String, focus as Boolean) as Void {
+        var h = dc.getHeight();
+        var fonts = [Graphics.FONT_NUMBER_MEDIUM, Graphics.FONT_NUMBER_MILD, Graphics.FONT_LARGE] as Array<Graphics.FontDefinition>;
+        var room = dc.getWidth() * 0.36;
+        var font = fonts[fonts.size() - 1];
+        // "–" steht in den Zahlenschriften nicht: dafür die normale große Schrift
+        var numeric = !value.equals("–");
+        for (var i = 0; i < fonts.size(); i++) {
+            if ((numeric || !Draw.isNumberFont(fonts[i])) && dc.getTextWidthInPixels(value, fonts[i]) <= room) {
+                font = fonts[i];
+                break;
+            }
         }
-        Draw.lineAlt(dc, h * 0.84, Graphics.FONT_XTINY, Draw.GRAY, hint);
+        dc.setColor(focus ? Draw.ORANGE : Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(x, y, font, value, Draw.CENTER);
+        if (focus) {
+            dc.fillRoundedRectangle(x - h * 0.08, y + dc.getFontHeight(font) * 0.42, h * 0.16, 4, 2);
+        }
     }
 
     private function drawDone(dc as Graphics.Dc) as Void {
@@ -227,9 +289,13 @@ class StrengthDelegate extends WatchUi.BehaviorDelegate {
         return true;
     }
 
-    // AB (nächste Seite) senkt, AUF (vorherige Seite) erhöht.
+    // Karte: AB senkt, AUF erhöht. Pause und nächste Übung: AB öffnet die Liste der Übungen (die nächste von Hand wählen).
     function onNextPage() as Boolean {
-        _c.onAdjust(-1);
+        if (_c.state == Str.CONFIRM) {
+            _c.onAdjust(-1);
+        } else if (_c.state == Str.REST && _c.plan.options.size() > 1) {
+            StrengthPick.show(false);
+        }
         return true;
     }
 
@@ -243,22 +309,82 @@ class StrengthDelegate extends WatchUi.BehaviorDelegate {
         return true;
     }
 
-    // Menütaste (lang AUF): Pause, Speichern, Verwerfen. START kann bei Maschinen und beim Halten den Satz beginnen.
+    // Menütaste (lang AUF): Pause, Speichern, Verwerfen. Auf der Karte: die Übung des Satzes ändern (falls falsch erkannt).
     function onMenu() as Boolean {
+        if (_c.state == Str.CONFIRM && _c.plan.options.size() > 1) {
+            StrengthPick.show(true);
+            return true;
+        }
         _c.openMenu();
         return true;
     }
 
-    // Tippen: auf der Karte die berührte Zeile zum Anpassen wählen, sonst wie START.
+    // Tippen: auf der Karte die linke (Wiederholungen) oder rechte Hälfte (Gewicht) zum Anpassen wählen, sonst wie START.
     function onTap(evt as WatchUi.ClickEvent) as Boolean {
         if (_c.state == Str.CONFIRM) {
-            var y = evt.getCoordinates()[1];
-            var h = System.getDeviceSettings().screenHeight;
-            _c.focus(y < h * 0.38 ? 2 : (y < h * 0.56 ? 1 : 0));
+            var x = evt.getCoordinates()[0];
+            _c.focus(x < System.getDeviceSettings().screenWidth / 2 ? 0 : 1);
             return true;
         }
         _c.onStart();
         return true;
+    }
+}
+
+// Liste der Übungen des Workouts: in der Pause die nächste von Hand wählen, auf der Karte die Übung des Satzes ändern.
+// Jede Zeile zeigt, wie viele Sätze schon gemacht sind; die erwartete steht im Fokus, fertige haben den grünen Haken.
+(:strength)
+module StrengthPick {
+    function show(forSet as Boolean) as Void {
+        var c = StrengthEntry.controller();
+        if (c == null) {
+            return;
+        }
+        var plan = (c as StrengthController).plan;
+        var items = [] as Array<CardItem>;
+        for (var i = 0; i < plan.options.size(); i++) {
+            var o = plan.options[i];
+            var sub = "nicht im Workout";
+            var mark = Mark.NONE;
+            if (i < plan.items.size()) {
+                var done = (c as StrengthController).doneSets(i);
+                sub = WatchUi.loadResource(Rez.Strings.StrengthSets) as String;
+                sub = done + " / " + plan.items[i].sets + " " + sub;
+                mark = done >= plan.items[i].sets ? Mark.DONE : Mark.NONE;
+            }
+            var card = new CardItem(i, o.name, sub, Draw.VIOLET);
+            card.mark = mark;
+            items.add(card);
+        }
+        var menu = Cards.show(forSet ? "Übung dieses Satzes" : "Nächste Übung", items, new StrengthPickDelegate(forSet), WatchUi.SLIDE_UP);
+        var at = forSet ? (c as StrengthController).optIdx : (c as StrengthController).expectedIdx();
+        menu.index = at >= 0 && at < items.size() ? at : 0;
+    }
+}
+
+(:strength)
+class StrengthPickDelegate extends CardMenuListener {
+    private var _forSet as Boolean;
+
+    function initialize(forSet as Boolean) {
+        CardMenuListener.initialize();
+        _forSet = forSet;
+    }
+
+    function onPick(menu as CardMenu, item as CardItem) as Void {
+        var c = StrengthEntry.controller();
+        if (c != null && item.id instanceof Number) {
+            if (_forSet) {
+                (c as StrengthController).setExercise(item.id as Number);
+            } else {
+                (c as StrengthController).chooseNext(item.id as Number);
+            }
+        }
+        WatchUi.popView(WatchUi.SLIDE_DOWN);
+    }
+
+    function onClose(menu as CardMenu) as Void {
+        WatchUi.popView(WatchUi.SLIDE_DOWN);
     }
 }
 
