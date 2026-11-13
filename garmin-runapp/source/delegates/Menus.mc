@@ -125,12 +125,14 @@ module TrainMenu {
             head.sub = MainMenu.text(Rez.Strings.TrainDone) + " · " + head.sub;
         }
         out.add(head);
+        // der Inhalt der Einheit als ein Kasten darunter (nicht wählbar)
         var rows = TodayCards.runRows(workout, miles);
-        for (var i = 0; i < rows.size(); i++) {
-            var row = new CardItem(:info, rows[i][0], rows[i][1], Draw.ORANGE);
-            row.info = true;
-            row.enabled = false;
-            out.add(row);
+        if (rows.size() > 0) {
+            var box = new CardItem(:info, "", null, Draw.ORANGE);
+            box.info = true;
+            box.enabled = false;
+            box.lines = rows;
+            out.add(box);
         }
     }
 

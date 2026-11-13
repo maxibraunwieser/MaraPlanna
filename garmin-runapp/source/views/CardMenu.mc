@@ -36,6 +36,8 @@ class CardItem {
     var enabled as Boolean = true;
     // Infozeile unter einer Karte (z. B. ein Abschnitt der Einheit): niedriger, eingerückt, nie im Fokus, nicht wählbar
     var info as Boolean = false;
+    // Inhalt einer Einheit als Kasten unter ihrer Kopfzeile: je Eintrag [Titel, Untertitel] (nur mit info)
+    var lines as Array<Array<String>>? = null;
 
     function initialize(id as Object, title as String, sub as String?, tone as Number) {
         self.id = id;
@@ -84,6 +86,13 @@ class CardMenu extends WatchUi.View {
         index = firstIndex();
     }
 
+    // Höhe eines Eintrags im Kasten einer Einheit (Anteil einer Kartenzeile)
+    private const BOX_LINE = 0.84;
+    // Kasten unter der Karte im Fokus, der nicht ganz auf das Display passt: so weit ist er nach oben geschoben (AB blättert
+    // erst durch den Kasten, dann zur nächsten Karte) und so viel ragt noch unten heraus (beim letzten Zeichnen)
+    private var _extra as Float = 0.0;
+    private var _overflow as Float = 0.0;
+
     // Wer auf die Karten reagiert (für onShow)
     var listener as CardMenuListener? = null;
     private var _shown as Boolean = false;
@@ -124,6 +133,9 @@ class CardMenu extends WatchUi.View {
 
     // Höhe einer Zeile: Infozeilen sind niedriger
     private function heightOf(item as CardItem, rh as Float) as Float {
+        if (item.info && item.lines != null) {
+            return rh * (0.2 + (item.lines as Array).size() * BOX_LINE);
+        }
         return item.info ? rh * 0.74 : rh;
     }
 
@@ -135,6 +147,18 @@ class CardMenu extends WatchUi.View {
     // Eine Karte weiter (+1) oder zurück (-1); oberhalb der ersten Karte liegt die Reiterleiste.
     // Infozeilen werden übersprungen (sie sind nur zum Lesen da).
     function move(step as Number) as Void {
+        // erst durch den Kasten der Einheit blättern (er ist nicht wählbar, nur zu lesen)
+        if (step > 0 && _overflow > 1.0) {
+            _extra += _overflow < _rh ? _overflow : _rh;
+            WatchUi.requestUpdate();
+            return;
+        }
+        if (step < 0 && _extra > 0.0) {
+            _extra = _extra > _rh ? _extra - _rh : 0.0;
+            WatchUi.requestUpdate();
+            return;
+        }
+        _extra = 0.0;
         var list = pages[tab];
         var last = list.size() - 1;
         var lo = hasTabs() ? -1 : 0;
@@ -166,6 +190,7 @@ class CardMenu extends WatchUi.View {
         }
         tab = ((t % n) + n) % n;
         index = firstIndex();
+        _extra = 0.0;
         WatchUi.requestUpdate();
     }
 
@@ -244,8 +269,17 @@ class CardMenu extends WatchUi.View {
         }
         var selY = n > 0 ? ys[sel < n ? sel : n - 1] : 0.0;
         var withInfo = sel + 1 < n && items[sel + 1].info;
-        var scroll = selY + rh / 2.0 - (withInfo ? view / 3.0 : view / 2.0);
+        // mit Kasten darunter: die Kopfzeile oben, damit der Inhalt der Einheit ganz zu sehen ist
+        var scroll = withInfo ? selY - gap + _extra : selY + rh / 2.0 - view / 2.0;
         var most = pos - gap - view;
+        // was vom Kasten unter der Karte im Fokus noch unten herausragt
+        _overflow = 0.0;
+        if (withInfo && index >= 0) {
+            var boxBottom = ys[sel + 1] + heightOf(items[sel + 1], rh);
+            var shown = scroll > most ? most : scroll;
+            _overflow = boxBottom - (shown < 0 ? 0.0 : shown) - view;
+            _overflow = _overflow < 0.0 ? 0.0 : _overflow;
+        }
         scroll = scroll > most ? most : scroll;
         scroll = scroll < 0 ? 0.0 : scroll;
         _top = top;
@@ -257,7 +291,9 @@ class CardMenu extends WatchUi.View {
             var y = top + ys[i] - scroll;
             var hh = heightOf(items[i], rh);
             if (y + hh >= top && y <= bottom) {
-                if (items[i].info) {
+                if (items[i].info && items[i].lines != null) {
+                    infoBox(dc, items[i], y, hh, rh);
+                } else if (items[i].info) {
                     infoRow(dc, items[i], y, hh);
                 } else {
                     row(dc, items[i], y, rh, i == index);
@@ -347,6 +383,43 @@ class CardMenu extends WatchUi.View {
         if (item.sub != null) {
             dc.setColor(Draw.DIM, Graphics.COLOR_TRANSPARENT);
             dc.drawText(tx, y + hh * 0.75, f, Draw.fit(dc, item.sub as String, f, room), Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        }
+    }
+
+    // Inhalt einer Einheit als Kasten unter ihrer Kopfzeile: dunkle Fläche mit feinem Rand und einem Streifen in der Farbe der
+    // Einheit links, darin jeder Abschnitt bzw. jede Übung (Titel weiß, darunter grau), getrennt durch feine Linien.
+    private function infoBox(dc as Graphics.Dc, item as CardItem, y as Float, hh as Float, rh as Float) as Void {
+        var w = dc.getWidth();
+        var bw = w * 0.76;
+        var x = (w - bw) / 2.0;
+        var top = y + rh * 0.04;
+        var height = hh - rh * 0.08;
+        dc.setColor(0x1A1D27, Graphics.COLOR_TRANSPARENT);
+        dc.fillRoundedRectangle(x, top, bw, height, 10);
+        dc.setColor(Draw.EDGE, Graphics.COLOR_TRANSPARENT);
+        dc.setPenWidth(1);
+        dc.drawRoundedRectangle(x, top, bw, height, 10);
+        dc.setColor(item.tone, Graphics.COLOR_TRANSPARENT);
+        dc.fillRoundedRectangle(x + 4, top + 8, 3, height - 16, 1);
+        var list = item.lines as Array<Array<String>>;
+        var lh = rh * BOX_LINE;
+        var tx = x + bw * 0.1;
+        var f = Graphics.FONT_XTINY;
+        for (var k = 0; k < list.size(); k++) {
+            var ly = top + rh * 0.06 + k * lh;
+            // auf dem runden Display ist es oben und unten schmaler: der Text passt sich der Zeile an
+            var right = (w + Draw.widthAt(dc, ly + lh / 2.0, lh)) / 2.0 - 6;
+            right = right > x + bw - 6 ? x + bw - 6 : right;
+            var room = (right - tx).toNumber();
+            room = room < 20 ? 20 : room;
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(tx, ly + lh * 0.3, f, Draw.fit(dc, list[k][0], f, room), Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.setColor(Draw.DIM, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(tx, ly + lh * 0.7, f, Draw.fit(dc, list[k][1], f, room), Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+            if (k < list.size() - 1) {
+                dc.setColor(Draw.TRACK, Graphics.COLOR_TRANSPARENT);
+                dc.drawLine(tx, ly + lh, x + bw - bw * 0.06, ly + lh);
+            }
         }
     }
 

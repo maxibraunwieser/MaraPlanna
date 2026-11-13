@@ -68,6 +68,7 @@ module StrengthEntry {
             }
             var unit = (plan as StrengthPlan).unit;
             var list = (plan as StrengthPlan).items;
+            var rows = [] as Array<Array<String>>;
             for (var k = 0; k < list.size(); k++) {
                 var p = list[k];
                 var amount = p.sets + " × " + (p.hold > 0 ? p.hold + " s" : p.reps.format("%d"));
@@ -75,10 +76,15 @@ module StrengthEntry {
                     var whole = p.kg.toNumber();
                     amount += " · " + ((p.kg - whole).abs() < 0.05 ? whole.format("%d") : p.kg.format("%.1f")) + " " + unit;
                 }
-                var row = new CardItem(:info, p.name, amount, Draw.VIOLET);
-                row.info = true;
-                row.enabled = false;
-                out.add(row);
+                rows.add([p.name, amount] as Array<String>);
+            }
+            // die Übungen als ein Kasten unter der Einheit (nicht wählbar)
+            if (rows.size() > 0) {
+                var box = new CardItem(:info, "", null, Draw.VIOLET);
+                box.info = true;
+                box.enabled = false;
+                box.lines = rows;
+                out.add(box);
             }
         }
     }
