@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { reducedMotion } from '../lib/spring';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
-import { BookOpen, CalendarDays, ClipboardCheck, Dumbbell, Footprints, History, Home, ListChecks, RefreshCw, Salad, Settings, TrendingUp, Utensils, Watch, type LucideIcon } from 'lucide-react';
+import { BarChart3, CalendarDays, ClipboardCheck, Dumbbell, Footprints, History, Home, ListChecks, RefreshCw, Salad, Settings, TrendingUp, Utensils, Watch, type LucideIcon } from 'lucide-react';
 import { useData } from '../lib/data';
 import { fmtRelative } from '../lib/format';
 import { cx } from './ui';
@@ -76,7 +76,7 @@ const SECTIONS: Section[] = [
     sub: [
       { to: '/food', label: 'nav.food.diary', icon: Salad, match: (p) => p === '/food' },
       { to: '/food/plan', label: 'nav.food.plan', icon: CalendarDays, match: (p) => p.startsWith('/food/plan') },
-      { to: '/food/recipes', label: 'nav.food.recipes', icon: BookOpen, match: (p) => p.startsWith('/food/recipes') },
+      { to: '/food/analysis', label: 'nav.food.analysis', icon: BarChart3, match: (p) => p.startsWith('/food/analysis') },
     ],
   },
 ];

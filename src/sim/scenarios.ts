@@ -14,6 +14,7 @@ import { blankStart } from '../lib/onboarding/seed';
 import { SIM_USER } from './fakeSupabase';
 import { ownSessions } from '../lib/strengthSchedule';
 import { suggestRoutine } from '../lib/strengthPlan';
+import { foodPerson, nutritionBase } from './nutritionScenario';
 
 type Tables = Record<string, Record<string, any>[]>;
 
@@ -272,6 +273,13 @@ function runnerTables(today: string): Tables {
 
 export const SCENARIOS: Scenario[] = [
   {
+    id: 'food',
+    label: 'Runner who logs food',
+    about: 'The marathon runner with body data, a nutrition profile, a week of diary (today breakfast and lunch), water and weigh-ins. Targets follow the plan: compare a rest day with a long-run day.',
+    start: '/food',
+    build: (today) => foodPerson(runnerTables(today), today),
+  },
+  {
     id: 'runner',
     label: 'Runner, five weeks in',
     about: 'A marathon plan that started five weeks ago: runs linked to sessions, a missed one, wellness data (low readiness today), Garmin connected, plan adjustments.',
@@ -500,6 +508,7 @@ export const SCENARIOS: Scenario[] = [
   },
 ];
 
-export const scenarioById = (id: string | null): Scenario => SCENARIOS.find((s) => s.id === id) ?? SCENARIOS[1];
+export const scenarioById = (id: string | null): Scenario => SCENARIOS.find((s) => s.id === id) ?? SCENARIOS.find((s) => s.id === 'complete')!;
 
-export const buildScenario = (id: string | null): Tables => scenarioById(id).build(todayISO());
+// Every situation has the nutrition reference tables and the shared foods, as every real database does.
+export const buildScenario = (id: string | null): Tables => ({ ...nutritionBase(), ...scenarioById(id).build(todayISO()) });

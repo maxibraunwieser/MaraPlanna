@@ -15,6 +15,7 @@ import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { Decoder, Stream } from 'npm:@garmin/fitsdk@21.218.0';
 import { unzipSync } from 'npm:fflate@0.8.3';
 import { goneActivities } from '../_shared/garminSync.ts';
+import { addDays, refreshTargets } from '../_shared/nutrition/service.ts';
 
 const GARMIN_BASE = Deno.env.get('GARMIN_PERSONAL_API_BASE_URL') ?? 'https://personal.connectapi.garmin.com';
 const TOKEN_PATH = '/personalapitoken-service/personal-api/personal-api-key/token';
@@ -416,8 +417,10 @@ async function readExtras(g: GarminClient, profile: Rec, displayName: string | n
 
 const METRIC_COLUMNS = [
   'resting_hr', 'hrv_last_night', 'hrv_weekly_avg', 'hrv_status', 'sleep_s', 'sleep_score',
-  'stress_avg', 'body_battery_high', 'body_battery_low', 'steps',
+  'stress_avg', 'body_battery_high', 'body_battery_low', 'steps', 'total_kcal', 'active_kcal', 'bmr_kcal',
 ] as const;
+// Columns added by the nutrition migration: without it the sync keeps working and leaves them out.
+const ENERGY_COLUMNS = ['total_kcal', 'active_kcal', 'bmr_kcal'];
 
 async function syncUser(admin: SupabaseClient, userId: string, opts: { full?: boolean } = {}) {
   const { data: conn } = await admin.from('garmin_connections').select('*').eq('user_id', userId).maybeSingle();
@@ -516,6 +519,10 @@ async function syncUser(admin: SupabaseClient, userId: string, opts: { full?: bo
       put(d, 'body_battery_high', int(findNum(it, ['bodyBatteryHighestValue', 'bodyBatteryHigh', 'highestBodyBattery', 'maxBodyBattery'])));
       put(d, 'body_battery_low', int(findNum(it, ['bodyBatteryLowestValue', 'bodyBatteryLow', 'lowestBodyBattery', 'minBodyBattery'])));
       put(d, 'sleep_s', int(findNum(it, ['sleepingSeconds', 'sleepTimeSeconds'])));
+      // Energy of the day (Garmin's estimate incl. training): the nutrition targets use it for finished days.
+      put(d, 'total_kcal', int(findNum(it, ['totalKilocalories', 'totalCalories'])));
+      put(d, 'active_kcal', int(findNum(it, ['activeKilocalories', 'activeCalories'])));
+      put(d, 'bmr_kcal', int(findNum(it, ['bmrKilocalories', 'bmrCalories'])));
     }
   } catch (e) {
     warnings.push(`daily summaries: ${(e as Error).message}`);
@@ -567,7 +574,12 @@ async function syncUser(admin: SupabaseClient, userId: string, opts: { full?: bo
       return row;
     });
     for (let i = 0; i < metricRows.length; i += 200) {
-      const { error } = await admin.from('daily_metrics').upsert(metricRows.slice(i, i + 200), { onConflict: 'user_id,date' });
+      let chunk = metricRows.slice(i, i + 200);
+      let { error } = await admin.from('daily_metrics').upsert(chunk, { onConflict: 'user_id,date' });
+      if (error && ENERGY_COLUMNS.some((c) => error!.message.includes(c))) {
+        chunk = chunk.map((r) => Object.fromEntries(Object.entries(r).filter(([k]) => !ENERGY_COLUMNS.includes(k))));
+        ({ error } = await admin.from('daily_metrics').upsert(chunk, { onConflict: 'user_id,date' }));
+      }
       if (error) warnings.push(`saving wellness data: ${error.message}`);
     }
   }
@@ -584,7 +596,48 @@ async function syncUser(admin: SupabaseClient, userId: string, opts: { full?: bo
     })
     .eq('user_id', userId);
 
+  await saveWeights(admin, g, userId, startDate);
+  await refreshNutrition(admin, userId);
   return { activities: rows.length, removed, days: days.size, warnings };
+}
+
+/**
+ * Weigh-ins of a Garmin scale (or entered in Garmin Connect) as weight entries for the nutrition targets. The endpoint is
+ * not documented: anything unexpected is skipped silently, and so is a database without the nutrition tables.
+ */
+async function saveWeights(admin: SupabaseClient, g: GarminClient, userId: string, startDate: string) {
+  try {
+    const resp = await g.get('/weight-service/weight/dateRange', { startDate, endDate: isoDay(Date.now() + DAY_MS) });
+    const list = isRec(resp) && Array.isArray(resp.dateWeightList) ? resp.dateWeightList.filter(isRec) : items(resp);
+    const byDate = new Map<string, Rec>();
+    for (const it of list) {
+      const d = dateOf(it);
+      const grams = num(it.weight);
+      if (!d || grams === null || grams < 25_000 || grams > 300_000) continue;
+      const fat = num(it.bodyFat);
+      byDate.set(d, { user_id: userId, date: d, source: 'garmin', weight_kg: Math.round(grams / 100) / 10, body_fat_pct: fat !== null && fat > 2 && fat < 70 ? fat : null });
+    }
+    if (byDate.size) await admin.from('body_weight_entries').upsert([...byDate.values()], { onConflict: 'user_id,date,source' });
+  } catch {
+    // no scale data or no nutrition tables yet
+  }
+}
+
+/** New activities and energy change the nutrition targets: recompute yesterday to a week ahead for people who use the tab. */
+async function refreshNutrition(admin: SupabaseClient, userId: string) {
+  try {
+    const { data } = await admin.from('nutrition_profiles').select('timezone').eq('user_id', userId).maybeSingle();
+    if (!data) return;
+    let today = isoDay(Date.now());
+    try {
+      if (data.timezone) today = new Intl.DateTimeFormat('en-CA', { timeZone: data.timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    } catch {
+      // unknown zone: UTC
+    }
+    await refreshTargets(admin, userId, addDays(today, -1), addDays(today, 7), today);
+  } catch {
+    // targets are recomputed on the next visit of the nutrition tab
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -36,3 +36,4 @@ jobs:
       - run: supabase functions deploy calendar --project-ref "$PROJECT_REF" --no-verify-jwt
       - run: supabase functions deploy watch --project-ref "$PROJECT_REF" --no-verify-jwt
       - run: supabase functions deploy coach --project-ref "$PROJECT_REF" --no-verify-jwt
+      - run: supabase functions deploy nutrition --project-ref "$PROJECT_REF" --no-verify-jwt

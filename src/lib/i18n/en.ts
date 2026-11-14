@@ -7,6 +7,7 @@ import { coachText } from './coachText';
 import { common } from './common';
 import { buildText } from './buildText';
 import { exText } from './exText';
+import { foodText } from './foodText';
 import { obText } from './obText';
 import { planText } from './planText';
 import { privText } from './privText';
@@ -32,6 +33,7 @@ export const en = {
   ...buildText.en,
   ...exText.en,
   ...privText.en,
+  ...foodText.en,
 } as const;
 
 export type MsgKey = keyof typeof en;

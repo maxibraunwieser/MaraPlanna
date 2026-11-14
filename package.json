@@ -16,6 +16,7 @@
   "dependencies": {
     "@garmin/fitsdk": "^21.218.0",
     "@supabase/supabase-js": "^2.118.0",
+    "@zxing/browser": "^0.1.5",
     "fflate": "^0.8.3",
     "lucide-react": "^1.61.0",
     "react": "^19.3.1",

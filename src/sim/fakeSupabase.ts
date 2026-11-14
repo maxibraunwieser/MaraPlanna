@@ -2,6 +2,8 @@
 // top of an in-memory database, so the questionnaire and the pages can be tried with prepared data, nothing is stored anywhere.
 
 import { FunctionsHttpError } from '@supabase/supabase-js';
+import { refreshTargets, TargetsError } from '../../supabase/functions/_shared/nutrition/service';
+import { LimitError, lookupBarcode, runAnalysis } from '../../supabase/functions/_shared/nutrition/analysis';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Row = Record<string, any>;
@@ -180,7 +182,84 @@ async function fakeGarmin(body: Row): Promise<Row> {
 }
 
 /** An error the way a real Edge Function reports it ({ error: message } with a status), so the app translates it as it does for real. */
-const httpError = (message: string) => new FunctionsHttpError(new Response(JSON.stringify({ error: message }), { status: 400 }));
+const httpError = (message: string, extra: Row = {}) => new FunctionsHttpError(new Response(JSON.stringify({ error: message, ...extra }), { status: 400 }));
+
+// ---------------------------------------------------------------------------
+// Nutrition: the food search of the database (search_foods) and the "nutrition" Edge Function, run on the in-memory tables
+// with the same target calculation the real function uses.
+// ---------------------------------------------------------------------------
+
+/** Like search_foods: every word must start a word of the name (prefix), own foods first, then shorter names. */
+function searchFoods(q: string, lim = 30): Row[] {
+  const words = q.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, ' ').split(/\s+/).filter(Boolean);
+  if (!words.length || q.trim().length < 2) return [];
+  const hits = (db.foods ?? []).filter((f) => {
+    if (f.user_id && f.user_id !== SIM_USER.id) return false;
+    const text = `${f.name_de ?? ''} ${f.name_en ?? ''} ${f.brand ?? ''}`.toLowerCase();
+    const tokens = text.split(/[^\p{L}\p{N}]+/u);
+    return words.every((w) => tokens.some((t) => t.startsWith(w)) || text.includes(w));
+  });
+  return hits
+    .sort((a, b) => Number(!!b.user_id) - Number(!!a.user_id) || String(a.name_de ?? a.name_en).length - String(b.name_de ?? b.name_en).length)
+    .slice(0, lim)
+    .map(clone);
+}
+
+/** Files of the simulated storage (meal photos), by bucket and path. */
+const files = new Map<string, Blob>();
+
+const blobToBase64 = (b: Blob) => new Promise<string>((ok, bad) => {
+  const r = new FileReader();
+  r.onload = () => ok(String(r.result).split(',')[1] ?? '');
+  r.onerror = () => bad(r.error);
+  r.readAsDataURL(b);
+});
+
+/** Claude through the sim server (vite.sim.config.ts), which holds the key; the rest runs here like in the function. */
+async function simAnalyze(input: { image?: { data: string; mediaType: string }; text?: string; note?: string }) {
+  const res = await fetch('/__sim/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(body.error ?? `AI ${res.status}`), { code: body.code ?? 'ai_failed' });
+  return body;
+}
+
+async function fakeNutrition(body: Row): Promise<Row> {
+  if (body.action === 'analyze-photo' || body.action === 'parse-text') {
+    const photo = body.action === 'analyze-photo';
+    let image: { data: string; mediaType: string } | undefined;
+    if (photo) {
+      const file = files.get(`meal-photos/${body.path}`);
+      if (!file) throw Object.assign(new Error('The photo could not be read.'), { code: 'no_photo' });
+      image = { data: await blobToBase64(file), mediaType: file.type || 'image/jpeg' };
+    }
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define
+      return { ...(await runAnalysis(supabase, {
+        userId: SIM_USER.id, kind: photo ? 'photo' : 'text', model: photo ? 'sim-vision' : 'sim-text', dailyLimit: 30,
+        image, text: body.text, note: body.note, photoPath: photo ? body.path : undefined, analyze: simAnalyze,
+      })) };
+    } catch (e) {
+      if (e instanceof LimitError) throw Object.assign(new Error(`Daily limit of ${e.limit} analyses reached.`), { code: 'limit' });
+      throw e;
+    }
+  }
+  if (body.action === 'barcode') {
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
+    const food = await lookupBarcode(supabase, String(body.code ?? '').replace(/\D/g, ''), async (c) => (await fetch(`/__sim/off?code=${c}`)).json());
+    if (!food) throw Object.assign(new Error('Product not found.'), { code: 'not_found' });
+    return { food };
+  }
+  if (body.action !== 'targets') throw new Error(`Nutrition action "${body.action}" is not part of the simulation.`);
+  await pause(250);
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
+    const targets = await refreshTargets(supabase, SIM_USER.id, String(body.from), String(body.to), String(body.today));
+    return { targets };
+  } catch (e) {
+    if (e instanceof TargetsError) throw Object.assign(new Error(e.message), { code: e.code });
+    throw e;
+  }
+}
 
 const listeners = new Set<(event: string, session: any) => void>();
 const fullSession = { access_token: 'sim', refresh_token: 'sim', expires_in: 3600, token_type: 'bearer', user: SIM_USER };
@@ -196,6 +275,26 @@ const setSession = (event: string, s: typeof fullSession | null) => {
 
 export const supabase = {
   from: (table: string) => new Query(table),
+  storage: {
+    from: (bucket: string) => ({
+      upload: async (path: string, file: Blob) => {
+        files.set(`${bucket}/${path}`, file);
+        return { data: { path }, error: null };
+      },
+      remove: async (paths: string[]) => {
+        for (const p of paths) files.delete(`${bucket}/${p}`);
+        return { data: null, error: null };
+      },
+      createSignedUrl: async (path: string) => {
+        const f = files.get(`${bucket}/${path}`);
+        return f ? { data: { signedUrl: URL.createObjectURL(f) }, error: null } : { data: null, error: { message: 'Object not found' } };
+      },
+    }),
+  },
+  rpc: async (name: string, args: Row = {}) => {
+    if (name === 'search_foods') return { data: searchFoods(String(args.q ?? ''), Number(args.lim ?? 30)), error: null };
+    return { data: null, error: { message: `rpc ${name} is not part of the simulation.` } };
+  },
   auth: {
     getSession: async () => ({ data: { session }, error: null }),
     onAuthStateChange: (cb: (event: string, s: any) => void) => {
@@ -224,6 +323,13 @@ export const supabase = {
           return { data: await fakeGarmin(opts?.body ?? {}), error: null };
         } catch (e) {
           return { data: null, error: httpError((e as Error).message) };
+        }
+      }
+      if (name === 'nutrition') {
+        try {
+          return { data: await fakeNutrition(opts?.body ?? {}), error: null };
+        } catch (e) {
+          return { data: null, error: httpError((e as Error).message, { code: (e as { code?: string }).code }) };
         }
       }
       if (name === 'delete-account') {

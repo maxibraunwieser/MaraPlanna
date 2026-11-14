@@ -14,3 +14,6 @@ garmin-runapp/bin/
 *.iq
 *.der
 *.pem
+
+# USDA downloads of scripts/import-foods.ts
+out/usda/

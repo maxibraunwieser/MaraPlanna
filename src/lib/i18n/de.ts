@@ -7,6 +7,7 @@ import { coachText } from './coachText';
 import { common } from './common';
 import { buildText } from './buildText';
 import { exText } from './exText';
+import { foodText } from './foodText';
 import { obText } from './obText';
 import { planText } from './planText';
 import { privText } from './privText';
@@ -32,4 +33,5 @@ export const de: Record<MsgKey, string> = {
   ...buildText.de,
   ...exText.de,
   ...privText.de,
+  ...foodText.de,
 };
