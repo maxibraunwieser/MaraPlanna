@@ -101,11 +101,14 @@ module Gym {
                 x = 280.0 * Math.sin(2.0 * Math.PI * t);
                 z = 90.0 * Math.cos(2.0 * Math.PI * t) + 60.0 * Math.sin(4.0 * Math.PI * t);
             } else if (kind == FIDGET) {
-                // unregelmäßig: mehrere Frequenzen, die nicht zueinander passen, mal stärker, mal schwächer
-                var s = second * 0.37;
-                x = 160.0 * Math.sin(2.0 * Math.PI * (0.7 + 0.3 * Math.sin(s)) * t) * (0.5 + 0.5 * Math.sin(s * 3.1));
-                z = 120.0 * Math.sin(2.0 * Math.PI * 1.9 * t + s);
-                y = 900.0 + 120.0 * Math.sin(2.0 * Math.PI * 0.45 * t);
+                // unregelmäßig wie echtes Hantieren: jede Sekunde ein anderes Tempo (0,3 bis 1,8 Hz), eine andere Stärke und Richtung
+                var r1 = (Math.sin(second * 78.233) * 43758.5453).abs();
+                var r2 = (Math.sin(second * 12.9898 + 4.1) * 24634.6345).abs();
+                var f = 0.3 + 1.5 * (r1 - Math.floor(r1));
+                var amp = 60.0 + 180.0 * (r2 - Math.floor(r2));
+                x = amp * Math.sin(2.0 * Math.PI * f * t + second);
+                z = amp * 0.6 * Math.cos(2.0 * Math.PI * f * 1.7 * t);
+                y = 950.0 + amp * 0.3 * Math.sin(2.0 * Math.PI * f * 0.5 * t);
             } else if (kind == SET) {
                 var reps = SCRIPT[at[0]][3];
                 var moving = t < reps / p[0];
@@ -113,6 +116,12 @@ module Gym {
                 x = p[4] + p[1] * w;
                 y = p[5] + p[2] * w;
                 z = p[6] + p[3] * w;
+            } else if (kind == QUIET && at[0] >= 0 && at[0] + 1 < SCRIPT.size() && SCRIPT[at[0] + 1][0] == SET) {
+                // Stillhalten direkt vor einem Satz: die Stange ist schon in Position, das Handgelenk liegt wie in der Übung
+                var q = Demo.pattern(SCRIPT[at[0] + 1][2]);
+                x = q[4];
+                y = q[5];
+                z = q[6];
             } else if (at[0] >= 0 && at[0] > 0 && SCRIPT[at[0] - 1][0] == SET) {
                 // Ruhe direkt nach einem Satz: das Handgelenk liegt noch wie in der Übung
                 var q = Demo.pattern(SCRIPT[at[0] - 1][2]);

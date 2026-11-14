@@ -31,7 +31,7 @@ class RepCounter {
     // Gleichmäßige Wiederholungen (regular()): die letzten zwei Abstände zwischen drei Wiederholungen unterscheiden sich höchstens um
     // diesen Faktor, und eine Wiederholung dauert mindestens MIN_REP_S (der Armschwung beim Gehen ist schneller, etwa 1 s) und
     // höchstens MAX_REP_S Sekunden.
-    private const STEADY_RATIO = 1.5;
+    private const STEADY_RATIO = 1.4;
     private const MIN_REP_S = 1.2;
     private const MAX_REP_S = 8.0;
 
@@ -78,6 +78,9 @@ class RepCounter {
     private var _t as Number = 0;
     // Die Achse, auf der der laufende Satz gezählt wird (seit startSet), -1 = die mit der meisten Bewegung
     private var _setAxis as Number = -1;
+    // Je Achse: wie viele Wiederholungen zuletzt gleichmäßig hintereinander kamen, und der Abstand der letzten (Messpunkte)
+    private var _streak as Array<Number> = [0, 0, 0] as Array<Number>;
+    private var _lastInt as Array<Number> = [0, 0, 0] as Array<Number>;
     private var _repAt as Array<Number> = [-1, -1, -1, -1, -1, -1, -1, -1, -1] as Array<Number>;
 
     // fs: Messpunkte pro Sekunde
@@ -184,16 +187,42 @@ class RepCounter {
                 _since[k] = 0;
                 // jeder zweite Wechsel (1, 3, 5 …) macht eine Wiederholung voll: den Zeitpunkt merken
                 if (_flips[k] % 2 == 1) {
+                    var prev = _repAt[k * 3 + 2];
                     _repAt[k * 3] = _repAt[k * 3 + 1];
-                    _repAt[k * 3 + 1] = _repAt[k * 3 + 2];
+                    _repAt[k * 3 + 1] = prev;
                     _repAt[k * 3 + 2] = _t;
+                    // die Serie gleichmäßiger Wiederholungen auf dieser Achse weiterzählen oder neu beginnen
+                    var iv = prev >= 0 ? _t - prev : 0;
+                    var inRange = iv >= MIN_REP_S * _fs && iv <= MAX_REP_S * _fs;
+                    var last = _lastInt[k];
+                    var same = last > 0 && iv > 0 && (iv > last ? iv.toFloat() / last : last.toFloat() / iv) <= STEADY_RATIO;
+                    _streak[k] = inRange ? (same ? _streak[k] + 1 : 2) : 1;
+                    _lastInt[k] = inRange ? iv : 0;
+                    reanchor(k);
                 }
             }
         }
     }
 
+    // Während eines Satzes: wird auf einer anderen Achse gleichmäßig gezählt, während auf der Achse des Satzes nichts mehr kommt
+    // (der Satz begann z. B. mit dem Zurechtlegen und das eigentliche Drücken läuft auf einer anderen Achse), beginnt der Satz dort.
+    private function reanchor(k as Number) as Void {
+        if (_setAxis < 0 || k == _setAxis || !steadyOn(k)) {
+            return;
+        }
+        var lastSet = _repAt[_setAxis * 3 + 2];
+        var iv = _lastInt[_setAxis] > 0 ? _lastInt[_setAxis] : (MAX_REP_S * _fs).toNumber();
+        if (lastSet < 0 || _t - lastSet > iv * 2) {
+            startSetOn(k);
+        }
+    }
+
     private function clearCounts() as Void {
         _setAxis = -1;
+        for (var k = 0; k < 3; k++) {
+            _streak[k] = 0;
+            _lastInt[k] = 0;
+        }
         for (var i = 0; i < 9; i++) {
             _repAt[i] = -1;
         }
@@ -286,21 +315,26 @@ class RepCounter {
     // aus dem Satz.
     function startSet() as Void {
         var k = steadyAxis();
-        if (k < 0) {
-            return;
+        if (k >= 0) {
+            startSetOn(k);
         }
+    }
+
+    // Den Satz auf Achse k beginnen: es zählen alle Wiederholungen ihrer gleichmäßigen Serie (mindestens drei), nichts davor
+    private function startSetOn(k as Number) as Void {
         _setAxis = k;
+        var reps = _streak[k] < 3 ? 3 : _streak[k];
         var span = _repAt[k * 3 + 2] - _repAt[k * 3];
         for (var j = 0; j < 3; j++) {
-            _flips[j] = j == k ? 5 : 0;
+            _flips[j] = j == k ? 2 * reps - 1 : 0;
             _load[j] = j == k ? 1.0 : 0.0;
             _gs[j] = 0.0;
         }
         _n = 0;
         _vSum = 0.0;
         _pSum = 0.0;
-        // die drei Wiederholungen haben etwa anderthalb mal so lange gedauert wie die zwei Abstände zwischen ihnen
-        _activeN = (span * 1.5).toNumber();
+        // die Serie hat etwa (Wiederholungen - 0,5) Abstände gedauert; ein Abstand ist die Hälfte der letzten zwei
+        _activeN = (span / 2.0 * (reps - 0.5)).toNumber();
     }
 
     // Sekunden seit Satzbeginn
