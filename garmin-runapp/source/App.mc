@@ -116,8 +116,9 @@ class RunApp extends Application.AppBase {
         }
         // Das Menü Training ist offen: "Heute" gleich mit den neuen Daten zeigen
         var top = WatchUi.getCurrentView()[0];
-        if (top instanceof CardMenu && (top as CardMenu).listener instanceof TrainMenuDelegate) {
-            ((top as CardMenu).listener as TrainMenuDelegate).onShow(top as CardMenu);
+        // Hauptmenü bzw. Training offen: gleich mit den neuen Daten zeigen (unter "Training" dieselbe Einheit wie in Heute)
+        if (top instanceof CardMenu && ((top as CardMenu).listener instanceof TrainMenuDelegate || (top as CardMenu).listener instanceof MainMenuDelegate)) {
+            ((top as CardMenu).listener as CardMenuListener).onShow(top as CardMenu);
         }
         WatchUi.requestUpdate();
     }

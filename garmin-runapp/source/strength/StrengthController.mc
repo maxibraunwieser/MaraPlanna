@@ -293,12 +293,15 @@ class StrengthController {
 
     function simTick() as Void {
         var b = Demo.accelBatch(_simSecond);
-        _simSecond += 1;
         if (b != null && state != Str.PAUSED) {
             counter.addBatch(b[0], b[1], b[2]);
             samples += b[0].size();
             calls += 1;
         }
+        // Gym-Simulation des Demo-Builds: nach jeder Sekunde Bewegung den Takt laufen lassen, dann erzählen und die Karte bedienen
+        tick();
+        Demo.gymTick(self, _simSecond);
+        _simSecond += 1;
     }
 
     // ---------------------------------------------------------------- Takt
@@ -313,6 +316,8 @@ class StrengthController {
             if (state == Str.CONFIRM) {
                 commit();
             }
+            // ab hier zählt nur der Satz (Gehen und Zurechtlegen davor fallen weg)
+            counter.startSet();
             state = Str.SET;
         } else if (state != Str.SET && counter.finished) {
             // Bewegung ohne gleichmäßige Wiederholungen (Herumgehen, Hantel holen): kein Satz

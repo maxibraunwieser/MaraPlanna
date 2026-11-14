@@ -49,7 +49,8 @@ module Demo {
 
     (:demo)
     function scheduleBackground() as Void {
-        if (!(Toybox has :Background)) {
+        // Gym- und Lauf-Simulation: kein Hintergrund-Test, er würde die laufende Simulation stören
+        if (!(Toybox has :Background) || PILOT.equals("gym") || SIM.length() > 0) {
             return;
         }
         // eine Kopplung wie nach dem Code-Eingeben, damit der Hintergrund lädt (der Test-Server prüft das Geheimnis nicht)
@@ -149,6 +150,10 @@ module Demo {
             // Menü → Bereit-Bildschirm → Start; dann läuft die Simulation von selbst
             return ["select", "select"] as Array<String>;
         }
+        if (PILOT.equals("gym")) {
+            // das Programm der Gym-Simulation öffnen (Push & Pull) → beginnen; den Rest macht die Gym-Simulation
+            return ["gymopen", "select"] as Array<String>;
+        }
         if (PILOT.equals("views")) {
             // Training → Heute: den Lauf aufklappen und durchblättern, zurück, Fortschritt öffnen und zwei Säulen weiter
             return ["menu", "select", "next", "next", "next", "back", "progress", "up", "up"] as Array<String>;
@@ -183,6 +188,11 @@ module Demo {
         if (action.equals("menu")) {
             TrainMenu.show();
             System.println("autopilot " + stepIndex + ": Training geöffnet");
+            autopilot();
+            return;
+        }
+        if (action.equals("gymopen")) {
+            openGym();
             autopilot();
             return;
         }
@@ -517,8 +527,46 @@ module Demo {
         return [0.6, 330.0, 150.0, 0.0, 0.0, 500.0, 850.0] as Array<Float>;
     }
 
+    (:demo :strength)
+    function openGym() as Void {
+        Gym.openPlan();
+    }
+
+    (:demo :nostrength)
+    function openGym() as Void {
+    }
+
+    (:demo :strength)
+    function gymBatch(second as Number) as Array<Array<Number>>? {
+        return Gym.batch(second);
+    }
+
+    (:demo :nostrength)
+    function gymBatch(second as Number) as Array<Array<Number>>? {
+        return null;
+    }
+
+    // Gym-Simulation (GymSim.mc): nach jeder Sekunde Bewegung die Karte bedienen und erzählen
+    (:live)
+    function gymTick(c as Object, second as Number) as Void {
+    }
+
+    (:demo :nostrength)
+    function gymTick(c as Object, second as Number) as Void {
+    }
+
+    (:demo :strength)
+    function gymTick(c as Object, second as Number) as Void {
+        if (PILOT.equals("gym")) {
+            Gym.tick(c as StrengthController, second);
+        }
+    }
+
     (:demo)
     function accelBatch(second as Number) as Array<Array<Number>>? {
+        if (PILOT.equals("gym")) {
+            return gymBatch(second);
+        }
         var xs = [] as Array<Number>;
         var ys = [] as Array<Number>;
         var zs = [] as Array<Number>;

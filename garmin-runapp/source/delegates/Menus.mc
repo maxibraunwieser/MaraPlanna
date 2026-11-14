@@ -20,22 +20,41 @@ module MainMenu {
     }
 
     function show() as Void {
+        Cards.show(text(Rez.Strings.AppName), items(), new MainMenuDelegate(), WatchUi.SLIDE_UP);
+    }
+
+    // Die Karten aus den aktuellen Daten (bei jedem Zeigen und nach jedem Abgleich neu gebaut, damit z. B. unter "Training"
+    // dasselbe steht wie im Reiter Heute)
+    function items() as Array<CardItem> {
         var feed = WeekPlan.feed();
         var today = WeekPlan.today();
-        var items = [
+        var list = [
             new CardItem(:train, text(Rez.Strings.MenuTrain), trainInfo(feed), Draw.ORANGE),
             new CardItem(:week, text(Rez.Strings.MenuWeek), weekInfo(feed, today), Draw.GREEN),
             new CardItem(:plan, text(Rez.Strings.MenuPlan), planInfo(feed, today), Draw.BLUE)
         ] as Array<CardItem>;
-        PlanEntry.addProgress(items);
-        items.add(new CardItem(:settings, text(Rez.Strings.MenuSettings), null, Draw.GRAY));
-        Cards.show(text(Rez.Strings.AppName), items, new MainMenuDelegate(), WatchUi.SLIDE_UP);
+        PlanEntry.addProgress(list);
+        list.add(new CardItem(:settings, text(Rez.Strings.MenuSettings), null, Draw.GRAY));
+        return list;
     }
 
-    // Titel der heutigen Einheit, sonst ein Hinweis auf die freie Wahl.
+    // Die Einheiten von heute, aus derselben Quelle wie der Reiter Heute (Lauf und Krafteinheiten): die erste mit "+1" für jede
+    // weitere ("Intervalle 3x1000 +2"); ohne Einheit der Hinweis von Heute.
     function trainInfo(feed as Dictionary?) as String {
+        var titles = [] as Array<String>;
         var workout = Workout.fromFeed(feed);
-        return workout != null ? (workout as Workout).title : text(Rez.Strings.TrainFree);
+        if (workout != null) {
+            titles.add((workout as Workout).title);
+        }
+        var lifts = [] as Array<CardItem>;
+        StrengthEntry.todayItems(feed, lifts);
+        for (var i = 0; i < lifts.size(); i++) {
+            titles.add(lifts[i].title);
+        }
+        if (titles.size() == 0) {
+            return text(Rez.Strings.TodayNone);
+        }
+        return titles[0] + (titles.size() > 1 ? " +" + (titles.size() - 1) : "");
     }
 
     function weekInfo(feed as Dictionary?, today as Number) as String {
@@ -65,6 +84,11 @@ module MainMenu {
 class MainMenuDelegate extends CardMenuListener {
     function initialize() {
         CardMenuListener.initialize();
+    }
+
+    // Wieder sichtbar (zurück aus einem Untermenü, nach einem Abgleich): die Untertitel neu aus den aktuellen Daten
+    function onShow(menu as CardMenu) as Void {
+        menu.refresh([] as Array<String>, [MainMenu.items()] as Array<Array<CardItem>>);
     }
 
     function onPick(menu as CardMenu, item as CardItem) as Void {

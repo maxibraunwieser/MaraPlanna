@@ -76,6 +76,8 @@ class RepCounter {
     // Laufende Nummer des Messpunkts und je Achse die Messpunkte, an denen die letzten drei Wiederholungen fertig wurden
     // (je Achse drei Plätze hintereinander; -1 = noch keine)
     private var _t as Number = 0;
+    // Die Achse, auf der der laufende Satz gezählt wird (seit startSet), -1 = die mit der meisten Bewegung
+    private var _setAxis as Number = -1;
     private var _repAt as Array<Number> = [-1, -1, -1, -1, -1, -1, -1, -1, -1] as Array<Number>;
 
     // fs: Messpunkte pro Sekunde
@@ -191,6 +193,7 @@ class RepCounter {
     }
 
     private function clearCounts() as Void {
+        _setAxis = -1;
         for (var i = 0; i < 9; i++) {
             _repAt[i] = -1;
         }
@@ -235,17 +238,35 @@ class RepCounter {
 
     // Wiederholungen des laufenden (oder gerade beendeten) Satzes
     function reps() as Number {
-        var f = _flips[busiest()];
+        var f = _flips[_setAxis >= 0 ? _setAxis : busiest()];
         return f <= 0 ? 0 : (f + 1) / 2;
     }
 
     // Drei gleichmäßige Wiederholungen hintereinander auf der Achse mit der meisten Bewegung? Erst dann ist es ein Satz (eine
     // Übung) und nicht eine zufällige Bewegung, etwa Herumgehen zwischen den Geräten oder Zurechtlegen der Hantel.
     function regular() as Boolean {
+        return steadyAxis() >= 0;
+    }
+
+    // Die Achse mit drei gleichmäßigen Wiederholungen (die mit der meisten Bewegung zuerst), -1 = keine. Alle Achsen werden geprüft:
+    // nach Gehen und Hinlegen kann die Achse mit der meisten Bewegung bisher noch die vom Gehen sein.
+    function steadyAxis() as Number {
         var b = busiest();
-        var a = _repAt[b * 3];
-        var m = _repAt[b * 3 + 1];
-        var z = _repAt[b * 3 + 2];
+        if (steadyOn(b)) {
+            return b;
+        }
+        for (var k = 0; k < 3; k++) {
+            if (k != b && steadyOn(k)) {
+                return k;
+            }
+        }
+        return -1;
+    }
+
+    private function steadyOn(k as Number) as Boolean {
+        var a = _repAt[k * 3];
+        var m = _repAt[k * 3 + 1];
+        var z = _repAt[k * 3 + 2];
         if (a < 0 || m < 0 || z < 0) {
             return false;
         }
@@ -256,7 +277,30 @@ class RepCounter {
         }
         var ratio = i1 > i2 ? i1 / i2 : i2 / i1;
         var mean = (i1 + i2) / 2.0 / _fs;
-        return ratio <= STEADY_RATIO && mean >= MIN_REP_S && mean <= MAX_REP_S;
+        // die letzte gleichmäßige Wiederholung darf nicht lange her sein (sonst ist es eine alte Bewegung)
+        return ratio <= STEADY_RATIO && mean >= MIN_REP_S && mean <= MAX_REP_S && _t - z <= mean * _fs * 1.5;
+    }
+
+    // Der Satz beginnt (drei gleichmäßige Wiederholungen): alles davor (Gehen, Hinlegen, Hantel holen) zählt nicht. Ab hier gelten
+    // nur diese drei Wiederholungen und was folgt, auf ihrer Achse; auch die Merkmale für die Erkennung der Übung kommen nur noch
+    // aus dem Satz.
+    function startSet() as Void {
+        var k = steadyAxis();
+        if (k < 0) {
+            return;
+        }
+        _setAxis = k;
+        var span = _repAt[k * 3 + 2] - _repAt[k * 3];
+        for (var j = 0; j < 3; j++) {
+            _flips[j] = j == k ? 5 : 0;
+            _load[j] = j == k ? 1.0 : 0.0;
+            _gs[j] = 0.0;
+        }
+        _n = 0;
+        _vSum = 0.0;
+        _pSum = 0.0;
+        // die drei Wiederholungen haben etwa anderthalb mal so lange gedauert wie die zwei Abstände zwischen ihnen
+        _activeN = (span * 1.5).toNumber();
     }
 
     // Sekunden seit Satzbeginn
