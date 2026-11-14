@@ -127,6 +127,14 @@ for (const l of LIBRARY) {
   });
 }
 
+/** Main and secondary muscles of a library exercise as [main, secondary] bit masks (figureMuscles.ts MUSCLE_IDS); null for the
+ * older exercises, whose muscles the watch takes from the family. */
+const LIB_MUSCLES = new Map(LIBRARY.map((l) => [l.key, [l.p, l.s]]));
+export const musclesOfExercise = (id: string): number[] | null => {
+  const m = LIB_MUSCLES.get(id);
+  return m && m[0] ? m : null;
+};
+
 /** The library entry a catalogue exercise belongs to: the one it is linked to (all squats are "squat"), else its own. */
 export const libraryIdOf = (x: CatalogExercise): string => x.lib ?? x.key;
 
@@ -418,6 +426,8 @@ export interface FeedExercise {
   m: number;
   /** Seconds to hold (only for a hold). */
   h?: number;
+  /** Muscles it trains: [main, secondary] bit masks (figureMuscles.ts MUSCLE_IDS); the watch shows them after the workout. */
+  u?: number[];
 }
 
 /** One strength session of the day. */
@@ -453,7 +463,7 @@ export interface StrengthFeed {
   auto: boolean;
   share: boolean;
   /** The user's own exercise list (free training, changing the exercise on the watch). */
-  ex: { i: string; n: string; f: string; a?: string; m: number; h?: number }[];
+  ex: { i: string; n: string; f: string; a?: string; m: number; h?: number; u?: number[] }[];
   /** Today's first strength session (older watch apps read this). */
   today: { id: string; t: string; ex: FeedExercise[] } | null;
   /** All of today's strength sessions: the person picks which one on the watch. */
@@ -556,6 +566,7 @@ function feedExercise(step: Extract<CalStep, { type: 'exercise' }>, input: Stren
     ...(key && moveOf(key) ? { a: key } : {}),
     m: lib ? COUNT_CODE[lib.count] : 1,
     ...(hold ? { h: hold } : {}),
+    ...(lib && musclesOfExercise(lib.id) ? { u: musclesOfExercise(lib.id)! } : {}),
   };
 }
 
@@ -597,10 +608,10 @@ export function buildStrengthFeed(input: StrengthFeedInput): StrengthFeed {
   const own: StrengthFeed['ex'] = sessionOrder(watchExercises(prefs)).flatMap((id) => {
     const e = exerciseById(id);
     const a = animKeyOfLib(id);
-    return e ? [{ i: e.id, n: e.de, f: e.family, m: COUNT_CODE[e.count], ...(a ? { a } : {}), ...(e.count === 'time' ? { h: e.reps } : {}) }] : [];
+    return e ? [{ i: e.id, n: e.de, f: e.family, m: COUNT_CODE[e.count], ...(a ? { a } : {}), ...(e.count === 'time' ? { h: e.reps } : {}), ...(musclesOfExercise(e.id) ? { u: musclesOfExercise(e.id)! } : {}) }] : [];
   });
   const ex: StrengthFeed['ex'] = [...own];
-  for (const t of todays) if (t.i && !ex.some((x) => x.i === t.i)) ex.push({ i: t.i, n: t.n, f: t.f, m: t.m, ...(t.a ? { a: t.a } : {}), ...(t.h ? { h: t.h } : {}) });
+  for (const t of todays) if (t.i && !ex.some((x) => x.i === t.i)) ex.push({ i: t.i, n: t.n, f: t.f, m: t.m, ...(t.a ? { a: t.a } : {}), ...(t.h ? { h: t.h } : {}), ...(t.u ? { u: t.u } : {}) });
 
   const feed: StrengthFeed = {
     ...(input.date ? { d: input.date } : {}),

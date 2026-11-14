@@ -5,7 +5,9 @@
 //                (Armschwung 1 Hz mit Schrittstößen), Zurechtlegen (unregelmäßige Bewegungen), die Sätze (gleichmäßige
 //                Wiederholungen, je Übung anders: Tempo, Achse, Lage des Handgelenks) und die Pausen.
 //   Du           bedienst die Karte nach jedem Satz wie im Gym: nach 3 s START (zum Gewicht), beim ersten Satz AUF (+1 kg),
-//                nach 2 weiteren Sekunden START (bestätigen, Pause). Am Ende speicherst du das Training.
+//                nach 2 weiteren Sekunden START (bestätigen, Pause). In der ersten Pause blätterst du mit AB durch die
+//                Datenseiten, den letzten Satz beendest du mit BACK (unten rechts). Am Ende speicherst du das Training, die Uhr
+//                zeigt die beanspruchten Muskeln.
 // Jeder Abschnitt und jede Reaktion der Uhr steht in der Konsole ("GYM …"), damit man nachlesen kann, was erkannt wurde.
 
 import Toybox.Lang;
@@ -67,6 +69,7 @@ module Gym {
     var _state as Number = -1;
     var _cardAt as Number = -1;
     var _cards as Number = 0;
+    var _restAt as Number = -1;
     var _saved as Boolean = false;
 
     // Abschnitt und Sekunde darin zu einer Sekunde des Trainings; [-1, 0] nach dem Ende
@@ -154,7 +157,7 @@ module Gym {
                 text += " (erkannt nach " + c.counter.reps() + " gleichmäßigen Wdh)";
             } else if (_state == Str.CONFIRM) {
                 var e = c.plan.options[c.optIdx];
-                text += " · " + e.name + (c.recognized() ? " (erkannt)" : "") + " · " + c.cReps + " Wdh · " + (c.cKg > 0.0 ? c.cKg.format("%.1f") + " " + c.plan.unit : "kein Gewicht");
+                text += " · " + e.name + " · " + c.cReps + " Wdh · " + (c.cKg > 0.0 ? c.cKg.format("%.1f") + " " + c.plan.unit : "kein Gewicht");
                 _cardAt = second;
             } else if (_state == Str.REST && c.sets.size() > 0) {
                 var s = c.lastSet() as LoggedSet;
@@ -174,8 +177,23 @@ module Gym {
             } else if (age >= 5 && c.field == 1) {
                 _cards += 1;
                 _cardAt = -1;
+                _restAt = second;
                 System.println("GYM " + clock(second) + "     Du: START -> bestätigt, Pause");
                 c.onStart();
+            }
+        }
+        // Der letzte Satz: nicht auf die 5 s Ruhe warten, sondern 2 s nach der letzten Wiederholung BACK (unten rechts) drücken
+        if (c.state == Str.SET && _cards == 7 && at[0] >= 0 && SCRIPT[at[0]][0] == QUIET && at[1] == 2) {
+            System.println("GYM " + clock(second) + "     Du: BACK -> Satz beendet");
+            c.onBack();
+        }
+        // In der ersten Pause: mit AB durch die Datenseiten blättern (je 3 s), dann zurück zur Pause
+        if (c.state == Str.REST && _cards == 1 && _restAt >= 0) {
+            var pages = ["Pause", "Übung", "Trainingszeit", "Uhrzeit"] as Array<String>;
+            var age = second - _restAt;
+            if (age > 0 && age % 3 == 0 && age <= 12) {
+                c.flip(1);
+                System.println("GYM " + clock(second) + "     Du: AB -> Seite " + pages[c.page]);
             }
         }
         // Ende: speichern
@@ -183,6 +201,13 @@ module Gym {
             _saved = true;
             System.println("GYM " + clock(second) + "  >> Training speichern: " + c.sets.size() + " Sätze, " + c.totalReps() + " Wdh");
             c.save();
+            var load = c.muscleLoad();
+            var order = Muscles.ranked(load, 6);
+            var text = "GYM Muskeln:";
+            for (var k = 0; k < order.size(); k++) {
+                text += " " + Muscles.NAMES[order[k]] + " " + load[order[k]].format("%.1f");
+            }
+            System.println(text);
         }
     }
 }

@@ -999,6 +999,38 @@ function testAutoSyncSlots(logger as Logger) as Boolean {
     return true;
 }
 
+// Ansage je km bei Einheiten ohne Wiederholung, je Abschnitt bei Intervallen und Schwelle.
+(:test)
+function testKmLapsOnlyWithoutRepeats(logger as Logger) as Boolean {
+    var longRun = new Workout("Long Run", 2, [
+        { "n" => "Einlaufen", "t" => "w", "d" => 3000, "z" => 1 },
+        { "n" => "Long Run", "t" => "a", "d" => 10000, "z" => 2 },
+        { "n" => "Auslaufen", "t" => "c", "d" => 2000, "z" => 1 }
+    ] as Array<Dictionary>);
+    Test.assert(longRun.kmLaps());
+    var mp = new Workout("MRT", 4, [
+        { "n" => "Einlaufen", "t" => "w", "d" => 2000, "z" => 1 },
+        { "n" => "Marathon", "t" => "a", "d" => 8000, "z" => 4 }
+    ] as Array<Dictionary>);
+    Test.assert(mp.kmLaps());
+    var intervals = new Workout("3x1000", 6, [
+        { "n" => "Einlaufen", "t" => "w", "d" => 2000, "z" => 1 },
+        { "n" => "Interval 1/2", "t" => "a", "d" => 1000, "z" => 6 },
+        { "n" => "Trabpause", "t" => "r", "s" => 120, "z" => 3 },
+        { "n" => "Interval 2/2", "t" => "a", "d" => 1000, "z" => 6 }
+    ] as Array<Dictionary>);
+    Test.assert(!intervals.kmLaps());
+    // Schwelle am Stück: trotzdem Ansage je Abschnitt
+    var tempo = new Workout("Schwelle", 1, [
+        { "n" => "Einlaufen", "t" => "w", "d" => 2000, "z" => 1 },
+        { "n" => "Schwelle", "t" => "a", "d" => 6000, "z" => 5 },
+        { "n" => "Auslaufen", "t" => "c", "d" => 2000, "z" => 1 }
+    ] as Array<Dictionary>);
+    Test.assert(!tempo.kmLaps());
+    Test.assert(!new Workout("T", 5, [{ "n" => "Schwelle", "t" => "a", "d" => 5000 }] as Array<Dictionary>).kmLaps());
+    return true;
+}
+
 // Eine Runde ist Intervall + Trabpause; Einlaufen und Auslaufen sind eigene Runden.
 (:test)
 function testRoundsIntervalWithRecovery(logger as Logger) as Boolean {

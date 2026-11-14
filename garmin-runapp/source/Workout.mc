@@ -242,6 +242,22 @@ class Workout {
         return n;
     }
 
+    // Runden der Aufzeichnung je Kilometer (Garmin sagt nach jedem km an) statt je Abschnitt? Ja bei Einheiten, deren Abschnitte
+    // sich nicht wiederholen (Long Run mit Ein-/Auslaufen, Dauerlauf). Nein bei Intervallen (Trabpause oder mehrere schnelle Teile)
+    // und Schwellenläufen (Schwelle, Intervall, Wiederholung): dort kommt die Ansage nach jedem Abschnitt.
+    function kmLaps() as Boolean {
+        if (zone >= 5 || activeCount() > 1) {
+            return false;
+        }
+        for (var i = 0; i < _steps.size(); i++) {
+            var z = Pace.toNum(_steps[i].get("z") as Object?);
+            if (isRecovery(i) || (isActive(i) && z != null && z >= 5)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     // Trabpause (zwischen zwei Intervallen)
     function isRecovery(i as Number) as Boolean {
         return "r".equals(_steps[i].get("t") as Object?);
@@ -249,7 +265,7 @@ class Workout {
 
     // Beginnt mit dem aktuellen Schritt eine neue Runde (Zählung der App)? Eine Runde ist ein Intervall samt der Trabpause danach:
     // Der Wechsel in die Trabpause beginnt keine, erst das nächste Intervall. Einlaufen, Auslaufen und Abschnitte ohne Pause sind
-    // je eine Runde. Die Runden der Aufzeichnung (FIT, Garmins Ansage) bleiben je Schritt, siehe RecordingController.stepDone.
+    // je eine Runde. Die Runden der Aufzeichnung (FIT, Garmins Ansage) sind je km oder je Schritt, siehe kmLaps.
     function startsRound() as Boolean {
         return finished || !isRecovery(index);
     }

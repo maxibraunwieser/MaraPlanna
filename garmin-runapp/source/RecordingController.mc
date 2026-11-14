@@ -30,9 +30,11 @@ class RecordingController {
     var pace as Float? = null;
     // -1 = langsamer laufen, 1 = schneller laufen, 0 = passt / kein Ziel
     var hint as Number = 0;
-    // Runden der Aufzeichnung (je Schritt, Garmins Ansage) und Runden der App (Intervall + Trabpause = eine)
+    // Runden der Aufzeichnung (je km oder je Schritt, Garmins Ansage) und Runden der App (Intervall + Trabpause = eine)
     var laps as Number = 1;
     var rounds as Number = 1;
+    // Runden der Aufzeichnung je km (freier Lauf, Long Run …) statt je Abschnitt (Intervalle, Schwelle), siehe Workout.kmLaps
+    var kmLaps as Boolean = true;
     // Zum Anzeigen eines Schrittwechsels für ein paar Sekunden.
     var stepChangedAt as Number = -100000;
     // Zusammenfassung des zuletzt beendeten schnellen Teils: welcher Schritt, seit wann (ms Aufzeichnungszeit)
@@ -102,6 +104,7 @@ class RecordingController {
         }
         self.zone = zone;
         self.workout = workout;
+        kmLaps = workout == null || (workout as Workout).kmLaps();
         getApp().startGps();
         if (workout != null) {
             (workout as Workout).bindZones(zones);
@@ -166,7 +169,7 @@ class RecordingController {
 
     // Ein Schritt der Einheit ist zu Ende (von selbst oder per Runden-Taste): weiter zum nächsten. Endet ein schneller Teil
     // (Intervall, Abschnitt eines Long Runs), kommt seine Zusammenfassung mit eigenem Signal; nach einer Trabpause nichts.
-    // Für die Aufzeichnung ist jeder Schritt eine Runde: Garmin sagt bei jeder Runde deren Zeit (und Pace) an, und nur so sind die
+    // Bei Intervallen und Schwelle (kmLaps = false) ist für die Aufzeichnung jeder Schritt eine Runde: Garmin sagt bei jeder Runde deren Zeit (und Pace) an, und nur so sind die
     // Werte nach dem Intervall die des Intervalls (nach der Trabpause kommt dadurch auch eine kurze Ansage; abschalten lässt sie
     // sich von der App aus nicht). Die App selbst zählt Intervall + Trabpause als eine Runde (rounds).
     private function stepDone(ms as Number, dist as Float, info as Activity.Info?) as Void {
@@ -174,7 +177,10 @@ class RecordingController {
         var done = wk.index;
         wk.advance(ms, dist);
         stepChangedAt = ms;
-        newLap(ms, dist);
+        // Bei km-Runden bleibt der Abschnittswechsel ohne Runde, sonst käme eine Ansage mitten im Kilometer.
+        if (!kmLaps) {
+            newLap(ms, dist);
+        }
         if (wk.startsRound()) {
             rounds += 1;
         }
@@ -291,8 +297,12 @@ class RecordingController {
         zoneTime.add(info != null ? info.currentHeartRate : null, _hrZones);
         anaerobic.add(pace);
 
-        // Jeder volle Kilometer (bzw. jede Meile): Zusammenfassung zeigen, kurzer Hinweiston.
+        // Jeder volle Kilometer (bzw. jede Meile): Zusammenfassung zeigen, kurzer Hinweiston. Bei km-Runden auch eine Runde der
+        // Aufzeichnung, damit Garmin nach jedem km Zeit und Pace ansagt (bei Intervallen und Schwelle nur je Abschnitt).
         if (splits.update(ms, dist, info != null ? info.currentHeartRate : null, zones.miles ? Pace.M_PER_MI : 1000.0)) {
+            if (kmLaps) {
+                newLap(ms, dist);
+            }
             Alert.lap();
         }
 

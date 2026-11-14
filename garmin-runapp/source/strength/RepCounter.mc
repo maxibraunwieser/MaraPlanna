@@ -11,7 +11,7 @@
 //      MIN_THR. Zwei Wechsel sind eine Wiederholung. Gezählt wird die Achse mit der meisten Bewegung.
 //      Gezählt wird auch kurz vor dem Satzbeginn mit, damit die erste Bewegung nicht fehlt; nach einer
 //      Sekunde Ruhe außerhalb eines Satzes beginnt die Zählung neu.
-//   5. Merkmale des Satzes (features()), mit denen die Übung erkannt wird (Recognizer.mc): Sekunden je Wiederholung,
+//   5. Merkmale des Satzes (features(), gehen mit dem Satz zum Server, die Uhr erkennt die Übung nicht): Sekunden je Wiederholung,
 //      Größe der Bewegung, Anteil der Bewegung in Richtung der Schwerkraft und die Richtung der Schwerkraft am Handgelenk.
 //      Sie hängen nicht davon ab, wie die Uhr am Arm sitzt, nur davon, welche Bahn die Hand nimmt.
 // Alle Schwellen sind Schätzwerte und werden mit echten Daten abgestimmt (diag() liefert die Messwerte dazu).
@@ -24,8 +24,8 @@ class RepCounter {
     private const ON_MG = 70.0;
     private const OFF_MG = 35.0;
     private const MIN_THR = 40.0;
-    // So lange (Sekunden) muss es ruhig sein, bis ein Satz zu Ende ist
-    private const QUIET_S = 2.0;
+    // So lange (Sekunden) muss es ruhig sein, bis ein Satz zu Ende ist (lange genug für ein kurzes Durchatmen im Satz)
+    private const QUIET_S = 5.0;
     // Zwei Wechsel auf derselben Achse liegen mindestens so weit auseinander (Sekunden)
     private const MIN_FLIP_S = 0.3;
     // Gleichmäßige Wiederholungen (regular()): die letzten zwei Abstände zwischen drei Wiederholungen unterscheiden sich höchstens um

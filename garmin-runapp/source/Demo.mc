@@ -570,8 +570,9 @@ module Demo {
         var xs = [] as Array<Number>;
         var ys = [] as Array<Number>;
         var zs = [] as Array<Number>;
-        var cycle = second % 36;
-        var p = pattern((second / 36) % 3);
+        // alle 75 s ein Satz (10 s Bewegung): Zeit genug, die Karte zu bedienen und die Pause anzusehen
+        var cycle = second % 75;
+        var p = pattern((second / 75) % 3);
         for (var j = 0; j < 25; j++) {
             var tt = cycle + j / 25.0;
             var inSet = tt >= 6.0 && tt < 16.0;

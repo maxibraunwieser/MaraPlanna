@@ -52,6 +52,9 @@ class Planned {
     var mode as Number = 0;
     // Sekunden zum Halten (nur CountMode.TIME)
     var hold as Number = 0;
+    // Trainierte Muskeln als Bitmasken (Haupt- und Nebenmuskeln, Reihenfolge siehe Muscles.NAMES)
+    var musP as Number = 0;
+    var musS as Number = 0;
 
     function initialize(id as String, name as String, fam as String, sets as Number, reps as Number, kg as Float, rest as Number) {
         self.id = id;
@@ -309,6 +312,11 @@ class StrengthPlan {
         p.key = str(g(r, "a"));
         p.mode = toFloat(g(r, "m")).toNumber();
         p.hold = toFloat(g(r, "h")).toNumber();
+        // Die trainierten Muskeln vom Server ("u" = [Haupt, Neben] als Bitmasken), sonst nach der Bewegungsart geschätzt
+        var u = g(r, "u");
+        var m = u instanceof Array && u.size() >= 2 ? [toFloat(u[0] as Object?).toNumber(), toFloat(u[1] as Object?).toNumber()] as Array<Number> : Muscles.ofFamily(p.fam);
+        p.musP = m[0];
+        p.musS = m[1];
         return p;
     }
 

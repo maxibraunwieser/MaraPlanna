@@ -26,8 +26,8 @@ function testRepCounterCountsAndEndsSet(logger as Logger) as Boolean {
     var c = new RepCounter(25);
     var at = feedSet(c, 5, 0, 0.5, 0.0, 0);
     Test.assert(!c.active);
-    // 8 Wiederholungen in 10 s (0,8 Hz), dann Ruhe
-    at = feedSet(c, 16, 8, 0.8, 350.0, at);
+    // 8 Wiederholungen in 10 s (0,8 Hz), dann Ruhe (der Satz endet nach 5 s ohne Bewegung)
+    at = feedSet(c, 20, 8, 0.8, 350.0, at);
     Test.assert(c.finished);
     logger.debug("reps=" + c.lastReps + " seconds=" + c.lastSeconds + " diag=" + c.lastDiag);
     Test.assert(c.lastReps >= 7 && c.lastReps <= 9);
@@ -40,7 +40,7 @@ function testRepCounterSlowReps(logger as Logger) as Boolean {
     // Bankdrücken: etwa 4 s je Wiederholung, weniger Ausschlag
     var c = new RepCounter(25);
     var at = feedSet(c, 4, 0, 0.5, 0.0, 0);
-    at = feedSet(c, 30, 6, 0.25, 160.0, at);
+    at = feedSet(c, 34, 6, 0.25, 160.0, at);
     Test.assert(c.finished);
     logger.debug("slow reps=" + c.lastReps + " diag=" + c.lastDiag);
     Test.assert(c.lastReps >= 5 && c.lastReps <= 7);
@@ -62,12 +62,12 @@ function testRepCounterIgnoresRestAndShortMoves(logger as Logger) as Boolean {
 function testRepCounterSecondSet(logger as Logger) as Boolean {
     var c = new RepCounter(25);
     var at = feedSet(c, 4, 0, 0.5, 0.0, 0);
-    at = feedSet(c, 16, 8, 0.8, 350.0, at);
+    at = feedSet(c, 20, 8, 0.8, 350.0, at);
     Test.assert(c.finished);
     c.nextSet();
     Test.assert(!c.finished);
     at = feedSet(c, 8, 0, 0.5, 0.0, at);
-    at = feedSet(c, 17, 10, 0.9, 300.0, at);
+    at = feedSet(c, 21, 10, 0.9, 300.0, at);
     Test.assert(c.finished);
     logger.debug("second set reps=" + c.lastReps);
     Test.assert(c.lastReps >= 9 && c.lastReps <= 11);
@@ -266,6 +266,75 @@ function testStrengthSetCardAndRest(logger as Logger) as Boolean {
     return true;
 }
 
+// BACK (unten rechts) beendet den Satz sofort, die Karte nennt die Übung, die bei Beginn dran war (keine Erkennung aus der
+// Bewegung); 0 Wiederholungen bestätigt verwirft den Satz. In der Pause blättern AUF/AB die vier Datenseiten, am Ende zeigt die Uhr,
+// welche Muskeln wie beansprucht wurden.
+(:test)
+function testStrengthBackKeyPagesAndMuscles(logger as Logger) as Boolean {
+    var plan = StrengthPlan.fromFeed(seedStr(null), 0) as StrengthPlan;
+    var c = new StrengthController(plan);
+    c.state = Str.REST;
+    var at = feedSet(c.counter, 3, 0, 0.5, 0.0, 0);
+    at = feedSet(c.counter, 8, 4, 0.5, 300.0, at);
+    c.tick();
+    Test.assertEqual(c.state, Str.SET);
+    // gleich nach der letzten Wiederholung BACK: Karte, Bankdrücken (die geplante)
+    c.onBack();
+    Test.assertEqual(c.state, Str.CONFIRM);
+    Test.assertEqual(plan.options[c.optIdx].name, "Bankdrücken");
+    Test.assert(c.cReps >= 3);
+    // BACK auf dem Gewicht geht zurück zu den Wiederholungen
+    c.onStart();
+    Test.assertEqual(c.field, 1);
+    c.onBack();
+    Test.assertEqual(c.field, 0);
+    c.onStart();
+    c.onStart();
+    Test.assertEqual(c.state, Str.REST);
+    Test.assertEqual(c.sets.size(), 1);
+    // Datenseiten ringsum
+    Test.assertEqual(c.page, 0);
+    c.flip(1);
+    c.flip(1);
+    c.flip(1);
+    Test.assertEqual(c.page, 3);
+    c.flip(1);
+    Test.assertEqual(c.page, 0);
+    c.flip(-1);
+    Test.assertEqual(c.page, 3);
+    // ein Satz mit 0 Wiederholungen bestätigt: verworfen
+    at = feedSet(c.counter, 3, 0, 0.5, 0.0, at);
+    at = feedSet(c.counter, 8, 4, 0.5, 300.0, at);
+    c.tick();
+    c.onBack();
+    Test.assertEqual(c.state, Str.CONFIRM);
+    for (var i = 0; i < 20; i++) {
+        c.onAdjust(-1);
+    }
+    c.onStart();
+    c.onStart();
+    Test.assertEqual(c.state, Str.REST);
+    Test.assertEqual(c.sets.size(), 1);
+    // Muskeln: Bankdrücken (Brust, Neben: Schultern, Trizeps), Wadenheben (Waden)
+    var none = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] as Array<Number>;
+    var f0 = [0, 0, 0, 100, 100, 100] as Array<Number>;
+    c.sets.add(new LoggedSet("bench_press", "Bankdrücken", 8, 60.0, "plan", 0, 20, none, f0));
+    c.sets.add(new LoggedSet("calf_machine", "Wadenheben", 15, 0.0, "plan", 0, 20, none, f0));
+    var load = c.muscleLoad();
+    Test.assert((load[0] - 2.0).abs() < 0.01);
+    Test.assert((load[5] - 1.0).abs() < 0.01);
+    Test.assert((load[10] - 1.0).abs() < 0.01);
+    var order = Muscles.ranked(load, 5);
+    Test.assertEqual(order[0], 0);
+    Test.assertEqual(Muscles.level(load[0], load[0]), 2);
+    Test.assertEqual(Muscles.level(load[5], load[0]), 1);
+    // Masken vom Server ("u") gehen der Schätzung vor
+    var p = StrengthPlan.fromRow({ "i" => "x", "n" => "X", "f" => "curl", "u" => [2, 4] } as Dictionary, true);
+    Test.assertEqual(p.musP, 2);
+    Test.assertEqual(p.musS, 4);
+    return true;
+}
+
 // Vor einer Halteübung zählt nur START: Bewegung davor ist kein Satz; vor einer gezählten Übung beginnt die Bewegung den Satz.
 (:test)
 function testMotionBeforeAHoldIsNotASet(logger as Logger) as Boolean {
@@ -423,7 +492,7 @@ function feedPattern(c as RepCounter, seconds as Number, reps as Number, freq as
 function setFeatures(freq as Float, reps as Number, amp as Array<Float>, g as Array<Float>) as Array<Number> {
     var c = new RepCounter(25);
     var at = feedPattern(c, 4, 0, 0.5, [0.0, 0.0, 0.0] as Array<Float>, g, 0);
-    at = feedPattern(c, (reps / freq).toNumber() + 8, reps, freq, amp, g, at);
+    at = feedPattern(c, (reps / freq).toNumber() + 12, reps, freq, amp, g, at);
     return c.lastFeat;
 }
 
@@ -444,73 +513,6 @@ function testRepCounterFeatures(logger as Logger) as Boolean {
     var slow = setFeatures(0.25, 6, [0.0, 0.0, 450.0] as Array<Float>, [0.0, 0.0, 1000.0] as Array<Float>);
     logger.debug("slow=" + slow + " up=" + up);
     Test.assert(slow[0] > up[0] + 8);
-    return true;
-}
-
-(:test)
-function testRecognizerFollowsThePlanAndTheSession(logger as Logger) as Boolean {
-    var f = [20, 100, 80, 100, 100, 190] as Array<Number>;
-    // ohne gelernte Merkmale entscheidet die Reihenfolge: die nächste geplante Übung gewinnt
-    var cands = [new Cand(3, true, false, 0, null, null), new Cand(2, false, false, 0, null, null), new Cand(-1, false, false, 0, null, null)] as Array<Cand>;
-    var sc = Recognizer.scores(cands, f, true);
-    Test.assertEqual(Recognizer.best(sc), 0);
-    var pr = Recognizer.probabilities(sc);
-    Test.assert(pr[0] > pr[1] && pr[1] > pr[2]);
-    Test.assert(pr[0] + pr[1] + pr[2] > 0.97 && pr[0] + pr[1] + pr[2] <= 1.0001);
-    // ein weiterer Satz der Übung davor (letzte, noch offen) schlägt die Reihenfolge nicht allein, hebt sie aber an
-    var again = [new Cand(0, false, false, 0, null, null), new Cand(2, true, false, 0, null, null)] as Array<Cand>;
-    Test.assertEqual(Recognizer.best(Recognizer.scores(again, f, true)), 1);
-    // ein Halten kommt nie aus Bewegung
-    var hold = [new Cand(2, true, false, 2, null, null), new Cand(1, false, false, 0, null, null)] as Array<Cand>;
-    Test.assertEqual(Recognizer.best(Recognizer.scores(hold, f, true)), 1);
-    return true;
-}
-
-(:test)
-function testRecognizerLearnsFromConfirmedSets(logger as Logger) as Boolean {
-    // Zwei Übungen mit verschiedenem Gefühl am Handgelenk: eine quer (Zeit 1,6 s, 80 % entlang), eine langsam und flach.
-    var curl = [16, 280, 30, 120, 60, 100] as Array<Number>;
-    var press = [30, 420, 85, 100, 130, 100] as Array<Number>;
-    var sigCurl = [6, 16, 280, 30, 120, 60, 100, 2, 20, 4, 4, 4, 4] as Array<Number>;
-    var sigPress = [6, 30, 420, 85, 100, 130, 100, 3, 25, 4, 4, 4, 4] as Array<Number>;
-    // die Reihenfolge verlangt den Curl, die Bewegung ist aber ein Drücken: bei gelernten Merkmalen gewinnt die Bewegung
-    var cands = [new Cand(3, true, false, 0, sigCurl, null), new Cand(3, false, false, 0, sigPress, null)] as Array<Cand>;
-    Test.assertEqual(Recognizer.best(Recognizer.scores(cands, press, true)), 1);
-    Test.assertEqual(Recognizer.best(Recognizer.scores(cands, curl, true)), 0);
-    // ein Satz, der zu keiner passt, bleibt bei der Reihenfolge, aber unsicher
-    var odd = [60, 50, 10, 150, 150, 150] as Array<Number>;
-    var pr = Recognizer.probabilities(Recognizer.scores(cands, odd, true));
-    logger.debug("odd set: " + pr);
-    Test.assert(pr[0] < 0.3 && pr[1] < 0.3);
-    // aus der Einheit gelernt: zwei bestätigte Sätze (nur sie) genügen, um den nächsten gleichen zu erkennen
-    var rows = [[30, 420, 85, 100, 130, 100], [31, 410, 84, 101, 128, 100]] as Array<Array<Number>>;
-    var sess = Recognizer.summarize(rows) as Array<Number>;
-    Test.assertEqual(sess[0], 2);
-    Test.assertEqual(sess[1], 31);
-    var today = [new Cand(1, true, false, 0, null, null), new Cand(3, false, true, 0, null, sess)] as Array<Cand>;
-    Test.assertEqual(Recognizer.best(Recognizer.scores(today, press, true)), 1);
-    // zwei Angaben zusammenlegen: gewichtet nach der Zahl, die größere Streuung gilt
-    var merged = Recognizer.merge(sigPress, sess) as Array<Number>;
-    Test.assertEqual(merged[0], 8);
-    Test.assert(merged[1] >= 30 && merged[1] <= 31);
-    Test.assert(Recognizer.merge(null, null) == null);
-    return true;
-}
-
-// Ein Satz einer Übung mit eigener Bewegung ergibt genau die Merkmale, an denen sie wiedererkannt wird.
-(:test)
-function testRecognizerSeparatesExercisesFromTheirMovement(logger as Logger) as Boolean {
-    // Drücken: senkrecht (entlang der Schwerkraft auf z), langsam. Curl: quer (x), schneller.
-    var press = setFeatures(0.3, 6, [0.0, 0.0, 380.0] as Array<Float>, [0.0, 0.0, 1000.0] as Array<Float>);
-    var curl = setFeatures(0.6, 10, [330.0, 90.0, 0.0] as Array<Float>, [0.0, 0.0, 1000.0] as Array<Float>);
-    var sigPress = [4, press[0], press[1], press[2], press[3], press[4], press[5], 3, 25, 5, 5, 5, 5] as Array<Number>;
-    var sigCurl = [4, curl[0], curl[1], curl[2], curl[3], curl[4], curl[5], 3, 25, 5, 5, 5, 5] as Array<Number>;
-    var cands = [new Cand(3, false, false, 0, sigCurl, null), new Cand(3, true, false, 0, sigPress, null)] as Array<Cand>;
-    // dieselben Bewegungen noch einmal (andere Rauschphase): sie werden den richtigen Übungen zugeordnet
-    var press2 = setFeatures(0.3, 6, [0.0, 0.0, 385.0] as Array<Float>, [0.0, 0.0, 1000.0] as Array<Float>);
-    var curl2 = setFeatures(0.6, 10, [335.0, 85.0, 0.0] as Array<Float>, [0.0, 0.0, 1000.0] as Array<Float>);
-    Test.assertEqual(Recognizer.best(Recognizer.scores(cands, press2, true)), 1);
-    Test.assertEqual(Recognizer.best(Recognizer.scores(cands, curl2, true)), 0);
     return true;
 }
 
