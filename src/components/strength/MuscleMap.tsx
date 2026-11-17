@@ -6,6 +6,7 @@ import { memo } from 'react';
 import { MUSCLES, muscleLabel, type Muscle, type MuscleLoad } from '../../lib/exerciseInfo';
 import { useI18n } from '../../lib/i18n';
 import { cx } from '../ui';
+import { muscleFill } from '../ds';
 
 const SKIN = '#f1f5f9';
 const OUTLINE = '#475569';
@@ -94,24 +95,31 @@ const SPINE = 'M50,74 L50,104';
 
 const thin = { vectorEffect: 'non-scaling-stroke' as const };
 
-function Figure({ part, load, front }: { part: ReturnType<typeof side>; load: Partial<Record<Muscle, MuscleLoad>>; front: boolean }) {
+type Look = { skin: string; outline: string; line: string; fill: (m: Muscle, l: MuscleLoad) => string };
+// light body with red muscles (pages in the old style) and the design system's dark body with muscle colours
+const LOOKS: Record<'classic' | 'color', Look> = {
+  classic: { skin: SKIN, outline: OUTLINE, line: LINE, fill: (_m, l) => FILL[l] },
+  color: { skin: 'var(--color-ds-body)', outline: 'var(--color-ds-body-line)', line: 'var(--color-ds-body-line)', fill: muscleFill },
+};
+
+function Figure({ part, load, front, look }: { part: ReturnType<typeof side>; load: Partial<Record<Muscle, MuscleLoad>>; front: boolean; look: Look }) {
   return (
     <g>
-      <path d={OUTLINE_D} fill={SKIN} stroke={OUTLINE} strokeWidth={1.1} strokeLinejoin="round" style={thin} />
-      <ellipse cx={50} cy={15.5} rx={9.2} ry={12} fill={SKIN} stroke={OUTLINE} strokeWidth={1.1} style={thin} />
+      <path d={OUTLINE_D} fill={look.skin} stroke={look.outline} strokeWidth={1.1} strokeLinejoin="round" style={thin} />
+      <ellipse cx={50} cy={15.5} rx={9.2} ry={12} fill={look.skin} stroke={look.outline} strokeWidth={1.1} style={thin} />
       {part.muscles.map(({ m, d }, i) => (
-        <path key={i} d={d} fill={m && load[m] ? FILL[load[m]!] : SKIN} stroke={LINE} strokeWidth={0.7} strokeLinejoin="round" style={thin} />
+        <path key={i} d={d} fill={m && load[m] ? look.fill(m, load[m]!) : look.skin} stroke={look.line} strokeWidth={0.7} strokeLinejoin="round" style={thin} />
       ))}
-      {part.lines.map((d, i) => <path key={`l${i}`} d={d} fill="none" stroke={LINE} strokeWidth={0.6} strokeLinecap="round" style={thin} />)}
+      {part.lines.map((d, i) => <path key={`l${i}`} d={d} fill="none" stroke={look.line} strokeWidth={0.6} strokeLinecap="round" style={thin} />)}
       {front
-        ? [38.8, 61.2].map((x) => <ellipse key={x} cx={x} cy={167.2} rx={3.4} ry={3.6} fill="none" stroke={LINE} strokeWidth={0.6} style={thin} />)
-        : <path d={SPINE} stroke={LINE} strokeWidth={0.6} style={thin} />}
+        ? [38.8, 61.2].map((x) => <ellipse key={x} cx={x} cy={167.2} rx={3.4} ry={3.6} fill="none" stroke={look.line} strokeWidth={0.6} style={thin} />)
+        : <path d={SPINE} stroke={look.line} strokeWidth={0.6} style={thin} />}
     </g>
   );
 }
 
 /** Front and back of a body with the trained muscles in colour. */
-export const MuscleMap = memo(function MuscleMap({ load, className }: { load: Partial<Record<Muscle, MuscleLoad>>; className?: string }) {
+export const MuscleMap = memo(function MuscleMap({ load, className, variant = 'classic' }: { load: Partial<Record<Muscle, MuscleLoad>>; className?: string; variant?: 'classic' | 'color' }) {
   const { t } = useI18n();
   const main = MUSCLES.filter((m) => load[m] === 'primary').map(muscleLabel);
   const also = MUSCLES.filter((m) => load[m] === 'secondary').map(muscleLabel);
@@ -119,9 +127,9 @@ export const MuscleMap = memo(function MuscleMap({ load, className }: { load: Pa
   return (
     <svg viewBox="0 0 200 228" className={cx('h-auto', className ?? 'w-full')} role="img" aria-label={label} data-testid="muscle-map">
       <title>{label}</title>
-      <Figure part={FRONT_SIDE} load={load} front />
+      <Figure part={FRONT_SIDE} load={load} front look={LOOKS[variant]} />
       <g transform="translate(100 0)">
-        <Figure part={BACK_SIDE} load={load} front={false} />
+        <Figure part={BACK_SIDE} load={load} front={false} look={LOOKS[variant]} />
       </g>
     </svg>
   );

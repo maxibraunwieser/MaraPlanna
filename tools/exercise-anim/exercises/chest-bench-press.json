@@ -1,0 +1,11 @@
+{
+  "id": "chest-bench-press", "name_de": "Bankdrücken (Langhantel)", "name_en": "Barbell bench press",
+  "primary": ["chest"], "secondary": ["triceps", "shoulders"],
+  "loop": "pingpong", "seconds": 2.4, "ground": "none",
+  "props": [{"type": "bench", "x1": 30, "y1": 67, "x2": 66, "y2": 67, "w": 5}],
+  "held": [{"type": "barbell", "at": "wr_n"}],
+  "keyframes": [
+    {"t": 0, "pose": {"hip": [62, 61], "torso": -90, "head": -90, "arm_n": [180, 180], "arm_f": [180, 180], "leg_n": [70, 5, 90], "leg_f": [70, 5, 90]}},
+    {"t": 1, "pose": {"arm_n": [25, 180], "arm_f": [25, 180]}}
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "id": "biceps-dumbbell-curl", "name_de": "Bizeps-Curl (Kurzhantel)", "name_en": "Dumbbell biceps curl",
+  "primary": ["biceps"], "secondary": ["forearms"],
+  "loop": "pingpong", "seconds": 2.2, "ground": "feet",
+  "held": [{"type": "dumbbell", "at": "wr_n"}, {"type": "dumbbell", "at": "wr_f"}],
+  "keyframes": [
+    {"t": 0, "pose": {"hip": [50, 47], "torso": 180, "arm_n": [0, 5], "arm_f": [0, 5], "leg_n": [0, 0, 90], "leg_f": [0, 0, 90]}},
+    {"t": 1, "pose": {"arm_n": [10, 150], "arm_f": [10, 150]}}
+  ]
+}

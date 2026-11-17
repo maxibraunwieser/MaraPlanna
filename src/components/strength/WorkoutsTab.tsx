@@ -1,63 +1,37 @@
 import { useMemo, useState } from 'react';
-import { CalendarClock, CalendarDays, ChevronDown, Clock, Pencil, Play, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { Plus, Sparkles } from 'lucide-react';
 import { isOwnRoutine, type Routine } from '../../../supabase/functions/_shared/strength';
 import { STRENGTH_TYPES, TYPE_LABEL, isStrengthType, routineKind, routineMinutes, setupOf, type StrengthType } from '../../lib/strengthPlan';
-import { exName, rxText, stepsToExercises, weightText } from '../../lib/strengthFormat';
-import { lastWeightOf, lastWeights } from '../../lib/strengthStats';
+import { stepsToExercises } from '../../lib/strengthFormat';
+import { lastWeights } from '../../lib/strengthStats';
 import { fmtDate, fmtDay, localTitle } from '../../lib/format';
 import { useI18n } from '../../lib/i18n';
 import type { PlannedWorkout } from '../../lib/types';
-import { Badge, Button, Card, CardTitle, Modal, Notice, useToast } from '../ui';
-import { ExerciseThumb } from './ExerciseImage';
-import { workoutMuscles } from '../../lib/exerciseInfo';
+import { Button, Modal, Notice, useToast } from '../ui';
 import { routineIdOf, sessionsOf } from '../../lib/strengthSchedule';
-import { MuscleLegend, MuscleMap } from './MuscleMap';
 import { DeleteWorkoutDialog, MoveDialog, OwnWorkoutDialog } from './WorkoutDialogs';
 import { Logger } from './Logger';
 import { RoutineEditor } from './RoutineEditor';
 import { isGymSession, type StrengthCtx } from './context';
+import { RecentSessions, RoutineCard, RunToday, TodayHero, UpcomingList, weekDays } from './Home';
+import { DsCard, SectionHeader, WeekStrip } from '../ds';
+import { isRunWorkout } from '../../lib/planner/adapt';
+import { useData } from '../../lib/data';
+import { useNavigate } from 'react-router-dom';
 
 export const dayLabel = (date: string, today: string): string => fmtDay(date, today, { weekday: 'long', day: 'numeric', month: 'short' });
-
-function ExerciseList({ exercises, unit, last }: { exercises: { key?: string; id?: string; name: string; sets: number; reps: string; kg?: number | null }[]; unit: 'kg' | 'lb'; last?: Map<string, { kg: number; date: string }> }) {
-  const { t } = useI18n();
-  return (
-    <ul className="space-y-2 text-sm">
-      {exercises.map((x, i) => {
-        // The weight of the last time (logged on the watch or here) is what the next session starts from.
-        const prev = last ? lastWeightOf(last, x) : undefined;
-        return (
-          <li key={`${x.name}-${i}`} className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 ring-1 ring-slate-200 py-2">
-            <ExerciseThumb exercise={x} className="hidden sm:block" />
-            <span className="min-w-0 flex-1 font-medium text-slate-800">{exName(x.name)}</span>
-            <span className="shrink-0 text-right tabular-nums text-slate-500">
-              {rxText(x, unit)}
-              {prev && <span className="block text-[11px] text-emerald-600" data-testid="last-kg">{t('wt.lastKg', { kg: weightText(prev.kg, unit), date: fmtDate(prev.date, { day: 'numeric', month: 'short' }) })}</span>}
-            </span>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-/** The exercise names in one small line, for a workout that is folded. */
-const nameLine = (exercises: { name: string }[]): string => exercises.map((x) => exName(x.name)).join(' · ');
-
-function Chevron({ open }: { open: boolean }) {
-  return <ChevronDown className={`h-5 w-5 shrink-0 text-slate-400 transition-transform duration-[420ms] ease-[cubic-bezier(0.32,0.72,0,1)] ${open ? 'rotate-180' : ''}`} />;
-}
 
 /** The workouts, the next session and what is coming up. */
 export function WorkoutsTab({ ctx }: { ctx: StrengthCtx }) {
   const { prefs, unit, workouts, today, rows } = ctx;
   const { t, lang } = useI18n();
   const toast = useToast();
+  const { activities, units } = useData();
+  const navigate = useNavigate();
   const [logging, setLogging] = useState<{ title: string; date: string; workout: PlannedWorkout | null; exercises: ReturnType<typeof stepsToExercises> } | null>(null);
   const [editing, setEditing] = useState<Routine | null>(null);
   const [editingSession, setEditingSession] = useState<{ w: PlannedWorkout; r: Routine } | null>(null);
   const [saving, setSaving] = useState(false);
-  const [openNext, setOpenNext] = useState(false);
   const [openRoutine, setOpenRoutine] = useState<string | null>(null);
   /** A workout of the person's own being added ('new') or changed. */
   const [own, setOwn] = useState<Routine | 'new' | null>(null);
@@ -119,134 +93,79 @@ export function WorkoutsTab({ ctx }: { ctx: StrengthCtx }) {
     }
   };
 
+  const todayRun = workouts.find((w) => w.date === today && isRunWorkout(w) && (w.status === 'planned' || w.status === 'partial'));
+  const toExercises = (w: PlannedWorkout) => stepsToExercises(w.steps);
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      <WeekStrip days={weekDays(today, workouts, rows, activities)} today={today} label={t('ds.week')} progressLabel={t('ds.weekProgress')} />
+
+      {todayRun && (!next || next.date !== today) && <RunToday w={todayRun} paces={ctx.plan?.fitness.paces ?? null} units={units} />}
+
       {next ? (
-        <section className="material overflow-hidden rounded-3xl text-white">
-          <div className="grid gap-5 p-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:p-6">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-lime">
-                <CalendarDays className="h-4 w-4" /> {t('wt.next', { day: dayLabel(next.date, today) })}
-              </div>
-              <button type="button" onClick={() => setOpenNext((v) => !v)} aria-expanded={openNext} className="mt-1 flex w-full items-start justify-between gap-3 text-left">
-                <span className="min-w-0">
-                  <span className="block text-2xl font-bold">{localTitle(next.title)}</span>
-                  {!openNext && <span className="mt-1 line-clamp-2 block text-xs text-slate-300">{nameLine(stepsToExercises(next.steps))}</span>}
-                </span>
-                <ChevronDown className={`mt-1.5 h-5 w-5 shrink-0 text-slate-300 transition-transform duration-[420ms] ease-[cubic-bezier(0.32,0.72,0,1)] ${openNext ? 'rotate-180' : ''}`} />
-              </button>
-              <div className="mt-1 flex items-center gap-3 text-sm text-slate-300">
-                <span className="inline-flex items-center gap-1"><Clock className="h-4 w-4" /> {t('wt.about', { min: next.duration_min ?? routineMinutes({ id: '', exercises: stepsToExercises(next.steps), by: 'own', updatedAt: null }) })}</span>
-                <span>{t('wt.exercises', { n: next.steps.filter((s) => s.type === 'exercise').length })}</span>
-              </div>
-              <div className="fold" data-open={openNext}>
-                <div>
-                  <ul className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
-                    {stepsToExercises(next.steps).map((x, i) => (
-                      <li key={`${x.name}-${i}`} className="flex items-center gap-3 rounded-xl bg-white/10 px-3 py-2">
-                        <ExerciseThumb exercise={x} className="hidden sm:block" />
-                        <span className="min-w-0 flex-1 font-medium">{exName(x.name)}</span>
-                        <span className="shrink-0 tabular-nums text-slate-300">{rxText(x, unit)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-col sm:justify-end">
-              <Button size="lg" className="col-span-2 w-full" icon={<Play className="h-5 w-5" />} onClick={() => startSession(next)}>{t('wt.start')}</Button>
-              <Button variant="secondary" className="w-full" icon={<Pencil className="h-4 w-4" />} onClick={() => setEditingSession({ w: next, r: { id: '', exercises: stepsToExercises(next.steps), by: 'own', updatedAt: null } })}>{t('wt.edit')}</Button>
-              <Button variant="secondary" className="w-full" icon={<CalendarClock className="h-4 w-4" />} onClick={() => setMoving(next)}>{t('smv.button')}</Button>
-            </div>
-          </div>
-        </section>
+        <TodayHero
+          title={localTitle(next.title)}
+          dayText={next.date === today ? t('ds.today') : t('wt.next', { day: dayLabel(next.date, today) })}
+          minutes={next.duration_min ?? routineMinutes({ id: '', exercises: toExercises(next), by: 'own', updatedAt: null })}
+          exercises={toExercises(next)}
+          last={last}
+          onStart={() => startSession(next)}
+          onEdit={() => setEditingSession({ w: next, r: { id: '', exercises: toExercises(next), by: 'own', updatedAt: null } })}
+          onMove={() => setMoving(next)}
+        />
       ) : (
-        <Card>
-          <CardTitle icon={<CalendarDays className="h-5 w-5 text-brand" />}>{t('wt.nextTitle')}</CardTitle>
-          <p className="text-sm text-slate-600">
-            {ctx.plan ? t('wt.noSession.plan') : t('wt.noSession.none')}
-          </p>
-        </Card>
+        <DsCard>
+          <h2 className="text-ds-title font-semibold text-ds-text">{t('wt.nextTitle')}</h2>
+          <p className="mt-1 text-ds-body text-ds-text-2">{ctx.plan ? t('wt.noSession.plan') : t('wt.noSession.none')}</p>
+        </DsCard>
       )}
 
-      <div>
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-slate-900">{t('wt.yours')}</h2>
-          <Button size="sm" variant="secondary" className="shrink-0" icon={<Plus className="h-4 w-4" />} onClick={() => setOwn('new')}>{t('ow.add')}</Button>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
+      <RecentSessions rows={rows} today={today} onAll={() => navigate('/strength?tab=history')} />
+
+      <section>
+        <SectionHeader
+          title={t('wt.yours')}
+          action={<Button size="sm" variant="secondary" className="min-h-11 shrink-0 !rounded-ds-md" icon={<Plus className="h-4 w-4" />} onClick={() => setOwn('new')}>{t('ow.add')}</Button>}
+        />
+        <div className="grid gap-3 md:grid-cols-2">
           {routines.map((r) => {
             const mine = isOwnRoutine(r.id);
-            const load = workoutMuscles(r.exercises);
             const open = openRoutine === r.id;
             return (
-              <Card key={r.id} className="flex flex-col" data-testid={'routine-' + r.id}>
-                <button type="button" onClick={() => setOpenRoutine(open ? null : r.id)} aria-expanded={open} className="mb-1 flex w-full items-start gap-2 text-left">
-                  <span className="min-w-0 flex-1 text-base font-semibold text-slate-900">{nameOf(r)}</span>
-                  <Badge tone={r.by === 'own' ? 'blue' : 'violet'} className="shrink-0">{mine ? t('ow.badge') : r.by === 'own' ? t('wt.own') : t('wt.suggested')}</Badge>
-                  <Chevron open={open} />
-                </button>
-                {/* Left: exercises, dates and buttons; right: the body with the muscles of the workout. */}
-                <div className="flex flex-1 gap-3">
-                  <div className="flex min-w-0 flex-1 flex-col">
-                    {!open && r.exercises.length > 0 && <span className="line-clamp-3 text-xs text-slate-500">{nameLine(r.exercises)}</span>}
-                    <p className="mt-2 text-xs text-slate-500">{t('wt.about', { min: routineMinutes(r) })}</p>
-                    <div className="mt-auto flex flex-wrap gap-2 pt-3">
-                      <Button size="sm" disabled={!r.exercises.length} icon={<Play className="h-4 w-4" />} onClick={() => startRoutine(r)}>{t('wt.startNow')}</Button>
-                      <Button size="sm" variant="secondary" icon={<Pencil className="h-4 w-4" />} onClick={() => (mine ? setOwn(r) : setEditing(r))}>{t('wt.edit')}</Button>
-                      <Button size="sm" variant="ghost" icon={<Trash2 className="h-4 w-4" />} aria-label={t('dw.aria', { name: nameOf(r) })} onClick={() => setDeleting(r)}><span className="sr-only sm:not-sr-only">{t('dw.button')}</span></Button>
-                    </div>
-                  </div>
-                  <MuscleMap load={load} className="w-24 shrink-0 self-center sm:w-28" />
-                </div>
-                {!r.exercises.length ? (
-                  <p className="mt-4 text-sm text-slate-500">{t('wt.emptyAdd')}</p>
-                ) : (
-                  <div className="fold" data-open={open}>
-                    <div>
-                      <div className="space-y-3 pt-4">
-                        <MuscleLegend load={load} />
-                        <ExerciseList exercises={r.exercises} unit={unit} last={last} />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </Card>
+              <div key={r.id} data-testid={'routine-' + r.id}>
+                <RoutineCard
+                  name={nameOf(r)}
+                  badge={mine ? t('ow.badge') : r.by === 'own' ? t('wt.own') : t('wt.suggested')}
+                  minutes={routineMinutes(r)}
+                  exercises={r.exercises}
+                  open={open}
+                  onToggle={() => setOpenRoutine(open ? null : r.id)}
+                  onStart={() => startRoutine(r)}
+                  onEdit={() => (mine ? setOwn(r) : setEditing(r))}
+                  onDelete={() => setDeleting(r)}
+                >
+                  {!r.exercises.length && <p className="mt-3 text-ds-body text-ds-text-2">{t('wt.emptyAdd')}</p>}
+                </RoutineCard>
+              </div>
             );
           })}
           {withoutRoutine.map((kind) => (
-            <Card key={kind} className="flex flex-col items-start gap-2">
-              <h3 className="text-base font-semibold text-slate-900">{TYPE_LABEL[kind]}</h3>
-              <p className="text-sm text-slate-500">{t('wt.noWorkout')}</p>
-              <Button size="sm" variant="secondary" icon={<Sparkles className="h-4 w-4 text-brand" />} onClick={() => setEditing({ id: kind, exercises: [], by: 'suggested', updatedAt: null })}>{t('wt.create')}</Button>
-            </Card>
+            <DsCard key={kind} className="flex flex-col items-start gap-2">
+              <h3 className="text-ds-title font-semibold text-ds-text">{TYPE_LABEL[kind]}</h3>
+              <p className="text-ds-body text-ds-text-2">{t('wt.noWorkout')}</p>
+              <Button size="sm" variant="secondary" icon={<Sparkles className="h-4 w-4" />} onClick={() => setEditing({ id: kind, exercises: [], by: 'suggested', updatedAt: null })}>{t('wt.create')}</Button>
+            </DsCard>
           ))}
         </div>
-      </div>
+      </section>
 
-      {upcoming.length > 0 && (
-        <Card>
-          <CardTitle icon={<CalendarDays className="h-5 w-5 text-brand" />}>{t('wt.coming')}</CardTitle>
-          <ul className="space-y-2">
-            {upcoming.map((w) => (
-              <li key={w.id} className="flex flex-col gap-2 rounded-xl bg-slate-50 px-3 py-2.5 ring-1 ring-slate-200 sm:flex-row sm:items-center sm:gap-4">
-                <div className="flex min-w-0 flex-1 items-baseline gap-3 sm:gap-4">
-                  <div className="w-24 shrink-0 text-sm font-semibold text-slate-800 sm:w-28">{dayLabel(w.date, today)}</div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-slate-900">{localTitle(w.title)}</div>
-                    <div className="truncate text-xs text-slate-500">{stepsToExercises(w.steps).map((x) => exName(x.name)).join(' · ')}</div>
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-1.5 sm:flex sm:shrink-0">
-                  <Button size="sm" variant="ghost" className="w-full" onClick={() => setEditingSession({ w, r: { id: '', exercises: stepsToExercises(w.steps), by: 'own', updatedAt: null } })}>{t('wt.edit')}</Button>
-                  <Button size="sm" variant="ghost" className="w-full" icon={<CalendarClock className="h-4 w-4" />} aria-label={t('smv.aria', { name: localTitle(w.title) })} onClick={() => setMoving(w)}>{t('smv.button')}</Button>
-                  <Button size="sm" variant="secondary" className="w-full" onClick={() => startSession(w)}>{t('wt.log')}</Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
+      <UpcomingList
+        sessions={upcoming}
+        toExercises={toExercises}
+        onEdit={(w) => setEditingSession({ w, r: { id: '', exercises: toExercises(w), by: 'own', updatedAt: null } })}
+        onMove={setMoving}
+        onLog={startSession}
+      />
 
       <Modal wide open={!!editing} onClose={() => setEditing(null)} title={editing ? (TYPE_LABEL[editing.id as StrengthType] ?? t('wt.workoutTitle')) : ''}>
         {editing && (

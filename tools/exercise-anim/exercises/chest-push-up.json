@@ -1,0 +1,9 @@
+{
+  "id": "chest-push-up", "name_de": "Liegestütz", "name_en": "Push-up",
+  "primary": ["chest", "triceps"], "secondary": ["shoulders", "core"],
+  "loop": "pingpong", "seconds": 2.2, "ground": "hands",
+  "keyframes": [
+    {"t": 0, "pose": {"hip": [40, 60], "torso": 103, "head": 108, "arm_n": [0, 0], "arm_f": [0, 0], "leg_n": [-76, -76, 0], "leg_f": [-76, -76, 0]}},
+    {"t": 1, "pose": {"torso": 97, "head": 102, "arm_n": [-55, 40], "arm_f": [-55, 40], "leg_n": [-82, -82, 0], "leg_f": [-82, -82, 0]}}
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "id": "shoulders-overhead-press", "name_de": "Schulterdrücken (Langhantel)", "name_en": "Barbell overhead press",
+  "primary": ["shoulders"], "secondary": ["triceps", "core"],
+  "loop": "pingpong", "seconds": 2.4, "ground": "feet",
+  "held": [{"type": "barbell", "at": "wr_n"}],
+  "keyframes": [
+    {"t": 0, "pose": {"hip": [50, 47], "torso": 180, "arm_n": [35, 175], "arm_f": [35, 175], "leg_n": [0, 0, 90], "leg_f": [0, 0, 90]}},
+    {"t": 1, "pose": {"arm_n": [175, 180], "arm_f": [175, 180]}}
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "id": "ham-romanian-deadlift", "name_de": "Rumänisches Kreuzheben", "name_en": "Romanian deadlift",
+  "primary": ["hamstrings", "glutes"], "secondary": ["back", "forearms"],
+  "loop": "pingpong", "seconds": 2.8, "ground": "feet",
+  "held": [{"type": "barbell", "at": "wr_n"}],
+  "keyframes": [
+    {"t": 0, "pose": {"hip": [50, 47], "torso": 180, "arm_n": [0, 0], "arm_f": [0, 0], "leg_n": [5, -5, 90], "leg_f": [5, -5, 90]}},
+    {"t": 1, "pose": {"torso": 105, "head": 115, "arm_n": [0, 0], "arm_f": [0, 0], "leg_n": [12, -12, 90], "leg_f": [12, -12, 90]}}
+  ]
+}

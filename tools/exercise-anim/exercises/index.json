@@ -1,0 +1,8 @@
+[
+  {"id": "quad-back-squat", "name_de": "Kniebeuge (Langhantel)", "group": "quads", "equipment": "LH", "status": "ok"},
+  {"id": "ham-romanian-deadlift", "name_de": "Rumänisches Kreuzheben", "group": "hamstrings", "equipment": "LH", "status": "ok"},
+  {"id": "chest-bench-press", "name_de": "Bankdrücken (Langhantel)", "group": "chest", "equipment": "LH, BK", "status": "ok"},
+  {"id": "chest-push-up", "name_de": "Liegestütz", "group": "chest", "equipment": "KG", "status": "ok"},
+  {"id": "biceps-dumbbell-curl", "name_de": "Bizeps-Curl (Kurzhantel)", "group": "biceps", "equipment": "KH", "status": "ok"},
+  {"id": "shoulders-overhead-press", "name_de": "Schulterdrücken (Langhantel)", "group": "shoulders", "equipment": "LH", "status": "ok"}
+]

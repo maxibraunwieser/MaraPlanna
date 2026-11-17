@@ -1,0 +1,10 @@
+{
+  "id": "quad-back-squat", "name_de": "Kniebeuge (Langhantel)", "name_en": "Barbell back squat",
+  "primary": ["quads", "glutes"], "secondary": ["hamstrings", "core"],
+  "loop": "pingpong", "seconds": 2.6, "ground": "feet",
+  "held": [{"type": "barbell", "at": "sh", "offset": [-2.5, -1]}],
+  "keyframes": [
+    {"t": 0, "pose": {"hip": [50, 47], "torso": 180, "arm_n": [-40, 160], "arm_f": [-40, 160], "leg_n": [0, 0, 90], "leg_f": [0, 0, 90]}},
+    {"t": 1, "pose": {"torso": 150, "arm_n": [-60, 150], "arm_f": [-60, 150], "leg_n": [80, -20, 90], "leg_f": [80, -20, 90]}}
+  ]
+}

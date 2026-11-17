@@ -12,7 +12,52 @@
   --color-lime: #a3e635;
   /* solid dark surface for sheets, menus and tooltips that sit on top of the glass cards */
   --color-surface: #161922;
+
+  /* Design system (design-system/MASTER.md): new components use only these. */
+  --color-ds-bg: #0e1014;
+  --color-ds-surface: #171a20;
+  --color-ds-surface-2: #20242c;
+  --color-ds-line: #2a2f38;
+  /* body silhouette of the muscle map and its outline (lighter than the cards, so the figure reads) */
+  --color-ds-body: #343a46;
+  --color-ds-body-line: #4a5262;
+  --color-ds-text: #f5f6f8;
+  --color-ds-text-2: #aeb5c2;
+  --color-ds-text-3: #7d8594;
+  --color-ds-accent: #f97316;
+  --color-ds-on-accent: #0e1014;
+  --color-ds-run: #a3e635;
+  --color-ds-strength: #7dd3fc;
+  --color-ds-success: #34d399;
+  --color-ds-danger: #f87171;
+  /* muscle colours, identical to the exercise-animations skill */
+  --color-ds-m-chest: #ef4444;
+  --color-ds-m-back: #3b82f6;
+  --color-ds-m-traps: #6366f1;
+  --color-ds-m-shoulders: #f97316;
+  --color-ds-m-biceps: #a855f7;
+  --color-ds-m-triceps: #ec4899;
+  --color-ds-m-forearms: #14b8a6;
+  --color-ds-m-quads: #22c55e;
+  --color-ds-m-hamstrings: #65a30d;
+  --color-ds-m-glutes: #d97706;
+  --color-ds-m-calves: #06b6d4;
+  --color-ds-m-core: #facc15;
+  --color-ds-m-hipflex: #0ea5e9;
+  --radius-ds-sm: 8px;
+  --radius-ds-md: 12px;
+  --radius-ds-lg: 20px;
+  --text-ds-display: 32px;
+  --text-ds-display--line-height: 36px;
+  --text-ds-title: 20px;
+  --text-ds-title--line-height: 26px;
+  --text-ds-body: 15px;
+  --text-ds-body--line-height: 22px;
+  --text-ds-caption: 12px;
+  --text-ds-caption--line-height: 16px;
+  --ease-ds: cubic-bezier(0.32, 0.72, 0, 1);
 }
+
 
 /*
  * Dark theme: night background with a blue-to-orange glow, glass cards, white text.
