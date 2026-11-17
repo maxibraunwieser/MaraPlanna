@@ -221,7 +221,7 @@ function testRepCounterNeedsSteadyReps(logger as Logger) as Boolean {
     return true;
 }
 
-// Die Karte nach dem Satz: erst die Wiederholungen (AUF/AB), START wechselt zum Gewicht (1er-Schritte), START noch einmal
+// Die Karte nach dem Satz: erst die Wiederholungen (AUF/AB), BACK wechselt zum Gewicht (1er-Schritte), BACK noch einmal
 // bestätigt; danach läuft die Pause mit dem eben gemachten Satz. Herumgehen dazwischen startet keinen Satz.
 (:test)
 function testStrengthSetCardAndRest(logger as Logger) as Boolean {
@@ -248,18 +248,31 @@ function testStrengthSetCardAndRest(logger as Logger) as Boolean {
     Test.assertEqual(c.field, 0);
     c.onAdjust(1);
     Test.assertEqual(c.cReps, reps + 1);
-    c.onStart();
+    c.onBack();
     Test.assertEqual(c.field, 1);
     var kg = c.cKg;
     c.onAdjust(1);
     c.onAdjust(1);
     Test.assert((c.cKg - kg - 2.0).abs() < 0.001);
-    c.onStart();
+    c.onBack();
     Test.assertEqual(c.state, Str.REST);
     Test.assert(c.resting());
     var last = c.lastSet() as LoggedSet;
     Test.assertEqual(last.reps, reps + 1);
     Test.assertEqual(c.lastSetNumbers()[0], 1);
+    // solange die Pause läuft, beginnt die Bewegung keinen Satz
+    at = feedSet(c.counter, 3, 0, 0.5, 0.0, at);
+    at = feedSet(c.counter, 8, 6, 0.5, 300.0, at);
+    c.tick();
+    Test.assertEqual(c.state, Str.REST);
+    // BACK beendet die Pause, dann erkennt die Uhr den Satz
+    c.onBack();
+    Test.assert(!c.resting());
+    Test.assertEqual(c.state, Str.REST);
+    at = feedSet(c.counter, 3, 0, 0.5, 0.0, at);
+    at = feedSet(c.counter, 8, 6, 0.5, 300.0, at);
+    c.tick();
+    Test.assertEqual(c.state, Str.SET);
     // eine andere Übung von Hand als nächste wählen
     c.chooseNext(2);
     Test.assertEqual(c.expectedIdx(), 2);
@@ -283,13 +296,10 @@ function testStrengthBackKeyPagesAndMuscles(logger as Logger) as Boolean {
     Test.assertEqual(c.state, Str.CONFIRM);
     Test.assertEqual(plan.options[c.optIdx].name, "Bankdrücken");
     Test.assert(c.cReps >= 3);
-    // BACK auf dem Gewicht geht zurück zu den Wiederholungen
-    c.onStart();
+    // BACK: zum Gewicht, dann bestätigen
+    c.onBack();
     Test.assertEqual(c.field, 1);
     c.onBack();
-    Test.assertEqual(c.field, 0);
-    c.onStart();
-    c.onStart();
     Test.assertEqual(c.state, Str.REST);
     Test.assertEqual(c.sets.size(), 1);
     // Datenseiten ringsum
@@ -302,7 +312,8 @@ function testStrengthBackKeyPagesAndMuscles(logger as Logger) as Boolean {
     Test.assertEqual(c.page, 0);
     c.flip(-1);
     Test.assertEqual(c.page, 3);
-    // ein Satz mit 0 Wiederholungen bestätigt: verworfen
+    // ein Satz mit 0 Wiederholungen bestätigt: verworfen (erst BACK beendet die Pause)
+    c.onBack();
     at = feedSet(c.counter, 3, 0, 0.5, 0.0, at);
     at = feedSet(c.counter, 8, 4, 0.5, 300.0, at);
     c.tick();
@@ -311,8 +322,8 @@ function testStrengthBackKeyPagesAndMuscles(logger as Logger) as Boolean {
     for (var i = 0; i < 20; i++) {
         c.onAdjust(-1);
     }
-    c.onStart();
-    c.onStart();
+    c.onBack();
+    c.onBack();
     Test.assertEqual(c.state, Str.REST);
     Test.assertEqual(c.sets.size(), 1);
     // Muskeln: Bankdrücken (Brust, Neben: Schultern, Trizeps), Wadenheben (Waden)
@@ -335,7 +346,7 @@ function testStrengthBackKeyPagesAndMuscles(logger as Logger) as Boolean {
     return true;
 }
 
-// Vor einer Halteübung zählt nur START: Bewegung davor ist kein Satz; vor einer gezählten Übung beginnt die Bewegung den Satz.
+// Vor einer Halteübung zählt nur BACK: Bewegung davor ist kein Satz; vor einer gezählten Übung beginnt die Bewegung den Satz.
 (:test)
 function testMotionBeforeAHoldIsNotASet(logger as Logger) as Boolean {
     var none = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] as Array<Number>;
@@ -362,8 +373,8 @@ function testMotionBeforeAHoldIsNotASet(logger as Logger) as Boolean {
     d.tick();
     Test.assertEqual(d.state, Str.REST);
     Test.assert(!d.counter.active);
-    // START beginnt das Halten, und die Anzeige nennt den Plank (nicht die zuletzt gemachte Übung)
-    d.onStart();
+    // BACK beginnt das Halten, und die Anzeige nennt den Plank (nicht die zuletzt gemachte Übung)
+    d.onBack();
     Test.assertEqual(d.state, Str.HOLD);
     Test.assertEqual(plan.options[d.holdIdx()].name, "Plank");
     Test.assertEqual(d.holdTargetS(), 40);

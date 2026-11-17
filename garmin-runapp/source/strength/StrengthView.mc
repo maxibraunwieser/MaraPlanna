@@ -1,10 +1,10 @@
 // Anzeige und Bedienung des Krafttrainings (Zustände siehe StrengthController).
-//   Tasten:  START  bereit: beginnen · nächste Übung: Menü, bei Maschine oder Halten: Satz beginnen · Satz/Halten: beenden ·
-//                   Karte: von den Wiederholungen zum Gewicht, dann bestätigen (Pause)
-//            MENÜ (lang AUF) Pause, Speichern, Verwerfen · auf der Karte: Übung des Satzes ändern
+//   Tasten:  START  bereit: beginnen · sonst nur Pause und Pausenmenü (Weiter, Übung wählen, Speichern, Verwerfen)
+//            MENÜ (lang AUF) wie START · auf der Karte: Übung des Satzes ändern
 //            AUF/AB Karte: Wiederholungen bzw. Gewicht (1er-Schritte) ändern · Pause: Datenseiten (Pause, Übung, Trainingszeit,
 //                   Uhrzeit) · Ende: Muskeln / Zusammenfassung
-//            BACK   (unten rechts) bereit: zurück · Satz/Halten: beenden · Pause: Übung wählen · Karte: zurück zu den Wdh
+//            BACK   (unten rechts) bereit: zurück · Pause läuft: beenden · danach: Satz/Halten von Hand beginnen ·
+//                   Satz/Halten: beenden · Karte: von den Wiederholungen zum Gewicht, dann bestätigen
 //   Tippen:  auf der Karte links Wiederholungen, rechts Gewicht zum Anpassen wählen.
 
 import Toybox.Graphics;
@@ -140,8 +140,7 @@ class StrengthView extends WatchUi.View {
 
     // Unten: was die Tasten in der Pause tun
     private function hintKeys(dc as Graphics.Dc) as Void {
-        var opts = _c.plan.options.size() > 1;
-        Draw.lineAlt(dc, dc.getHeight() * 0.865, Graphics.FONT_XTINY, Draw.DIM, (opts ? ["BACK Übung · AUF/AB Seiten", "BACK: Übung wählen", "BACK: Übung"] : ["AUF/AB: Seiten", "AUF/AB"]) as Array<String>);
+        Draw.lineAlt(dc, dc.getHeight() * 0.865, Graphics.FONT_XTINY, Draw.DIM, ["AUF/AB: Seiten", "AUF/AB"] as Array<String>);
     }
 
     // Die Seitenpunkte am linken Rand (welche Datenseite gerade zu sehen ist)
@@ -297,7 +296,6 @@ class StrengthView extends WatchUi.View {
         var plan = _c.plan;
         var name = plan.options.size() > 0 ? plan.options[_c.setIdx()].name : "";
         Draw.lineAny(dc, h * 0.72, [Graphics.FONT_SMALL, Graphics.FONT_TINY] as Array<Graphics.FontDefinition>, Graphics.COLOR_WHITE, [name] as Array<String>);
-        Draw.lineAlt(dc, h * 0.85, Graphics.FONT_XTINY, Draw.GRAY, ["BACK: Satz beenden", "BACK: Ende"] as Array<String>);
     }
 
     // Halten (Plank): die restliche Zeit groß, darunter das Ziel
@@ -308,7 +306,6 @@ class StrengthView extends WatchUi.View {
         Draw.valueUnit(dc, h * 0.45, (left < 0 ? 0 : left).toString(), t(Rez.Strings.StrengthSecondsShort), [Graphics.FONT_NUMBER_THAI_HOT, Graphics.FONT_NUMBER_HOT, Graphics.FONT_NUMBER_MEDIUM] as Array<Graphics.FontDefinition>, (h * 0.34).toNumber(), Draw.LIME);
         var name = _c.plan.options[_c.holdIdx()].name;
         Draw.lineAny(dc, h * 0.72, [Graphics.FONT_SMALL, Graphics.FONT_TINY] as Array<Graphics.FontDefinition>, Graphics.COLOR_WHITE, [name] as Array<String>);
-        Draw.lineAlt(dc, h * 0.85, Graphics.FONT_XTINY, Draw.GRAY, ["BACK: Halten beenden", "BACK: Ende"] as Array<String>);
     }
 
     // Satz beendet: oben die (erkannte) Übung, darunter links die Wiederholungen und rechts das Gewicht nebeneinander. Das Feld,
@@ -472,7 +469,7 @@ class StrengthDelegate extends WatchUi.BehaviorDelegate {
         return true;
     }
 
-    // Menütaste (lang AUF): Pause, Speichern, Verwerfen. Auf der Karte: die Übung des Satzes ändern (falls falsch erkannt).
+    // Menütaste (lang AUF): das Pausenmenü. Auf der Karte: die Übung des Satzes ändern (falls falsch erkannt).
     function onMenu() as Boolean {
         if (_c.state == Str.CONFIRM && _c.plan.options.size() > 1) {
             StrengthPick.show(true);
@@ -482,14 +479,15 @@ class StrengthDelegate extends WatchUi.BehaviorDelegate {
         return true;
     }
 
-    // Tippen: auf der Karte die linke (Wiederholungen) oder rechte Hälfte (Gewicht) zum Anpassen wählen, sonst wie START.
+    // Tippen: auf der Karte die linke (Wiederholungen) oder rechte Hälfte (Gewicht) zum Anpassen wählen; bereit: beginnen.
+    // Sonst nichts (kein Pausenmenü durch eine Berührung mit schwitzigen Händen).
     function onTap(evt as WatchUi.ClickEvent) as Boolean {
         if (_c.state == Str.CONFIRM) {
             var x = evt.getCoordinates()[0];
             _c.focus(x < System.getDeviceSettings().screenWidth / 2 ? 0 : 1);
-            return true;
+        } else if (_c.state == Str.READY) {
+            _c.onStart();
         }
-        _c.onStart();
         return true;
     }
 }
@@ -554,11 +552,13 @@ class StrengthPickDelegate extends CardMenuListener {
 (:strength)
 module StrengthMenu {
     function show() as Void {
-        var items = [
-            new CardItem(:resume, WatchUi.loadResource(Rez.Strings.Resume) as String, null, Draw.GREEN),
-            new CardItem(:save, WatchUi.loadResource(Rez.Strings.Save) as String, null, Draw.ORANGE),
-            new CardItem(:discard, WatchUi.loadResource(Rez.Strings.Discard) as String, null, Draw.RED)
-        ] as Array<CardItem>;
+        var items = [new CardItem(:resume, WatchUi.loadResource(Rez.Strings.Resume) as String, null, Draw.GREEN)] as Array<CardItem>;
+        var c = StrengthEntry.controller();
+        if (c != null && (c as StrengthController).plan.options.size() > 1) {
+            items.add(new CardItem(:pick, (c as StrengthController).pausedFrom() == Str.CONFIRM ? "Übung dieses Satzes" : "Nächste Übung", null, Draw.VIOLET));
+        }
+        items.add(new CardItem(:save, WatchUi.loadResource(Rez.Strings.Save) as String, null, Draw.ORANGE));
+        items.add(new CardItem(:discard, WatchUi.loadResource(Rez.Strings.Discard) as String, null, Draw.RED));
         Cards.show(WatchUi.loadResource(Rez.Strings.MenuTitle) as String, items, new StrengthMenuDelegate(), WatchUi.SLIDE_UP);
     }
 }
@@ -578,6 +578,12 @@ class StrengthMenuDelegate extends CardMenuListener {
         if (id == :resume) {
             WatchUi.popView(WatchUi.SLIDE_DOWN);
             c.resume();
+        } else if (id == :pick) {
+            // weiter, dann gleich die Liste der Übungen
+            var forSet = c.pausedFrom() == Str.CONFIRM;
+            WatchUi.popView(WatchUi.SLIDE_DOWN);
+            c.resume();
+            StrengthPick.show(forSet);
         } else if (id == :save) {
             WatchUi.popView(WatchUi.SLIDE_DOWN);
             c.save();

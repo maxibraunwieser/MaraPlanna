@@ -4,8 +4,8 @@
 //   Handgelenk   was die Uhr messen würde, Sekunde für Sekunde: Stehen (Ruhe mit Rauschen), Gehen zwischen den Geräten
 //                (Armschwung 1 Hz mit Schrittstößen), Zurechtlegen (unregelmäßige Bewegungen), die Sätze (gleichmäßige
 //                Wiederholungen, je Übung anders: Tempo, Achse, Lage des Handgelenks) und die Pausen.
-//   Du           bedienst die Karte nach jedem Satz wie im Gym: nach 3 s START (zum Gewicht), beim ersten Satz AUF (+1 kg),
-//                nach 2 weiteren Sekunden START (bestätigen, Pause). In der ersten Pause blätterst du mit AB durch die
+//   Du           bedienst die Karte nach jedem Satz wie im Gym: nach 3 s BACK (zum Gewicht), beim ersten Satz AUF (+1 kg),
+//                nach 2 weiteren Sekunden BACK (bestätigen, Pause). Die Pause ist hier 18 s, danach erkennt die Uhr den Satz. In der ersten Pause blätterst du mit AB durch die
 //                Datenseiten, den letzten Satz beendest du mit BACK (unten rechts). Am Ende speicherst du das Training, die Uhr
 //                zeigt die beanspruchten Muskeln.
 // Jeder Abschnitt und jede Reaktion der Uhr steht in der Konsole ("GYM …"), damit man nachlesen kann, was erkannt wurde.
@@ -59,6 +59,8 @@ module Gym {
         p.title = "Push & Pull";
         for (var i = 0; i < p.items.size(); i++) {
             p.items[i].sets = i < SETS.size() ? SETS[i] : 2;
+            // kurze Pausen, damit das Skript (26 s Ruhe nach der Karte) danach den nächsten Satz zeigt
+            p.items[i].rest = 18;
         }
         System.println("GYM Programm: " + p.title + " · " + p.items.size() + " Übungen");
         StrengthEntry.start(p);
@@ -169,8 +171,8 @@ module Gym {
         if (c.state == Str.CONFIRM && _cardAt >= 0) {
             var age = second - _cardAt;
             if (age == 3 && c.field == 0) {
-                c.onStart();
-                System.println("GYM " + clock(second) + "     Du: START -> Gewicht");
+                c.onBack();
+                System.println("GYM " + clock(second) + "     Du: BACK -> Gewicht");
             } else if (age == 4 && _cards == 0 && c.field == 1) {
                 c.onAdjust(1);
                 System.println("GYM " + clock(second) + "     Du: AUF -> " + c.cKg.format("%.1f") + " " + c.plan.unit);
@@ -178,8 +180,8 @@ module Gym {
                 _cards += 1;
                 _cardAt = -1;
                 _restAt = second;
-                System.println("GYM " + clock(second) + "     Du: START -> bestätigt, Pause");
-                c.onStart();
+                System.println("GYM " + clock(second) + "     Du: BACK -> bestätigt, Pause");
+                c.onBack();
             }
         }
         // Der letzte Satz: nicht auf die 5 s Ruhe warten, sondern 2 s nach der letzten Wiederholung BACK (unten rechts) drücken

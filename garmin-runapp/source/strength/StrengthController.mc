@@ -1,23 +1,25 @@
 // Krafttraining aufzeichnen: Zustandsmaschine, Sensoren, Sätze, Aufzeichnung und Upload.
 //
 //   READY    Bereit-Bildschirm (nichts läuft), START beginnt
-// Ablauf: Satz → Satz beendet (5 s keine Bewegung oder BACK, die Taste unten rechts) → Karte mit Wiederholungen und Gewicht →
-// Pause mit Countdown → nächster Satz.
+// Tasten: BACK (unten rechts) steuert das Training, AUF/AB ändern Werte bzw. blättern, START ist nur Pause und Pausenmenü.
+// Ablauf: Satz → Satz beendet (5 s keine Bewegung oder BACK) → Karte mit Wiederholungen und Gewicht → Pause mit Countdown →
+// nächster Satz.
 //   REST     zwischen den Sätzen: erst die Pause (der letzte Satz und der Pausenzähler), ist sie um, die nächste Übung des
-//            Workouts. AUF/AB blättert die Datenseiten (page: Pause, Übung, Trainingszeit, Uhrzeit), BACK öffnet die Liste der
-//            Übungen, dort lässt sich die nächste von Hand wählen
+//            Workouts. Solange die Pause läuft, erkennt die Uhr keinen Satz aus der Bewegung (man soll ja pausieren); erst wenn
+//            sie um ist oder BACK sie beendet. BACK nach der Pause beginnt den Satz von Hand (Halten, Maschine, oder wenn die
+//            Uhr ihn nicht merkt). AUF/AB blättert die Datenseiten (page: Pause, Übung, Trainingszeit, Uhrzeit), die nächste
+//            Übung von Hand wählt man im Pausenmenü (START)
 //   SET      ein Satz läuft: Wiederholungen zählen. Er beginnt, wenn die Bewegung drei gleichmäßige Wiederholungen ergeben hat
 //            (RepCounter.regular), damit Herumgehen zwischen den Geräten kein Satz wird. Er endet nach 5 s ohne Bewegung oder mit BACK
-//   CONFIRM  Satz beendet: links die Wiederholungen, rechts das Gewicht. AUF/AB ändert, START springt von den Wiederholungen zum
+//   CONFIRM  Satz beendet: links die Wiederholungen, rechts das Gewicht. AUF/AB ändert, BACK springt von den Wiederholungen zum
 //            Gewicht (1er-Schritte, vorbelegt vom letzten Mal; ohne bekanntes Gewicht leer) und dann in die Pause. 0 Wiederholungen
-//            bestätigt = der Satz wird verworfen
+//            bestätigt = der Satz wird verworfen. Solange die Karte steht, beginnt kein neuer Satz
 //   PAUSED   Aufzeichnung angehalten (Menü)
 //   DONE     gespeichert: welche Muskeln wie beansprucht wurden (Muscles.mc), AUF/AB zur Zusammenfassung
 //
-// Die Übung erkennt die Uhr nicht aus der Bewegung: es ist die nächste des Workouts oder die von Hand gewählte (BACK in der Pause,
+// Die Übung erkennt die Uhr nicht aus der Bewegung: es ist die nächste des Workouts oder die von Hand gewählte (Pausenmenü,
 // MENÜ auf der Karte für den Satz selbst). Gezählt werden nur die Wiederholungen (CountMode.AUTO), bei Maschinen und Übungen am
-// Boden beginnt START den Satz (ASSIST), ein Halten (Plank) läuft mit der Zeit. Beginnt der nächste Satz, während die Karte noch
-// steht, gilt sie als bestätigt.
+// Boden beginnt BACK den Satz (ASSIST), ein Halten (Plank) läuft mit der Zeit.
 //
 // Sensoren laufen nur während des Krafttrainings (nicht beim Laufen und nicht im Menü): Beschleunigung und,
 // wo die Uhr es hat, Gyroskop, ein Mal pro Sekunde geliefert. Es werden keine Töne gespielt (Vibration),
@@ -311,15 +313,13 @@ class StrengthController {
     // ---------------------------------------------------------------- Takt
 
     function tick() as Void {
-        if (state == Str.REST && (counter.active || counter.finished) && nextMode() == CountMode.TIME) {
-            // Vor einem Halten zählt nur START: Bewegung davor (Hinlegen, Zurechtrücken) ist kein Satz
+        if ((state == Str.CONFIRM || (state == Str.REST && (restRunning() || nextMode() == CountMode.TIME))) && (counter.active || counter.finished)) {
+            // Keine Erkennung, solange die Karte steht oder die Pause läuft (BACK beendet sie früher), und vor einem Halten nie
+            // (dort zählt nur BACK): die Bewegung in dieser Zeit ist kein Satz
             counter.nextSet();
         }
-        if ((state == Str.REST || state == Str.CONFIRM) && counter.active && counter.regular() && !_manual) {
-            // Drei gleichmäßige Wiederholungen: ein Satz beginnt (eine noch offene Karte gilt als bestätigt)
-            if (state == Str.CONFIRM) {
-                commit();
-            }
+        if (state == Str.REST && !restRunning() && counter.active && counter.regular() && !_manual) {
+            // Drei gleichmäßige Wiederholungen nach der Pause: ein Satz beginnt
             // ab hier zählt nur der Satz (Gehen und Zurechtlegen davor fallen weg)
             counter.startSet();
             _setIdx = expectedIdx();
@@ -447,9 +447,9 @@ class StrengthController {
         Alert.vibrate(150);
     }
 
-    // Das Menü (Pause, Speichern, Verwerfen): Menütaste, und START, wenn START etwas anderes tut
+    // Das Pausenmenü (Weiter, Übung wählen, Speichern, Verwerfen): START und die Menütaste
     function openMenu() as Void {
-        if (state == Str.REST || state == Str.HOLD || state == Str.SET) {
+        if (state == Str.REST || state == Str.HOLD || state == Str.SET || state == Str.CONFIRM) {
             pause();
             StrengthMenu.show();
         }
@@ -593,61 +593,66 @@ class StrengthController {
 
     // ---------------------------------------------------------------- Bedienung
 
+    // START: nur Beginnen (bereit), das Pausenmenü (während der Aufzeichnung), Weiter (pausiert) und Schließen (Ende)
     function onStart() as Void {
         if (state == Str.READY) {
             begin();
+        } else if (state == Str.PAUSED) {
+            resume();
+        } else if (state == Str.DONE) {
+            System.exit();
+        } else {
+            openMenu();
+        }
+        WatchUi.requestUpdate();
+    }
+
+    // BACK, die Taste unten rechts, steuert das Training: in der Pause beendet sie die Pause (ab dann erkennt die Uhr den Satz),
+    // danach beginnt sie den Satz von Hand (Halten, Maschine, oder wenn die Uhr ihn nicht merkt); im Satz und beim Halten beendet
+    // sie ihn (Karte); auf der Karte springt sie von den Wiederholungen zum Gewicht und bestätigt dann.
+    function onBack() as Void {
+        if (state == Str.READY) {
+            WatchUi.popView(WatchUi.SLIDE_RIGHT);
         } else if (state == Str.REST) {
-            // Ein Halten oder eine Maschine: START beginnt den Satz (das Menü bleibt auf der Menütaste); sonst öffnet START das Menü.
             var n = nextPlanned();
             var mode = n < 0 ? CountMode.AUTO : plan.items[n].mode;
             if (n >= 0 && mode == CountMode.TIME) {
                 startHold(n);
-            } else if (n >= 0 && mode == CountMode.ASSIST) {
-                startManualSet();
+            } else if (restRunning()) {
+                endRest();
             } else {
-                openMenu();
+                startManualSet();
             }
-        } else if (state == Str.HOLD) {
-            endHold();
         } else if (state == Str.SET) {
             finishSet();
+        } else if (state == Str.HOLD) {
+            endHold();
         } else if (state == Str.CONFIRM) {
-            // erst die Wiederholungen, dann das Gewicht, dann in die Pause
             if (field == 0) {
                 field = 1;
             } else {
                 commit();
             }
-        } else if (state == Str.PAUSED) {
-            resume();
         } else if (state == Str.DONE) {
             System.exit();
         }
         WatchUi.requestUpdate();
     }
 
-    // BACK, die Taste unten rechts: im Satz und beim Halten beendet sie ihn (Karte), in der Pause öffnet sie die Liste der Übungen
-    // (die nächste von Hand wählen), auf der Karte geht sie vom Gewicht zurück zu den Wiederholungen.
-    function onBack() as Void {
-        if (state == Str.READY) {
-            WatchUi.popView(WatchUi.SLIDE_RIGHT);
-        } else if (state == Str.REST) {
-            if (plan.options.size() > 1) {
-                StrengthPick.show(false);
-            }
-        } else if (state == Str.SET) {
-            finishSet();
-        } else if (state == Str.HOLD) {
-            endHold();
-        } else if (state == Str.CONFIRM) {
-            field = 0;
-        } else if (state == Str.DONE) {
-            System.exit();
-        }
-        WatchUi.requestUpdate();
+    // Läuft die Pause nach einem Satz noch (solange erkennt die Uhr keinen neuen)?
+    function restRunning() as Boolean {
+        return restUntil > 0 && System.getTimer() < restUntil;
     }
 
-    // Den laufenden Satz von Hand beenden (BACK oder START), falls die Uhr das Ende noch nicht gemerkt hat.
+    // Die Pause von Hand beenden: ab jetzt erkennt die Uhr den nächsten Satz
+    private function endRest() as Void {
+        restUntil = System.getTimer();
+        _restAlerted = true;
+        counter.nextSet();
+        Alert.vibrate(150);
+    }
+
+    // Den laufenden Satz von Hand beenden (BACK), falls die Uhr das Ende noch nicht gemerkt hat.
     private function finishSet() as Void {
         counter.lastReps = counter.reps();
         counter.lastSeconds = counter.activeSeconds().toNumber();
@@ -698,6 +703,11 @@ class StrengthController {
         if (_session != null) {
             (_session as ActivityRecording.Session).stop();
         }
+    }
+
+    // Der Zustand vor der Pause (im Pausenmenü: auf der Karte die Übung des Satzes ändern, sonst die nächste wählen)
+    function pausedFrom() as Number {
+        return _beforePause;
     }
 
     function resume() as Void {
