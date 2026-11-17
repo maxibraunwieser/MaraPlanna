@@ -2,6 +2,7 @@
 // water, and a plain hint when the food does not cover the training over several days.
 
 import { useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ChevronDown, ChevronLeft, ChevronRight, Copy, Droplets, Plus, Settings2, Trash2, Undo2 } from 'lucide-react';
 import { Badge, Button, Card, CardTitle, Field, Input, Modal, Notice, PageHeader, Spinner, cx, useToast } from '../../components/ui';
 import { currentLang, useI18n } from '../../lib/i18n';
@@ -11,8 +12,9 @@ import { addDays } from '../../lib/planner/dates';
 import { fmtDay, localTitle } from '../../lib/format';
 import * as napi from '../../lib/nutrition/api';
 import { SLOTS, slotForHour, type MealItem, type Slot } from '../../../supabase/functions/_shared/nutrition/items';
-import { AddFood } from './AddFood';
 import { NutritionSettings } from './NutritionSettings';
+import { MicroCard } from './Micros';
+import { ageOn, type Person } from '../../../supabase/functions/_shared/nutrition/micros';
 import { DAY_TONE, MacroBar, Ring, dayTypeLabel, eatenOn, energyCheck, fmt, slotLabel, useNutritionDay } from './parts';
 
 const TRAINING_SLOTS: Slot[] = ['pre_workout', 'during_workout', 'post_workout'];
@@ -46,31 +48,17 @@ function Basis({ target }: { target: napi.TargetRow }) {
   );
 }
 
-function ItemRow({ item, onEdit }: { item: MealItem; onEdit: () => void }) {
-  const { t } = useI18n();
-  const amount = item.unit_label && item.unit_label !== 'g' && item.amount ? `${fmt(item.amount, 1)} × ${item.unit_label}` : item.grams ? `${fmt(item.grams)} g` : t('food.quick.short');
-  return (
-    <li>
-      <button type="button" onClick={onEdit} className="flex w-full items-center justify-between gap-3 px-1 py-2 text-left transition hover:bg-slate-50">
-        <span className="min-w-0">
-          <span className="block truncate text-sm text-slate-900">{item.name}</span>
-          <span className="block text-xs text-slate-500">
-            {amount} · {t('food.macros.short', { c: fmt(item.carbs_g), p: fmt(item.protein_g), f: fmt(item.fat_g) })}
-            {item.source === 'ai_estimate' && <span className="ml-1 text-amber-600">· {t('food.source.ai')}</span>}
-          </span>
-        </span>
-        <span className="shrink-0 text-sm font-medium tabular-nums text-slate-700">{fmt(item.kcal)}</span>
-      </button>
-    </li>
-  );
-}
-
-function EditItem({ item, onClose, onChanged }: { item: MealItem; onClose: () => void; onChanged: () => void }) {
+export function EditItem({ item, onClose, onChanged }: { item: MealItem; onClose: () => void; onChanged: () => void }) {
   const { t } = useI18n();
   const toast = useToast();
-  const [grams, setGrams] = useState(String(item.grams ?? ''));
+  // The amount is changed in the unit it was logged in (250 ml, 2 × mittelgroß, 150 g); grams follow.
+  const unit = item.amount && item.unit_label ? item.unit_label : 'g';
+  const perUnit = item.amount && item.unit_label && item.grams ? item.grams / item.amount : 1;
+  const start = unit === 'g' ? item.grams : item.amount;
+  const [value, setValue] = useState(String(start ?? '').replace('.', currentLang() === 'de' ? ',' : '.'));
   const [busy, setBusy] = useState(false);
-  const g = Number(grams.replace(',', '.'));
+  const v = Number(value.replace(',', '.'));
+  const g = v * perUnit;
   const run = async (f: () => Promise<void>) => {
     setBusy(true);
     try {
@@ -87,13 +75,15 @@ function EditItem({ item, onClose, onChanged }: { item: MealItem; onClose: () =>
     <Modal open onClose={onClose} title={item.name}>
       <div className="space-y-4">
         {item.grams ? (
-          <Field label={t('food.amountG')}><Input inputMode="decimal" value={grams} onChange={(e) => setGrams(e.target.value)} autoFocus /></Field>
+          <Field label={`${t('food.amount')} (${['g', 'ml', 'l'].includes(unit) ? unit : `× ${unit}`})`} hint={unit !== 'g' && g > 0 ? t('food.equals', { g: fmt(g) }) : undefined}>
+            <Input inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
+          </Field>
         ) : (
           <p className="text-sm text-slate-600">{t('food.quick.noAmount', { kcal: fmt(item.kcal) })}</p>
         )}
         <div className="flex justify-between gap-2">
           <Button variant="ghost" icon={<Trash2 className="h-4 w-4" />} onClick={() => run(() => napi.deleteItem(item))} disabled={busy}>{t('food.delete')}</Button>
-          {!!item.grams && <Button disabled={!(g > 0) || g === item.grams} loading={busy} onClick={() => run(() => napi.updateItemGrams(item, g, item.unit_label === 'g' ? g : (item.amount ?? 1) * (g / item.grams!), item.unit_label))}>{t('food.save')}</Button>}
+          {!!item.grams && <Button disabled={!(g > 0) || v === start} loading={busy} onClick={() => run(() => napi.updateItemGrams(item, g, unit === 'g' ? g : v, item.unit_label))}>{t('food.save')}</Button>}
         </div>
       </div>
     </Modal>
@@ -104,14 +94,21 @@ export function Diary() {
   const { t } = useI18n();
   const toast = useToast();
   const { user } = useAuth();
-  const { today } = useData();
-  const [date, setDate] = useState(today);
+  const { today, profile: appProfile } = useData();
+  const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(params.get('date') ?? '') ? params.get('date')! : today;
+  const setDate = (d: string) => setParams(d === today ? {} : { date: d }, { replace: true });
   const day = useNutritionDay(user!.id, date, today);
-  const [adding, setAdding] = useState<Slot | null>(null);
-  const [editing, setEditing] = useState<MealItem | null>(null);
   const [settings, setSettings] = useState(false);
   const [why, setWhy] = useState(false);
   const [copyFrom, setCopyFrom] = useState<Slot | null>(null);
+  // sex and age for the reference values (from the setup answers)
+  const person: Person | null = useMemo(() => {
+    const a = appProfile?.onboarding;
+    const age = ageOn(a?.setup?.birthDate ?? null, date, a?.age ?? null);
+    return age === null ? null : { sex: a?.sex === 'male' || a?.sex === 'female' ? a.sex : null, age };
+  }, [appProfile, date]);
 
   const target = day.targets.find((x) => x.date === date) ?? null;
   const eaten = useMemo(() => eatenOn(day.items, date), [day.items, date]);
@@ -204,6 +201,8 @@ export function Diary() {
         </Card>
       )}
 
+      <MicroCard items={day.items.filter((i) => i.date === date)} refs={day.refs} nutrients={day.nutrients} rules={day.rules} person={person} sodiumTarget={target?.sodium_mg ?? null} isToday={date === today} />
+
       {ea.low && (
         <Notice tone="warn">
           <div className="font-semibold">{t('food.ea.title')}</div>
@@ -240,15 +239,23 @@ export function Diary() {
         return (
           <Card key={slot} className="!p-4">
             <div className="flex items-center justify-between gap-2">
-              <h2 className="text-base font-semibold text-slate-900">{slotLabel(slot)}</h2>
+              {items.length ? (
+                <button type="button" onClick={() => navigate(`/food/meal?date=${date}&slot=${slot}`)} className="group flex items-center gap-1 text-left text-base font-semibold text-slate-900" aria-label={t('food.meal.open', { slot: slotLabel(slot) })}>
+                  {slotLabel(slot)}<ChevronRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5" />
+                </button>
+              ) : (
+                <h2 className="text-base font-semibold text-slate-900">{slotLabel(slot)}</h2>
+              )}
               <div className="flex items-center gap-1">
                 {!!sum && <span className="mr-1 text-sm tabular-nums text-slate-500">{fmt(sum)} kcal</span>}
                 <button type="button" onClick={() => setCopyFrom(slot)} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={t('food.copy.title', { slot: slotLabel(slot) })}><Copy className="h-4 w-4" /></button>
-                <button type="button" onClick={() => setAdding(slot)} className="rounded-full bg-brand/10 p-2 text-brand hover:bg-brand/20" aria-label={t('food.addTo', { slot: slotLabel(slot) })}><Plus className="h-4 w-4" /></button>
+                <button type="button" onClick={() => navigate(`/food/add?date=${date}&slot=${slot}`)} className="rounded-full bg-brand/10 p-2 text-brand hover:bg-brand/20" aria-label={t('food.addTo', { slot: slotLabel(slot) })}><Plus className="h-4 w-4" /></button>
               </div>
             </div>
             {items.length ? (
-              <ul className="mt-1 divide-y divide-slate-100">{items.map((i) => <ItemRow key={i.id} item={i} onEdit={() => setEditing(i)} />)}</ul>
+              <button type="button" onClick={() => navigate(`/food/meal?date=${date}&slot=${slot}`)} className="mt-0.5 block text-left text-xs tabular-nums text-slate-500 hover:text-slate-700">
+                {t('food.macros.short', { c: fmt(items.reduce((m, i) => m + (i.carbs_g ?? 0), 0)), p: fmt(items.reduce((m, i) => m + (i.protein_g ?? 0), 0)), f: fmt(items.reduce((m, i) => m + (i.fat_g ?? 0), 0)) })}
+              </button>
             ) : (
               <p className="mt-1 text-xs text-slate-400">{t('food.slot.empty')}</p>
             )}
@@ -260,15 +267,13 @@ export function Diary() {
 
       <button
         type="button"
-        onClick={() => setAdding(slotForHour(date === today ? hour : 12))}
+        onClick={() => navigate(`/food/add?date=${date}&slot=${slotForHour(date === today ? hour : 12)}`)}
         className="fixed bottom-[calc(var(--fab-bottom,6rem)+4.5rem+env(safe-area-inset-bottom))] right-4 z-40 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-brand shadow-xl shadow-black/30 ring-1 ring-black/5 transition active:scale-95 sm:bottom-24 sm:right-6"
         aria-label={t('food.add')}
       >
         <Plus className="h-7 w-7" />
       </button>
 
-      <AddFood open={!!adding} onClose={() => setAdding(null)} userId={user!.id} date={date} slot0={adding ?? 'snack'} onAdded={() => void day.reload()} />
-      {editing && <EditItem item={editing} onClose={() => setEditing(null)} onChanged={() => void day.reload()} />}
       {copyFrom && (
         <Modal open onClose={() => setCopyFrom(null)} title={t('food.copy.title', { slot: slotLabel(copyFrom) })}>
           <CopyChooser date={date} onCopy={(from) => copy(copyFrom, from)} />

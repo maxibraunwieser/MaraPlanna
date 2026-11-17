@@ -4,6 +4,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import nutritionSql from '../../supabase/migrations/20261115000000_nutrition.sql?raw';
+import microSql from '../../supabase/migrations/20261117000000_micro_levels.sql?raw';
 import foodSample from './foodSample.json';
 import { seedRows } from './sqlSeed';
 import { addDays } from '../lib/planner/dates';
@@ -18,13 +19,14 @@ const foodId = (externalId: string) => `food-${externalId}`;
 /** Reference tables and the shared foods: every situation has them, as every real database does. */
 export function nutritionBase(): Tables {
   const seed = seedRows(nutritionSql);
+  const micro = seedRows(microSql);
   const foods = (foodSample as SampleFood[]).map(({ micros: _m, portions: _p, ...f }) => ({ ...f, id: foodId(f.external_id), user_id: null, brand: null, barcode: null, nova: null }));
   const food_nutrients = (foodSample as SampleFood[]).flatMap((f) => Object.entries(f.micros).map(([code, amount]) => ({ food_id: foodId(f.external_id), nutrient_code: code, amount })));
   const food_portions = (foodSample as SampleFood[]).flatMap((f) => f.portions.map((p, i) => ({ id: `portion-${f.external_id}-${i}`, food_id: foodId(f.external_id), ...p })));
   return {
     nutrients: seed.nutrients,
     nutrient_references: seed.nutrient_references.map((r, i) => ({ id: i + 1, ...r })),
-    nutrition_rules: seed.nutrition_rules,
+    nutrition_rules: [...seed.nutrition_rules, ...micro.nutrition_rules],
     nutrition_day_rules: seed.nutrition_day_rules,
     foods,
     food_nutrients,

@@ -395,3 +395,10 @@ export async function saveEstimateFood(userId: string, item: { name_de: string; 
     }).select().single(),
   ) as Food;
 }
+
+/** Deletes whole meals (their items go with them) and their photos. */
+export async function deleteMeals(entries: MealEntry[]): Promise<void> {
+  const photos = entries.map((e) => e.photo_path).filter((p): p is string => !!p);
+  if (photos.length) await supabase.storage.from('meal-photos').remove(photos).catch(() => undefined);
+  check(await supabase.from('meal_entries').delete().in('id', entries.map((e) => e.id)));
+}

@@ -31,6 +31,7 @@ export interface Food {
   sat_fat_g: number | null;
   sodium_mg: number | null;
   completeness: number;
+  category?: string | null;
 }
 
 export interface Portion {

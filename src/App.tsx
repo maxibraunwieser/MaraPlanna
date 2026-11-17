@@ -90,6 +90,8 @@ function AppRoutes() {
                 <Route path="/food" element={<Food />} />
                 <Route path="/food/plan" element={<Food />} />
                 <Route path="/food/analysis" element={<Food />} />
+                <Route path="/food/add" element={<Food />} />
+                <Route path="/food/meal" element={<Food />} />
                 <Route path="/food/recipes" element={<Navigate to="/food/analysis" replace />} />
                 <Route path="/activities" element={<Activities />} />
                 <Route path="/connect" element={<ConnectGarmin />} />

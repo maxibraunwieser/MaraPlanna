@@ -1,9 +1,15 @@
-// Adding food in a few taps: search (own foods first, typos forgiven), recent and frequent foods, favourites, own recipes
-// and quick add (only kcal and macros). Picking a food asks for the amount in grams or in one of its portions.
+// Adding food on its own page: search (own foods first, typos forgiven), recent and frequent foods, favourites, own
+// recipes, quick add (only kcal and macros), photo, text and barcode. Picking a food asks for the amount in the unit people
+// think in: ml for drinks, pieces for what you count (an egg, a banana), grams for the rest.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, ChefHat, Clock, Pencil, Plus, ScanLine, Search, Sparkles, Star, Trash2, Zap } from 'lucide-react';
-import { Button, Field, Input, Modal, Notice, Select, Spinner, cx, useToast } from '../../components/ui';
+import { Camera, ChefHat, ChevronLeft, Clock, Minus, Pencil, Plus, ScanLine, Search, Sparkles, Star, Trash2, Zap } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Button, Field, Input, Notice, Select, Spinner, cx, useToast } from '../../components/ui';
+import { useAuth } from '../../lib/auth';
+import { useData } from '../../lib/data';
+import { fmtDay } from '../../lib/format';
+import { defaultAmount, unitOptions } from '../../../supabase/functions/_shared/nutrition/units';
 import { currentLang, useI18n } from '../../lib/i18n';
 import { addDays } from '../../lib/planner/dates';
 import * as napi from '../../lib/nutrition/api';
@@ -107,61 +113,76 @@ export function FoodList({ foods, onPick }: { foods: Food[]; onPick: (f: Food) =
   );
 }
 
-/** Amount of one food: grams or a portion, with the nutrients it gives. */
-function AmountStep({ food, grams0, onCancel, onAdd, favorite, onFavorite, slot, onSlot, busy }: {
-  food: napi.FoodDetail; grams0: number; onCancel: () => void; onAdd: (grams: number, amount: number, unit: string) => void;
-  favorite: boolean; onFavorite: () => void; slot: Slot; onSlot: (s: Slot) => void; busy: boolean;
+/** Amount of one food in the unit people think in (ml for drinks, pieces for what you count, else grams). */
+function AmountStep({ food, lastGrams, onAdd, favorite, onFavorite, slot, busy }: {
+  food: napi.FoodDetail; lastGrams: number | null; onAdd: (grams: number, amount: number, unit: string) => void;
+  favorite: boolean; onFavorite: () => void; slot: Slot; busy: boolean;
 }) {
   const { t } = useI18n();
   const lang = currentLang();
-  const units = useMemo(() => [{ key: 'g', label: 'g', grams: 1 }, ...food.portions.map((p) => ({ key: p.id, label: (lang === 'de' ? p.label_de : null) ?? p.label_en, grams: p.grams }))], [food, lang]);
-  const [unit, setUnit] = useState('g');
-  const [amount, setAmount] = useState(String(Math.round(grams0)));
-  const u = units.find((x) => x.key === unit) ?? units[0];
+  const units = useMemo(() => unitOptions(food, food.portions, lang), [food, lang]);
+  const [unitKey, setUnitKey] = useState(units[0].key);
+  const u = units.find((x) => x.key === unitKey) ?? units[0];
+  const [amount, setAmount] = useState(() => String(defaultAmount(units[0], lastGrams)).replace('.', lang === 'de' ? ',' : '.'));
   const value = Number(amount.replace(',', '.'));
   const grams = Number.isFinite(value) && value > 0 ? value * u.grams : 0;
   const n = napi.foodNutrients(food, grams);
-  const presets = unit === 'g' ? [50, 100, 150, 200, 250] : [0.5, 1, 2, 3];
+  const show = (v: number) => String(Math.round(v * 100) / 100).replace('.', lang === 'de' ? ',' : '.');
+  const change = (key: string) => {
+    const next = units.find((x) => x.key === key)!;
+    setUnitKey(key);
+    setAmount(show(grams > 0 ? defaultAmount(next, grams) : defaultAmount(next, null)));
+  };
+  const stepBy = (dir: 1 | -1) => setAmount(show(Math.max(0, Math.round(((Number.isFinite(value) ? value : 0) + dir * u.step) / u.step) * u.step)));
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-base font-semibold text-slate-900">{foodName(food, lang)}</div>
-          <div className="text-xs text-slate-500">{t('food.per100', { kcal: fmt(Number(food.kcal)), p: fmt(Number(food.protein_g)), c: fmt(Number(food.carbs_g)), f: fmt(Number(food.fat_g)) })}</div>
+          <h2 className="text-xl font-semibold tracking-tight text-slate-900">{foodName(food, lang)}</h2>
+          <p className="mt-0.5 text-xs text-slate-500">{t('food.per100', { kcal: fmt(Number(food.kcal)), p: fmt(Number(food.protein_g)), c: fmt(Number(food.carbs_g)), f: fmt(Number(food.fat_g)) })}</p>
         </div>
-        <button type="button" onClick={onFavorite} aria-pressed={favorite} aria-label={t('food.favorite')} className="rounded-full p-2 text-slate-400 hover:bg-slate-100">
-          <Star className={cx('h-5 w-5', favorite && 'fill-amber-400 text-amber-500')} />
+        <button type="button" onClick={onFavorite} aria-pressed={favorite} aria-label={t('food.favorite')} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 transition active:scale-90 hover:bg-slate-100">
+          <Star className={cx('h-6 w-6', favorite && 'fill-amber-400 text-amber-500')} />
         </button>
       </div>
-      <div className="grid grid-cols-[1fr_1.4fr] gap-2">
-        <Field label={t('food.amount')}>
-          <Input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus aria-label={t('food.amount')} />
-        </Field>
-        <Field label={t('food.unit')}>
-          <Select value={unit} onChange={(e) => { const next = units.find((x) => x.key === e.target.value)!; setUnit(next.key); setAmount(next.key === 'g' ? String(Math.round(grams || 100)) : '1'); }}>
-            {units.map((x) => <option key={x.key} value={x.key}>{x.key === 'g' ? 'g' : `${x.label} (${fmt(x.grams)} g)`}</option>)}
-          </Select>
-        </Field>
+
+      {units.length > 1 && (
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1" role="radiogroup" aria-label={t('food.unit')}>
+          {units.map((x) => (
+            <button key={x.key} type="button" role="radio" aria-checked={x.key === u.key} onClick={() => change(x.key)}
+              className={cx('min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold transition active:scale-95', x.key === u.key ? 'bg-brand text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200')}>
+              {x.kind === 'piece' || x.kind === 'measure' ? `${x.label} · ${fmt(x.grams)} g` : x.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center justify-center gap-4">
+        <button type="button" onClick={() => stepBy(-1)} aria-label={t('food.less')} className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-800 transition active:scale-90"><Minus className="h-6 w-6" /></button>
+        <label className="flex items-baseline gap-2">
+          <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label={`${t('food.amount')} (${u.label})`}
+            className="w-32 bg-transparent text-center font-display text-5xl font-bold tabular-nums text-slate-900 outline-none" />
+          <span className="text-lg font-semibold text-slate-500">{u.kind === 'piece' || u.kind === 'measure' ? '×' : u.label}</span>
+        </label>
+        <button type="button" onClick={() => stepBy(1)} aria-label={t('food.more')} className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-800 transition active:scale-90"><Plus className="h-6 w-6" /></button>
       </div>
-      <div className="flex flex-wrap gap-1.5">
-        {presets.map((p) => (
-          <button key={p} type="button" onClick={() => setAmount(String(p).replace('.', lang === 'de' ? ',' : '.'))} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200">
-            {fmt(p, 1)}{unit === 'g' ? ' g' : ` × ${u.label}`}
+      <p className="-mt-3 text-center text-sm text-slate-500">
+        {u.kind !== 'g' && t('food.equals', { g: fmt(grams) })}
+      </p>
+
+      <div className="flex flex-wrap justify-center gap-2">
+        {u.presets.map((p) => (
+          <button key={p} type="button" onClick={() => setAmount(show(p))} className="min-h-11 rounded-full bg-slate-100 px-4 text-sm font-medium text-slate-700 transition active:scale-95 hover:bg-slate-200">
+            {fmt(p, 2)}{u.kind === 'piece' || u.kind === 'measure' ? '×' : ` ${u.label}`}
           </button>
         ))}
       </div>
-      <NutrientLine n={n} grams={grams} />
-      <Field label={t('food.slot')}>
-        <Select value={slot} onChange={(e) => onSlot(e.target.value as Slot)}>
-          {SLOTS.map((s) => <option key={s} value={s}>{slotLabel(s)}</option>)}
-        </Select>
-      </Field>
-      <div className="flex justify-between gap-2">
-        <Button variant="ghost" onClick={onCancel}>{t('food.back')}</Button>
-        <Button onClick={() => onAdd(grams, unit === 'g' ? grams : value, unit === 'g' ? 'g' : u.label)} disabled={!(grams > 0)} loading={busy} icon={<Plus className="h-4 w-4" />}>
-          {t('food.add')}
-        </Button>
-      </div>
+
+      <NutrientLine n={n} />
+
+      <Button size="lg" className="w-full" onClick={() => onAdd(grams, value, u.kind === 'g' || u.kind === 'ml' || u.kind === 'l' ? u.label : u.label)} disabled={!(grams > 0)} loading={busy} icon={<Plus className="h-5 w-5" />}>
+        {t('food.addTo', { slot: slotLabel(slot) })}
+      </Button>
     </div>
   );
 }
@@ -267,14 +288,21 @@ function RecipeAmount({ recipe, onBack, onAdd, slot, onSlot, busy }: { recipe: n
   );
 }
 
-/** The add dialog. */
-export function AddFood({ open, onClose, userId, date, slot0, onAdded }: { open: boolean; onClose: () => void; userId: string; date: string; slot0: Slot; onAdded: () => void }) {
+/** Adding food is its own page (not a popup): a header with the way back, the meal as chips, then search or photo / text / barcode. */
+export function AddFoodPage() {
   const { t } = useI18n();
   const toast = useToast();
   const lang = currentLang();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { today } = useData();
+  const userId = user!.id;
+  const [params] = useSearchParams();
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(params.get('date') ?? '') ? params.get('date')! : today;
+  const slot0 = (SLOTS as readonly string[]).includes(params.get('slot') ?? '') ? (params.get('slot') as Slot) : 'snack';
   const [tab, setTab] = useState<Tab>('search');
   const [slot, setSlot] = useState<Slot>(slot0);
-  const [picked, setPicked] = useState<{ food: napi.FoodDetail; grams: number } | null>(null);
+  const [picked, setPicked] = useState<{ food: napi.FoodDetail; lastGrams: number | null } | null>(null);
   const [recipe, setRecipe] = useState<napi.Recipe | null>(null);
   const [favorites, setFavorites] = useState<Food[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -284,33 +312,31 @@ export function AddFood({ open, onClose, userId, date, slot0, onAdded }: { open:
   const [via, setVia] = useState<'search' | 'barcode'>('search');
 
   useEffect(() => {
-    if (!open) return;
-    setSlot(slot0);
-    setPicked(null);
-    setRecipe(null);
-    setTab('search');
-    setSmart(null);
-    setAnalysis(null);
-    setVia('search');
-  }, [open, slot0]);
-  useEffect(() => {
-    if (open) napi.fetchFavorites(userId).then(setFavorites).catch(() => setFavorites([]));
-  }, [open, userId]);
+    napi.fetchFavorites(userId).then(setFavorites).catch(() => setFavorites([]));
+  }, [userId]);
+  useEffect(() => { window.scrollTo(0, 0); }, [picked, recipe, smart, analysis]);
 
+  const leave = () => navigate(`/food?date=${date}`);
+  /** One step back: from a sub-step to the list, from the list out of the page. */
+  const back = () => {
+    if (analysis) setAnalysis(null);
+    else if (picked) setPicked(null);
+    else if (recipe) setRecipe(null);
+    else if (smart) setSmart(null);
+    else leave();
+  };
   const pick = async (f: Food) => {
     try {
       const details = await napi.fetchFoodDetails([f]);
-      const d = details.get(f.id)!;
       const recent = await napi.recentFoods(userId, addDays(date, -60)).catch(() => null);
-      setPicked({ food: d, grams: recent?.lastGrams.get(f.id) ?? d.portions[0]?.grams ?? 100 });
+      setPicked({ food: details.get(f.id)!, lastGrams: recent?.lastGrams.get(f.id) ?? null });
     } catch (e) {
       toast((e as Error).message, 'error');
     }
   };
-  const done = (name: string) => {
-    toast(t('food.added', { name, slot: slotLabel(slot) }), 'success');
-    onAdded();
-    onClose();
+  const done = (name: string, s: Slot = slot) => {
+    toast(t('food.added', { name, slot: slotLabel(s) }), 'success');
+    leave();
   };
   const run = async (f: () => Promise<void>) => {
     setBusy(true);
@@ -330,33 +356,38 @@ export function AddFood({ open, onClose, userId, date, slot0, onAdded }: { open:
     { key: 'recipes', label: t('food.tab.recipes'), icon: <ChefHat className="h-4 w-4" /> },
     { key: 'quick', label: t('food.tab.quick'), icon: <Zap className="h-4 w-4" /> },
   ];
-
   const manual = () => { setSmart(null); setAnalysis(null); setTab('search'); };
-  const smartTitle = analysis ? t('food.confirm.title') : smart === 'photo' ? t('food.photo.title') : smart === 'text' ? t('food.text.title') : smart === 'barcode' ? t('food.barcode.title') : t('food.addTitle', { slot: slotLabel(slot) });
+  const title = analysis ? t('food.confirm.title') : picked ? t('food.amount') : recipe ? t('food.tab.recipes') : smart === 'photo' ? t('food.photo.title') : smart === 'text' ? t('food.text.title') : smart === 'barcode' ? t('food.barcode.title') : t('food.addPage');
 
   return (
-    <Modal open={open} onClose={onClose} title={smartTitle} wide>
+    <div className="space-y-5 pb-24">
+      <header className="flex items-center gap-2">
+        <button type="button" onClick={back} aria-label={t('food.back')} className="-ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-700 transition hover:bg-slate-100 active:scale-90">
+          <ChevronLeft className="h-7 w-7" />
+        </button>
+        <div className="min-w-0">
+          <h1 className="truncate font-display text-3xl font-bold tracking-tight text-slate-900">{title}</h1>
+          <p className="text-sm text-slate-500">{fmtDay(date, today, { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+        </div>
+      </header>
+
+      {!analysis && (
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1" role="radiogroup" aria-label={t('food.slot')}>
+          {SLOTS.map((x) => (
+            <button key={x} type="button" role="radio" aria-checked={x === slot} onClick={() => setSlot(x)}
+              className={cx('min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold transition active:scale-95', x === slot ? 'bg-brand text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200')}>
+              {slotLabel(x)}
+            </button>
+          ))}
+        </div>
+      )}
+
       {analysis ? (
         <ConfirmMeal userId={userId} date={date} slot0={slot} result={analysis.result} photo={analysis.photo} source={analysis.source}
-          onCancel={() => setAnalysis(null)} onSaved={(name, s) => { setSlot(s); toast(t('food.added', { name, slot: slotLabel(s) }), 'success'); onAdded(); onClose(); }} />
-      ) : smart === 'photo' && !picked ? (
-        <>
-          <PhotoStep userId={userId} date={date} onManual={manual} onResult={(result, photo) => setAnalysis({ result, photo, source: 'photo' })} />
-          <Button variant="ghost" className="mt-2" onClick={() => setSmart(null)}>{t('food.back')}</Button>
-        </>
-      ) : smart === 'text' && !picked ? (
-        <>
-          <TextStep onManual={manual} onResult={(result) => setAnalysis({ result, photo: null, source: 'text' })} />
-          <Button variant="ghost" className="mt-2" onClick={() => setSmart(null)}>{t('food.back')}</Button>
-        </>
-      ) : smart === 'barcode' && !picked ? (
-        <>
-          <BarcodeStep onManual={manual} onFood={(f) => { setVia('barcode'); void pick(f); }} />
-          <Button variant="ghost" className="mt-2" onClick={() => setSmart(null)}>{t('food.back')}</Button>
-        </>
+          onCancel={() => setAnalysis(null)} onSaved={(name, s) => done(name, s)} />
       ) : picked ? (
         <AmountStep
-          food={picked.food} grams0={picked.grams} onCancel={() => setPicked(null)} slot={slot} onSlot={setSlot} busy={busy} favorite={isFav}
+          food={picked.food} lastGrams={picked.lastGrams} slot={slot} busy={busy} favorite={isFav}
           onFavorite={() => run(async () => {
             await napi.setFavorite(userId, picked.food.id, !isFav);
             setFavorites(await napi.fetchFavorites(userId));
@@ -375,19 +406,25 @@ export function AddFood({ open, onClose, userId, date, slot0, onAdded }: { open:
             done(recipe.name);
           })}
         />
+      ) : smart === 'photo' ? (
+        <PhotoStep userId={userId} date={date} onManual={manual} onResult={(result, photo) => setAnalysis({ result, photo, source: 'photo' })} />
+      ) : smart === 'text' ? (
+        <TextStep onManual={manual} onResult={(result) => setAnalysis({ result, photo: null, source: 'text' })} />
+      ) : smart === 'barcode' ? (
+        <BarcodeStep onManual={manual} onFood={(f) => { setVia('barcode'); void pick(f); }} />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-5">
           <div className="grid grid-cols-3 gap-2">
             {([['photo', Camera, t('food.smart.photo')], ['text', Sparkles, t('food.smart.text')], ['barcode', ScanLine, t('food.smart.barcode')]] as const).map(([k, Icon, label]) => (
-              <button key={k} type="button" onClick={() => setSmart(k)} className="flex flex-col items-center gap-1.5 rounded-2xl bg-brand/10 px-2 py-3 text-sm font-semibold text-brand ring-1 ring-brand/20 transition hover:bg-brand/15 active:scale-[0.98]">
-                <Icon className="h-5 w-5" />{label}
+              <button key={k} type="button" onClick={() => setSmart(k)} className="flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-2xl bg-brand/10 px-2 py-3 text-sm font-semibold text-brand ring-1 ring-brand/20 transition hover:bg-brand/15 active:scale-[0.97]">
+                <Icon className="h-6 w-6" />{label}
               </button>
             ))}
           </div>
           <div className="grid grid-cols-4 gap-1 rounded-2xl bg-slate-100 p-1" role="tablist">
             {tabs.map((x) => (
               <button key={x.key} type="button" role="tab" aria-selected={tab === x.key} onClick={() => setTab(x.key)}
-                className={cx('flex flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[11px] font-medium transition sm:flex-row sm:justify-center sm:gap-1.5 sm:text-sm', tab === x.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800')}>
+                className={cx('flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[11px] font-medium transition sm:flex-row sm:gap-1.5 sm:text-sm', tab === x.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800')}>
                 {x.icon}{x.label}
               </button>
             ))}
@@ -396,18 +433,14 @@ export function AddFood({ open, onClose, userId, date, slot0, onAdded }: { open:
           {tab === 'favorites' && (favorites === null ? <Spinner /> : favorites.length ? <FoodList foods={favorites} onPick={pick} /> : <p className="py-6 text-center text-sm text-slate-500">{t('food.favorites.empty')}</p>)}
           {tab === 'recipes' && <RecipeList userId={userId} onPick={setRecipe} />}
           {tab === 'quick' && (
-            <>
-              <Field label={t('food.slot')}>
-                <Select value={slot} onChange={(e) => setSlot(e.target.value as Slot)}>{SLOTS.map((x) => <option key={x} value={x}>{slotLabel(x)}</option>)}</Select>
-              </Field>
-              <QuickAdd busy={busy} onAdd={(name, n) => run(async () => {
-                await napi.logMeal(userId, { date, slot, source: 'quick_add', name }, [{ name, grams: null, nutrients: n, source: 'quick_add' }]);
-                done(name);
-              })} />
-            </>
+            <QuickAdd busy={busy} onAdd={(name, n) => run(async () => {
+              await napi.logMeal(userId, { date, slot, source: 'quick_add', name }, [{ name, grams: null, nutrients: n, source: 'quick_add' }]);
+              done(name);
+            })} />
           )}
         </div>
       )}
-    </Modal>
+    </div>
   );
 }
+

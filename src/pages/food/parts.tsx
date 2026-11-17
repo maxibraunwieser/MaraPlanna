@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase';
 import * as napi from '../../lib/nutrition/api';
 import { sumNutrients, type MealEntry, type MealItem, type Nutrients, type Slot } from '../../../supabase/functions/_shared/nutrition/items';
 import { energyAvailability, type DayType, type Rules } from '../../../supabase/functions/_shared/nutrition/targets';
+import type { NutrientInfo, ReferenceRow } from '../../../supabase/functions/_shared/nutrition/micros';
 
 export const fmt = (v: number | null | undefined, digits = 0) =>
   v === null || v === undefined || !Number.isFinite(v) ? '–' : new Intl.NumberFormat(currentLang() === 'de' ? 'de-AT' : 'en-GB', { maximumFractionDigits: digits, minimumFractionDigits: 0 }).format(v);
@@ -73,20 +74,24 @@ export interface DayData {
   items: MealItem[];
   water: napi.WaterEntry[];
   rules: Rules;
+  nutrients: NutrientInfo[];
+  refs: ReferenceRow[];
   reload: () => Promise<void>;
 }
 
 /** Everything the diary of a day needs: profile, targets of the last 7 days (for the energy check), diary, water, rules. */
 export function useNutritionDay(userId: string, date: string, today: string): DayData {
-  const [state, setState] = useState<Omit<DayData, 'reload'>>({ loading: true, error: null, profile: null, targets: [], targetsError: null, entries: [], items: [], water: [], rules: {} });
+  const [state, setState] = useState<Omit<DayData, 'reload'>>({ loading: true, error: null, profile: null, targets: [], targetsError: null, entries: [], items: [], water: [], rules: {}, nutrients: [], refs: [] });
   const load = useCallback(async () => {
     try {
       const from = addDays(date, -6);
-      const [profile, diary, water, ruleRows] = await Promise.all([
+      const [profile, diary, water, ruleRows, nutrientRows, refRows] = await Promise.all([
         napi.fetchNutritionProfile(userId),
         napi.fetchDiary(userId, from, date),
         napi.fetchWater(userId, date, date),
         supabase.from('nutrition_rules').select('key, value'),
+        supabase.from('nutrients').select('*').order('sort', { ascending: true }),
+        supabase.from('nutrient_references').select('nutrient_code, sex, age_min, age_max, target, upper_limit, athlete_extra_pct'),
       ]);
       const rules: Rules = Object.fromEntries(((ruleRows.data ?? []) as { key: string; value: number }[]).map((r) => [r.key, Number(r.value)]));
       let targets: napi.TargetRow[] = [];
@@ -98,7 +103,9 @@ export function useNutritionDay(userId: string, date: string, today: string): Da
           targetsError = e instanceof napi.TargetsUnavailable ? e : new napi.TargetsUnavailable('other', (e as Error).message);
         }
       }
-      setState({ loading: false, error: null, profile, targets, targetsError, entries: diary.entries, items: diary.items, water, rules });
+      const nutrients = ((nutrientRows.data ?? []) as NutrientInfo[]).map((n) => ({ ...n, sort: Number(n.sort) }));
+      const refs = ((refRows.data ?? []) as ReferenceRow[]).map((r) => ({ ...r, age_min: Number(r.age_min), age_max: r.age_max === null ? null : Number(r.age_max), target: Number(r.target), upper_limit: r.upper_limit === null ? null : Number(r.upper_limit), athlete_extra_pct: Number(r.athlete_extra_pct ?? 0) }));
+      setState({ loading: false, error: null, profile, targets, targetsError, entries: diary.entries, items: diary.items, water, rules, nutrients, refs });
     } catch (e) {
       setState((s) => ({ ...s, loading: false, error: (e as Error).message }));
     }
