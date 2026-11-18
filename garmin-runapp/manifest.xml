@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <!-- Products are generated from the installed device files: node tools/products.cjs -->
 <iq:manifest version="3" xmlns:iq="http://www.garmin.com/xml/connectiq">
-    <iq:application id="7af28bace2e34bb5a68836c63dfcd537" type="watch-app" name="@Strings.AppName" entry="RunApp" launcherIcon="@Drawables.LauncherIcon" minApiLevel="3.2.0">
+    <iq:application id="7af28bace2e34bb5a68836c63dfcd537" type="watch-app" name="@Strings.AppName" entry="RunApp" version="1.0.0" launcherIcon="@Drawables.LauncherIcon" minApiLevel="3.2.0">
         <iq:products>
             <iq:product id="approachs50"/>
             <iq:product id="approachs7042mm"/>

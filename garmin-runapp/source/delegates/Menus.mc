@@ -263,6 +263,9 @@ class TrainMenuDelegate extends CardMenuListener {
 }
 
 module SettingsMenu {
+    // Die Version der App (dieselbe wie version in manifest.xml), steht ganz unten in den Einstellungen.
+    const VERSION = "1.0.0";
+
     function unitsText() as String {
         var u = Prefs.units();
         if (u == Prefs.UNITS_KM) {
@@ -321,7 +324,8 @@ module SettingsMenu {
             toggle(:countdown, MainMenu.text(Rez.Strings.SetCountdown), Prefs.countdown()),
             toggle(:weather, MainMenu.text(Rez.Strings.SetWeather), Prefs.weather()),
             autoItem(),
-            new CardItem(:unlink, MainMenu.text(Rez.Strings.SetUnlink), linkText(), Draw.RED)
+            new CardItem(:unlink, MainMenu.text(Rez.Strings.SetUnlink), linkText(), Draw.RED),
+            new CardItem(:version, "Version", VERSION, Draw.GRAY)
         ] as Array<CardItem>;
         Cards.show(MainMenu.text(Rez.Strings.MenuSettings), items, new SettingsMenuDelegate(), WatchUi.SLIDE_LEFT);
     }
@@ -354,6 +358,8 @@ class SettingsMenuDelegate extends CardMenuListener {
             if (Demo.active() || (sync != null && (sync as Sync).paired())) {
                 WatchUi.pushView(new WatchUi.Confirmation(MainMenu.text(Rez.Strings.UnlinkConfirm)), new UnlinkDelegate(item), WatchUi.SLIDE_IMMEDIATE);
             }
+        } else if (id == :version) {
+            // nur Anzeige
         } else if (id == :auto) {
             Prefs.set("auto", !Prefs.autoSync());
             AutoSync.schedule();
