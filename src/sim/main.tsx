@@ -1,5 +1,5 @@
 // Entry of the simulation: the real app on an in-memory database with a prepared situation (see scenarios.ts).
-// Open it with `npm run sim` and pick a situation at the bottom of the page.
+// Open it with `npm run sim`; pick a situation with ?scenario=… (or show the panel with ?bar=1).
 
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -10,9 +10,10 @@ import { SCENARIOS, buildScenario, scenarioById } from './scenarios';
 
 const params = new URLSearchParams(window.location.search);
 const scenario = scenarioById(params.get('scenario'));
-// ?bar=0 hides the situation panel (it covers the tab bar on a phone) and is remembered in this browser; ?bar=1 brings it back.
-if (params.has('bar')) window.localStorage.setItem('maraplanna.sim.bar', params.get('bar') === '0' ? '0' : '1');
-const showBar = window.localStorage.getItem('maraplanna.sim.bar') !== '0';
+// The situation panel is hidden by default (it covers the app). ?bar=1 shows it and is remembered in this browser; ?bar=0 hides
+// it again. Without it, the situation is picked with ?scenario=… in the address.
+if (params.has('bar')) window.localStorage.setItem('maraplanna.sim.bar', params.get('bar') === '1' ? '1' : '0');
+const showBar = window.localStorage.getItem('maraplanna.sim.bar') === '1';
 resetDb(buildScenario(scenario.id));
 setGarminMode(params.get('garmin'));
 if (params.get('signedout') === '1') startSignedOut();
