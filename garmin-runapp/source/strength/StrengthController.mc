@@ -130,6 +130,8 @@ class StrengthController {
     private var _lastCallMs as Number = 0;
     private var _restAlerted as Boolean = false;
     private var _beforePause as Number = Str.REST;
+    // Wann die Pause (das Pausenmenü) begann: Pausen- und Haltezähler laufen nach dem Fortsetzen von dort weiter
+    private var _pausedAt as Number = 0;
     private var _skipped as Array<Number> = [] as Array<Number>;
     private var _pendingDur as Number = 0;
     private var _pendingT as Number = 0;
@@ -201,7 +203,16 @@ class StrengthController {
             (_timer as Timer.Timer).stop();
             _timer = null;
         }
-        // Eine offene Bestätigungskarte zählt als bestätigt.
+        // Aus dem Pausenmenü: so speichern, als wäre man dort, wo man vorher war. Ein laufender Satz oder ein Halten endet jetzt,
+        // eine offene Bestätigungskarte zählt als bestätigt.
+        if (state == Str.PAUSED) {
+            state = _beforePause;
+        }
+        if (state == Str.SET) {
+            finishSet();
+        } else if (state == Str.HOLD) {
+            endHold();
+        }
         if (state == Str.CONFIRM) {
             commit();
         }
@@ -360,7 +371,9 @@ class StrengthController {
     // Die Übung, die als Nächstes erwartet wird (Index in plan.options): die von Hand gewählte, sonst die nächste des Plans,
     // ohne Plan die des letzten Satzes
     function expectedIdx() as Number {
-        if (chosen >= 0 && chosen < plan.options.size()) {
+        // eine von Hand gewählte Übung des Workouts, deren Sätze alle gemacht sind, gilt nicht mehr: dann die nächste offene
+        var doneChosen = chosen >= 0 && chosen < plan.items.size() && doneSets(chosen) >= plan.items[chosen].sets;
+        if (chosen >= 0 && chosen < plan.options.size() && !doneChosen) {
             return chosen;
         }
         var n = nextPlanned();
@@ -377,11 +390,17 @@ class StrengthController {
 
     // Die Übung des Satzes auf der Karte ändern (MENÜ auf der Karte, wenn vorher vergessen wurde, die Übung zu wählen)
     function setExercise(i as Number) as Void {
-        if (state == Str.CONFIRM && i >= 0 && i < plan.options.size()) {
+        if (i < 0 || i >= plan.options.size()) {
+            return;
+        }
+        if (state == Str.CONFIRM) {
             optIdx = i;
             cKg = defaultKg(plan.options[i]);
-            WatchUi.requestUpdate();
+        } else if (state == Str.SET) {
+            // im laufenden Satz: er gehört zu der gewählten Übung
+            _setIdx = i;
         }
+        WatchUi.requestUpdate();
     }
 
     private function guessLast() as Number {
@@ -654,7 +673,7 @@ class StrengthController {
 
     // Den laufenden Satz von Hand beenden (BACK), falls die Uhr das Ende noch nicht gemerkt hat.
     private function finishSet() as Void {
-        counter.lastReps = counter.reps();
+        counter.lastReps = counter.total();
         counter.lastSeconds = counter.activeSeconds().toNumber();
         counter.lastDiag = counter.diag();
         counter.lastFeat = counter.features();
@@ -697,17 +716,43 @@ class StrengthController {
         if (state == Str.PAUSED || !recording()) {
             return;
         }
-        // Ein Halten läuft nach der Pause neu an (die Zeit zählt nicht mit)
-        _beforePause = state == Str.HOLD ? Str.REST : state;
+        // Fortsetzen kehrt genau dorthin zurück (Satz, Halten, Karte, Pause mit derselben Datenseite)
+        _beforePause = state;
+        _pausedAt = System.getTimer();
         state = Str.PAUSED;
         if (_session != null) {
             (_session as ActivityRecording.Session).stop();
         }
     }
 
-    // Der Zustand vor der Pause (im Pausenmenü: auf der Karte die Übung des Satzes ändern, sonst die nächste wählen)
+    // Der Zustand vor der Pause (im Pausenmenü: auf der Karte bzw. im Satz die Übung dieses Satzes ändern, sonst die nächste wählen)
     function pausedFrom() as Number {
         return _beforePause;
+    }
+
+    // Die Übung, um die es gerade geht (Index in plan.options): im Satz und auf der Karte die dieses Satzes, beim Halten die
+    // gehaltene, sonst die nächste. Im Pausenmenü gilt der Zustand vor der Pause.
+    function currentIdx() as Number {
+        var s = state == Str.PAUSED ? _beforePause : state;
+        if (s == Str.CONFIRM) {
+            return optIdx;
+        }
+        if (s == Str.SET) {
+            return setIdx();
+        }
+        if (s == Str.HOLD) {
+            return _holdIdx;
+        }
+        return expectedIdx();
+    }
+
+    // Wählt man im Pausenmenü eine Übung, gilt sie für den Satz, der gerade läuft oder auf der Karte steht, sonst als nächste.
+    function pickFromMenu(i as Number) as Void {
+        if (state == Str.CONFIRM || state == Str.SET) {
+            setExercise(i);
+        } else {
+            chooseNext(i);
+        }
     }
 
     function resume() as Void {
@@ -717,9 +762,20 @@ class StrengthController {
         if (_session != null) {
             (_session as ActivityRecording.Session).start();
         }
-        counter.nextSet();
-        _manual = false;
-        state = _beforePause == Str.SET ? Str.REST : _beforePause;
+        // Die Zeit im Pausenmenü zählt weder für die Pause zwischen den Sätzen noch für ein Halten
+        var away = System.getTimer() - _pausedAt;
+        if (restUntil > 0 && _pausedAt < restUntil) {
+            restUntil += away;
+        }
+        if (_beforePause == Str.HOLD) {
+            _holdStartMs += away;
+        }
+        // Ein laufender Satz zählt weiter (der Zähler bekam im Menü keine Messwerte); sonst beginnt die Erkennung neu
+        if (_beforePause != Str.SET) {
+            counter.nextSet();
+            _manual = false;
+        }
+        state = _beforePause;
         WatchUi.requestUpdate();
     }
 

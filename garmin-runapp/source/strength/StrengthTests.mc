@@ -574,3 +574,76 @@ function testWorkoutsOfTheWebsite(logger as Logger) as Boolean {
     Test.assert(StrengthPlan.fromWorkout(feed, 1) == null);
     return true;
 }
+
+// Sind alle Sätze einer Übung gemacht (z. B. 3/3 Bankdrücken), ist ohne Zutun die nächste offene Übung dran; eine von Hand
+// gewählte gilt nur, bis ihre Sätze gemacht sind.
+(:test)
+function testNextExerciseAfterItsLastSet(logger as Logger) as Boolean {
+    var plan = StrengthPlan.fromFeed(seedStr(null), 0) as StrengthPlan;
+    var c = new StrengthController(plan);
+    c.state = Str.REST;
+    var none = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] as Array<Number>;
+    var f0 = [0, 0, 0, 100, 100, 100] as Array<Number>;
+    Test.assertEqual(c.expectedIdx(), 0);
+    c.sets.add(new LoggedSet("bench_press", "Bankdrücken", 8, 60.0, "plan", 0, 20, none, f0));
+    c.sets.add(new LoggedSet("bench_press", "Bankdrücken", 8, 60.0, "plan", 90, 20, none, f0));
+    Test.assertEqual(c.expectedIdx(), 0);
+    c.sets.add(new LoggedSet("bench_press", "Bankdrücken", 8, 60.0, "plan", 180, 20, none, f0));
+    Test.assertEqual(c.expectedIdx(), 1);
+    // die dritte Übung von Hand vorziehen: sie gilt, bis ihre Sätze gemacht sind, dann wieder die offene vorher
+    c.chooseNext(2);
+    Test.assertEqual(c.expectedIdx(), 2);
+    c.sets.add(new LoggedSet("plank", "Plank", 40, 0.0, "plan", 300, 40, none, f0));
+    c.sets.add(new LoggedSet("plank", "Plank", 40, 0.0, "plan", 400, 40, none, f0));
+    Test.assertEqual(c.expectedIdx(), 1);
+    return true;
+}
+
+// Fortsetzen aus dem Pausenmenü führt genau dorthin zurück: ein laufender Satz zählt weiter, die Pause zwischen den Sätzen behält
+// ihre Restzeit und die Datenseite, die Karte bleibt offen. Eine Übung im Menü gilt im Satz für diesen Satz.
+(:test)
+function testResumeReturnsToTheSameScreen(logger as Logger) as Boolean {
+    var plan = StrengthPlan.fromFeed(seedStr(null), 0) as StrengthPlan;
+    var c = new StrengthController(plan);
+    c.state = Str.REST;
+    var at = feedSet(c.counter, 3, 0, 0.5, 0.0, 0);
+    at = feedSet(c.counter, 8, 4, 0.5, 300.0, at);
+    c.tick();
+    Test.assertEqual(c.state, Str.SET);
+    var before = c.counter.reps();
+    Test.assert(before >= 2);
+    c.pause();
+    Test.assertEqual(c.state, Str.PAUSED);
+    Test.assertEqual(c.currentIdx(), 0);
+    c.resume();
+    Test.assertEqual(c.state, Str.SET);
+    Test.assertEqual(c.counter.reps(), before);
+    // im Satz eine andere Übung aus dem Menü: der Satz gehört zu ihr
+    c.pause();
+    c.resume();
+    c.pickFromMenu(1);
+    Test.assertEqual(c.setIdx(), 1);
+    c.onBack();
+    Test.assertEqual(c.state, Str.CONFIRM);
+    Test.assertEqual(c.optIdx, 1);
+    // die Karte bleibt nach dem Fortsetzen offen, mit dem Feld, das gerade dran war
+    c.onBack();
+    Test.assertEqual(c.field, 1);
+    c.pause();
+    c.resume();
+    Test.assertEqual(c.state, Str.CONFIRM);
+    Test.assertEqual(c.field, 1);
+    c.onBack();
+    Test.assertEqual(c.state, Str.REST);
+    // die Pause läuft weiter, auf derselben Datenseite
+    c.flip(1);
+    c.flip(1);
+    var left = c.restLeftS() as Number;
+    c.pause();
+    c.resume();
+    Test.assertEqual(c.state, Str.REST);
+    Test.assertEqual(c.page, 2);
+    Test.assert(c.resting());
+    Test.assert((c.restLeftS() as Number) >= left - 1);
+    return true;
+}

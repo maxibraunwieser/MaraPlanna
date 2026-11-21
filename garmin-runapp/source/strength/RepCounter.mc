@@ -5,8 +5,8 @@
 //   1. Ein Tiefpass (etwa 3 Hz) je Achse glättet Zittern.
 //   2. Ein langsamer Mittelwert (die Lage des Handgelenks) wird abgezogen; übrig bleibt die Bewegung d.
 //      In Ruhe folgt der Mittelwert schnell (1 s), im Satz langsam (4 s), damit er die Wiederholungen nicht mitmacht.
-//   3. Energie = Summe |d| der drei Achsen, geglättet (etwa 0,7 s). Über ON_MG beginnt ein Satz. Unter OFF_MG
-//      für QUIET_S Sekunden endet er.
+//   3. Energie = Summe |d| der drei Achsen, geglättet (etwa 0,7 s). Über ON_MG beginnt ein Satz. Unter OFF_MG (oder die Hand
+//      steht still) für QUIET_S Sekunden endet er.
 //   4. Wiederholungen: Je Achse wechselt d zwischen +thr und -thr. thr folgt der Amplitude (30 %), mindestens
 //      MIN_THR. Zwei Wechsel sind eine Wiederholung. Gezählt wird die Achse mit der meisten Bewegung.
 //      Gezählt wird auch kurz vor dem Satzbeginn mit, damit die erste Bewegung nicht fehlt; nach einer
@@ -34,6 +34,8 @@ class RepCounter {
     private const STEADY_RATIO = 1.4;
     private const MIN_REP_S = 1.2;
     private const MAX_REP_S = 8.0;
+    // So wenig (milli-g je Messpunkt, alle Achsen zusammen) ändert sich das geglättete Signal, wenn die Hand stillsteht
+    private const STILL_MG = 10.0;
 
     // Läuft gerade ein Satz?
     var active as Boolean = false;
@@ -56,6 +58,10 @@ class RepCounter {
     private var _minFlip as Number = 8;
     private var _quietMax as Number = 62;
     private var _idleMax as Number = 25;
+    // Steht die Hand still (das geglättete Signal ändert sich kaum)? Zählt für das Satzende wie wenig Energie: nach einem Satz mit
+    // gedrehtem Handgelenk (Curl) liegt der langsame Mittelwert sonst noch lange daneben und das Satzende käme viel zu spät.
+    private var _still as Boolean = false;
+    private var _jerk as Float = 0.0;
 
     private var _primed as Boolean = false;
     private var _s as Array<Float> = [0.0, 0.0, 0.0] as Array<Float>;
@@ -120,9 +126,11 @@ class RepCounter {
             _s = [fx, fy, fz] as Array<Float>;
             _m = [fx, fy, fz] as Array<Float>;
         }
+        _jerk = 0.0;
         var d0 = axis(0, fx);
         var d1 = axis(1, fy);
         var d2 = axis(2, fz);
+        _still = _jerk < STILL_MG;
         var e = d0.abs() + d1.abs() + d2.abs();
         _energy += _smoothE * (e - _energy);
         feature(d0, d1, d2);
@@ -135,12 +143,12 @@ class RepCounter {
             if (_energy > peak) {
                 peak = _energy;
             }
-            _quiet = _energy < OFF_MG ? _quiet + 1 : 0;
+            _quiet = _energy < OFF_MG || _still ? _quiet + 1 : 0;
             if (_quiet >= _quietMax) {
                 active = false;
                 _quiet = 0;
                 finished = true;
-                lastReps = reps();
+                lastReps = total();
                 lastSeconds = (activeSeconds() - QUIET_S).toNumber();
                 lastDiag = diag();
                 lastFeat = featuresAt(QUIET_S);
@@ -161,7 +169,9 @@ class RepCounter {
 
     // Tiefpass und Abzug des langsamen Mittelwerts; gibt die Bewegung d zurück.
     private function axis(k as Number, v as Float) as Float {
-        _s[k] += _lp * (v - _s[k]);
+        var step = _lp * (v - _s[k]);
+        _s[k] += step;
+        _jerk += step.abs();
         _m[k] += (active ? _slow : _idle) * (_s[k] - _m[k]);
         var d = _s[k] - _m[k];
         var a = d.abs();
@@ -250,8 +260,10 @@ class RepCounter {
         }
         var dv = (d0 * _m[0] + d1 * _m[1] + d2 * _m[2]) / gm;
         var rest = d0 * d0 + d1 * d1 + d2 * d2 - dv * dv;
+        var pv = rest > 0.0 ? Math.sqrt(rest).toFloat() : 0.0;
         _vSum += dv.abs();
-        _pSum += rest > 0.0 ? Math.sqrt(rest).toFloat() : 0.0;
+        _pSum += pv;
+
     }
 
     // Die Achse mit der meisten Bewegung
@@ -265,8 +277,18 @@ class RepCounter {
         return best;
     }
 
-    // Wiederholungen des laufenden (oder gerade beendeten) Satzes
+    // Wiederholungen des laufenden Satzes, wie die Anzeige sie zeigt. Eine Wiederholung ist der Weg Ausgangspunkt → Umkehrpunkt →
+    // Ausgangspunkt: zwei Wechsel des Signals. Der erste kommt auf dem Hinweg, der zweite auf dem Rückweg (bei langsamem Ablassen,
+    // wenn das Bremsen dort zu schwach ist, erst beim Anheben der nächsten); erst er macht die Wiederholung voll. Die Anzeige zählt
+    // deshalb nie vor dem Umkehrpunkt hoch. Getestet für jede Bewegungsfamilie mit fünf Tempos (RepProfileTests.mc).
     function reps() as Number {
+        var f = _flips[_setAxis >= 0 ? _setAxis : busiest()];
+        return f <= 0 ? 0 : f / 2;
+    }
+
+    // Wiederholungen eines beendeten Satzes: ist der Satz vorbei, ist auch die letzte Wiederholung zurück am Ausgangspunkt (ihr
+    // zweiter Wechsel kommt bei langsamem Ablassen nicht mehr), ein offener Hinweg zählt also mit.
+    function total() as Number {
         var f = _flips[_setAxis >= 0 ? _setAxis : busiest()];
         return f <= 0 ? 0 : (f + 1) / 2;
     }
@@ -366,7 +388,7 @@ class RepCounter {
 
     // Wie features(); quietS = die Sekunden Ruhe am Ende, die nicht zum Satz gehören
     private function featuresAt(quietS as Float) as Array<Number> {
-        var r = reps();
+        var r = total();
         if (r < 1 || _n < 1) {
             return [0, 0, 0, 100, 100, 100] as Array<Number>;
         }

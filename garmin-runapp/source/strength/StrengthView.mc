@@ -133,7 +133,9 @@ class StrengthView extends WatchUi.View {
         if (plan.planned() && _c.nextPlanned() < 0 && _c.chosen < 0) {
             Draw.line(dc, h * 0.785, Graphics.FONT_XTINY, Draw.GRAY, t(Rez.Strings.StrengthAllDone));
         } else if (next >= 0 && next < plan.options.size()) {
-            Draw.lineAlt(dc, h * 0.785, Graphics.FONT_XTINY, Draw.GRAY, ["Danach: " + plan.options[next].name, plan.options[next].name] as Array<String>);
+            // alle Sätze dieser Übung gemacht: die nächste Übung ist von selbst dran (hervorgehoben)
+            var switched = nums[1] > 0 && nums[0] >= nums[1];
+            Draw.lineAlt(dc, h * 0.785, Graphics.FONT_XTINY, switched ? Draw.LIME : Draw.GRAY, [(switched ? "Nächste Übung: " : "Danach: ") + plan.options[next].name, plan.options[next].name] as Array<String>);
         }
         hintKeys(dc);
     }
@@ -549,13 +551,27 @@ class StrengthPickDelegate extends CardMenuListener {
     }
 }
 
+// Das Pausenmenü (START): Weiter, darunter direkt alle Übungen des Workouts zum Wechseln (je Zeile die gemachten Sätze, fertige mit
+// Haken, die aktuelle mit "jetzt"), dann Speichern und Verwerfen. Eine Übung wählen setzt fort: im Satz und auf der Karte gilt
+// sie für diesen Satz, sonst als nächste.
 (:strength)
 module StrengthMenu {
     function show() as Void {
         var items = [new CardItem(:resume, WatchUi.loadResource(Rez.Strings.Resume) as String, null, Draw.GREEN)] as Array<CardItem>;
         var c = StrengthEntry.controller();
         if (c != null && (c as StrengthController).plan.options.size() > 1) {
-            items.add(new CardItem(:pick, (c as StrengthController).pausedFrom() == Str.CONFIRM ? "Übung dieses Satzes" : "Nächste Übung", null, Draw.VIOLET));
+            var ctl = c as StrengthController;
+            var plan = ctl.plan;
+            var now = ctl.currentIdx();
+            var setsWord = WatchUi.loadResource(Rez.Strings.StrengthSets) as String;
+            for (var i = 0; i < plan.options.size(); i++) {
+                var sub = i < plan.items.size() ? ctl.doneSets(i) + " / " + plan.items[i].sets + " " + setsWord : "nicht im Workout";
+                var card = new CardItem(i, plan.options[i].name, i == now ? "jetzt · " + sub : sub, i == now ? Draw.LIME : Draw.VIOLET);
+                if (i < plan.items.size() && ctl.doneSets(i) >= plan.items[i].sets) {
+                    card.mark = Mark.DONE;
+                }
+                items.add(card);
+            }
         }
         items.add(new CardItem(:save, WatchUi.loadResource(Rez.Strings.Save) as String, null, Draw.ORANGE));
         items.add(new CardItem(:discard, WatchUi.loadResource(Rez.Strings.Discard) as String, null, Draw.RED));
@@ -578,12 +594,11 @@ class StrengthMenuDelegate extends CardMenuListener {
         if (id == :resume) {
             WatchUi.popView(WatchUi.SLIDE_DOWN);
             c.resume();
-        } else if (id == :pick) {
-            // weiter, dann gleich die Liste der Übungen
-            var forSet = c.pausedFrom() == Str.CONFIRM;
+        } else if (id instanceof Number) {
+            // eine Übung: weiter, dort wo man war, mit dieser Übung
             WatchUi.popView(WatchUi.SLIDE_DOWN);
             c.resume();
-            StrengthPick.show(forSet);
+            c.pickFromMenu(id as Number);
         } else if (id == :save) {
             WatchUi.popView(WatchUi.SLIDE_DOWN);
             c.save();

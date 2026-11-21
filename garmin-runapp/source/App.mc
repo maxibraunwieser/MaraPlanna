@@ -115,10 +115,13 @@ class RunApp extends Application.AppBase {
             (zones as PaceZones).load();
         }
         // Das Menü Training ist offen: "Heute" gleich mit den neuen Daten zeigen
-        var top = WatchUi.getCurrentView()[0];
-        // Hauptmenü bzw. Training offen: gleich mit den neuen Daten zeigen (unter "Training" dieselbe Einheit wie in Heute)
-        if (top instanceof CardMenu && ((top as CardMenu).listener instanceof TrainMenuDelegate || (top as CardMenu).listener instanceof MainMenuDelegate)) {
-            ((top as CardMenu).listener as CardMenuListener).onShow(top as CardMenu);
+        // (ältere Uhren wie der Forerunner 245 kennen getCurrentView nicht: dort erst beim nächsten Öffnen)
+        if (WatchUi has :getCurrentView) {
+            var top = WatchUi.getCurrentView()[0];
+            // Hauptmenü bzw. Training offen: gleich mit den neuen Daten zeigen (unter "Training" dieselbe Einheit wie in Heute)
+            if (top instanceof CardMenu && ((top as CardMenu).listener instanceof TrainMenuDelegate || (top as CardMenu).listener instanceof MainMenuDelegate)) {
+                ((top as CardMenu).listener as CardMenuListener).onShow(top as CardMenu);
+            }
         }
         WatchUi.requestUpdate();
     }

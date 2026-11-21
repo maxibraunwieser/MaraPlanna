@@ -264,7 +264,7 @@ class TrainMenuDelegate extends CardMenuListener {
 
 module SettingsMenu {
     // Die Version der App (dieselbe wie version in manifest.xml), steht ganz unten in den Einstellungen.
-    const VERSION = "1.0.0";
+    const VERSION = "1.1.0";
 
     function unitsText() as String {
         var u = Prefs.units();
